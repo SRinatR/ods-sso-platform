@@ -1,0 +1,28 @@
+{
+	email {$ACME_EMAIL}
+}
+
+# Local dev: API on :8080 path, account on :3000
+:80 {
+	@api host {$API_DOMAIN} api.localhost localhost
+	handle @api {
+		reverse_proxy backend:8000
+	}
+
+	@account host {$ACCOUNT_DOMAIN} account.localhost
+	handle @account {
+		reverse_proxy frontend:3000
+	}
+
+	handle {
+		reverse_proxy backend:8000
+	}
+}
+
+# Staging/production — uncomment and set domains in .env
+# staging.api.ods.uz {
+# 	reverse_proxy backend:8000
+# }
+# staging.account.ods.uz {
+# 	reverse_proxy frontend:3000
+# }

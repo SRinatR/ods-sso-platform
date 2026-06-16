@@ -1,0 +1,70 @@
+name: Deploy Staging
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Backup server .env
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          script_stop: false
+          script: |
+            mkdir -p "${{ secrets.DEPLOY_PATH }}"
+            if [ -f "${{ secrets.DEPLOY_PATH }}/.env" ]; then
+              cp "${{ secrets.DEPLOY_PATH }}/.env" /tmp/ods-platform.env.bak
+              echo "Backed up .env"
+            fi
+
+      - name: Copy to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          source: "."
+          target: ${{ secrets.DEPLOY_PATH }}
+          rm: true
+          overwrite: true
+
+      - name: Deploy containers
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          script_stop: true
+          script: |
+            set -euo pipefail
+            cd "${{ secrets.DEPLOY_PATH }}"
+            if [ -f /tmp/ods-platform.env.bak ]; then
+              mv /tmp/ods-platform.env.bak .env
+              echo "Restored .env"
+            fi
+            if [ ! -f .env ]; then
+              echo "ERROR: .env missing. Copy .env.staging.example to .env on server first."
+              exit 1
+            fi
+            cp -f Caddyfile.staging Caddyfile
+            docker compose pull --ignore-pull-failures 2>/dev/null || true
+            docker compose up -d --build --remove-orphans
+            docker compose ps
+            sleep 20
+            curl -sf http://127.0.0.1/health && echo " OK" || echo "Health check: services still starting"

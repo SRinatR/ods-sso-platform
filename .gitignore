@@ -1,0 +1,10 @@
+.env
+.env.local
+*.pyc
+__pycache__/
+.venv/
+node_modules/
+.next/
+dist/
+*.pem
+postgres_data/

@@ -1,0 +1,13 @@
+# Staging production Caddyfile — rename to Caddyfile on VPS
+
+{
+	email {$ACME_EMAIL}
+}
+
+staging.api.ods.uz {
+	reverse_proxy backend:8000
+}
+
+staging.account.ods.uz {
+	reverse_proxy frontend:3000
+}
