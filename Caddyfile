@@ -2,27 +2,26 @@
 	email {$ACME_EMAIL}
 }
 
-# Local dev: API on :8080 path, account on :3000
-:80 {
-	@api host {$API_DOMAIN} api.localhost localhost
-	handle @api {
-		reverse_proxy backend:8000
+(security_headers) {
+	header {
+		Strict-Transport-Security "max-age=63072000; includeSubDomains"
+		Content-Security-Policy "default-src 'self'; frame-ancestors 'none'; object-src 'none'"
+		X-Frame-Options "DENY"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		-Server
 	}
+}
 
+:80 {
+	import security_headers
 	@account host {$ACCOUNT_DOMAIN} account.localhost
 	handle @account {
 		reverse_proxy frontend:3000
 	}
-
 	handle {
 		reverse_proxy backend:8000
 	}
 }
 
-# Staging/production — uncomment and set domains in .env
-# staging.api.ods.uz {
-# 	reverse_proxy backend:8000
-# }
-# staging.account.ods.uz {
-# 	reverse_proxy frontend:3000
-# }

@@ -1,14 +1,20 @@
-# ADR-001: Identity Independence
+# ADR-001: First-party Identity Core
 
 ## Status
-Accepted
 
-## Context
-Keycloak is a temporary Identity Core. Application code must not depend on Keycloak APIs or schemas directly.
+Accepted on 2026-06-19.
 
 ## Decision
-All identity operations go through the `IdentityProvider` interface. Only `keycloak_provider.py` may import or call Keycloak.
+
+ODS owns the Identity Core directly. PostgreSQL is the durable source of truth for users, verification/reset tokens, sessions, MFA methods, backup codes, OAuth clients, tokens, consents and audit events.
+
+Redis is limited to TTL data, rate limiting and caches. It is never the only copy of durable consent, refresh token or audit state.
 
 ## Consequences
-- Migration off Keycloak requires swapping the provider implementation
-- Partners never integrate with Keycloak directly
+
+- Passwords use Argon2id.
+- TOTP secrets use AES-256-GCM.
+- User-facing opaque tokens store only HMAC-SHA256 secret hashes.
+- External applications integrate only through ODS OAuth/OIDC endpoints.
+- No runtime dependency on Keycloak or another identity product remains.
+

@@ -1,112 +1,40 @@
-# Tatarlar Platform — SSO Integration (Staging)
+# Tatarlar OIDC integration
 
-## Endpoints
+## Metadata
 
-```
-Discovery:  https://staging.api.ods.uz/.well-known/openid-configuration
-Issuer:     https://staging.api.ods.uz
-Authorize:  https://staging.api.ods.uz/api/v1/auth/oauth/authorize
-Token:      https://staging.api.ods.uz/api/v1/auth/oauth/token
-JWKS:       https://staging.api.ods.uz/.well-known/jwks.json
-UserInfo:   https://staging.api.ods.uz/api/v1/auth/oauth/userinfo
+Use the environment Discovery URL:
+
+```text
+https://staging.api.ods.uz/.well-known/openid-configuration
 ```
 
-## Client credentials
+Canonical endpoints are discovered dynamically. Do not hard-code signing keys; cache and refresh JWKS by `kid`.
 
-| Parameter | Value |
-|-----------|-------|
-| client_id | `ods_tatarlar_staging` |
-| client_type | Confidential |
-| token_endpoint_auth | `client_secret_post` |
-| PKCE | Required, S256 |
+## Client contract
 
-**client_secret** — передаётся через защищённый канал (Telegram / 1Password).
+- Authorization Code Flow
+- PKCE S256 is mandatory
+- `state` and `nonce` are mandatory
+- scopes: `openid profile email offline_access`
+- client authentication is configured by the administrator
+- redirect URI must exactly match a registered URI
 
-## Redirect URIs (whitelist)
+The client secret is shown only once when created or rotated and must be transferred through an approved secret manager.
 
-```
-https://api-staging.tatarlar.uz/api/v1/auth/sso/callback
-http://localhost:3002/api/v1/auth/sso/callback
-https://api.tatarlar.uz/api/v1/auth/sso/callback
-```
+## ID Token validation
 
-## Authorization request
+Validate:
 
-```
-GET https://staging.api.ods.uz/api/v1/auth/oauth/authorize
-  ?client_id=ods_tatarlar_staging
-  &redirect_uri=https://api-staging.tatarlar.uz/api/v1/auth/sso/callback
-  &response_type=code
-  &scope=openid+email+profile
-  &state={your_state}
-  &code_challenge={S256_challenge}
-  &code_challenge_method=S256
-  &kc_idp_hint=google|yandex|telegram   # optional
-```
+- RS256 signature and `kid`
+- exact issuer
+- audience equals the assigned client ID
+- expiry and issued-at
+- nonce equals the authorization request
+- stable `sub`
 
-## Token exchange
+Email is returned only when the `email` scope is approved. It must not be used as the durable identity key.
 
-```
-POST https://staging.api.ods.uz/api/v1/auth/oauth/token
-Content-Type: application/x-www-form-urlencoded
+## Revocation
 
-grant_type=authorization_code
-&code={code}
-&redirect_uri=https://api-staging.tatarlar.uz/api/v1/auth/sso/callback
-&client_id=ods_tatarlar_staging
-&client_secret={secret}
-&code_verifier={verifier}
-```
+Users can revoke Tatarlar from Connected Applications. Revocation invalidates active access and refresh tokens for that user/client pair. The client must handle an inactive introspection response by ending its local session.
 
-Response:
-
-```json
-{
-  "access_token": "...",
-  "id_token": "...",
-  "token_type": "Bearer",
-  "expires_in": 900,
-  "refresh_token": "...",
-  "scope": "openid email profile"
-}
-```
-
-## id_token claims (MUST validate)
-
-| Claim | Required | Notes |
-|-------|----------|-------|
-| iss | yes | `https://staging.api.ods.uz` |
-| aud | yes | `ods_tatarlar_staging` |
-| sub | yes | `usr_xxx` — stable user ID |
-| email | yes | always present |
-| email_verified | recommended | boolean |
-| name | optional | display name |
-| exp, iat | yes | standard JWT |
-
-Validate signature via JWKS (`RS256`).
-
-## Test accounts
-
-| Email | Password |
-|-------|----------|
-| pilot-admin@ods.uz | PilotAdmin2026! |
-| pilot-member@ods.uz | PilotMember2026! |
-
-## IdP hints
-
-Optional query param `kc_idp_hint=google|yandex|telegram` on authorize — forwarded to identity provider (Keycloak).
-
-## Logout
-
-Federated logout (`end_session_endpoint`) — **v0.2**. On pilot, use local logout on Tatarlar side.
-
-## Flow diagram
-
-```
-User → Tatarlar /auth/sso/start
-     → ODS /oauth/authorize
-     → ODS account login (if needed)
-     → callback to Tatarlar API with code
-     → Tatarlar POST /oauth/token
-     → validate id_token → session
-```

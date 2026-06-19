@@ -1,103 +1,118 @@
-import logging
-
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.db.database import AsyncSessionLocal
-from app.db.models import OAuthClient, User
-from app.identity.provider import generate_client_secret, hash_client_secret
+from app.db.models import ConsentVersion, OAuthClient, SecurityPolicy, User
+from app.security import hash_password
 
-logger = logging.getLogger(__name__)
-
-TATARLAR_CLIENT_ID = "ods_tatarlar_staging"
-TATARLAR_REDIRECT_URIS = "\n".join(
-    [
-        "https://api-staging.tatarlar.uz/api/v1/auth/sso/callback",
-        "http://localhost:3002/api/v1/auth/sso/callback",
-        "https://api.tatarlar.uz/api/v1/auth/sso/callback",
-    ]
-)
-
-PILOT_USERS = [
-    ("pilot-admin@ods.uz", "Pilot Admin"),
-    ("pilot-member@ods.uz", "Pilot Member"),
-]
+DEFAULT_POLICIES = {
+    "password": {
+        "minimum_length": 12,
+        "maximum_length": 128,
+        "argon2id": True,
+    },
+    "login_protection": {
+        "maximum_failed_attempts": 5,
+        "lock_seconds": 900,
+    },
+    "admin": {
+        "mfa_required": True,
+        "step_up_seconds": 600,
+    },
+    "oauth": {
+        "pkce_method": "S256",
+        "access_token_seconds": 900,
+        "refresh_rotation": True,
+        "reuse_detection": True,
+    },
+}
 
 
 async def run_seed() -> None:
     async with AsyncSessionLocal() as db:
-        await _seed_tatarlar_client(db)
-        await _sync_pilot_users(db)
+        await seed_consent_version(db)
+        await seed_policies(db)
+        await seed_bootstrap_admin(db)
+        await seed_tatarlar_client(db)
         await db.commit()
 
 
-async def _seed_tatarlar_client(db) -> None:
-    result = await db.execute(select(OAuthClient).where(OAuthClient.client_id == TATARLAR_CLIENT_ID))
-    existing = result.scalar_one_or_none()
+async def seed_consent_version(db: AsyncSession) -> None:
+    existing = (
+        await db.execute(
+            select(ConsentVersion).where(
+                ConsentVersion.version == "1.0", ConsentVersion.locale == "ru"
+            )
+        )
+    ).scalar_one_or_none()
+    if not existing:
+        db.add(
+            ConsentVersion(
+                version="1.0",
+                locale="ru",
+                title="Доступ приложения",
+                body=(
+                    "Приложение получает только перечисленные разрешения. "
+                    "Доступ можно полностью отозвать в разделе подключенных приложений."
+                ),
+                active=True,
+            )
+        )
+
+
+async def seed_policies(db: AsyncSession) -> None:
+    for key, value in DEFAULT_POLICIES.items():
+        if not await db.get(SecurityPolicy, key):
+            db.add(SecurityPolicy(key=key, value=value))
+
+
+async def seed_bootstrap_admin(db: AsyncSession) -> None:
+    if not settings.bootstrap_admin_email or not settings.bootstrap_admin_password:
+        return
+    email = settings.bootstrap_admin_email.lower()
+    existing = (await db.execute(select(User).where(User.email == email))).scalar_one_or_none()
     if existing:
         return
+    from app.security import utcnow
 
-    secret = settings.tatarlar_client_secret or generate_client_secret()
-    client = OAuthClient(
-        client_id=TATARLAR_CLIENT_ID,
-        client_secret_hash=hash_client_secret(secret),
-        name="Tatarlar Platform (staging)",
-        redirect_uris=TATARLAR_REDIRECT_URIS,
-        grant_types="authorization_code,refresh_token",
-        scopes="openid email profile",
-        require_pkce=True,
-        token_endpoint_auth="client_secret_post",
-        enabled=True,
-    )
-    db.add(client)
-    logger.info("Seeded OAuth client %s", TATARLAR_CLIENT_ID)
-    if not settings.tatarlar_client_secret:
-        logger.warning(
-            "TATARLAR_CLIENT_SECRET not set — generated secret (check logs on first boot): %s",
-            secret,
+    db.add(
+        User(
+            email=email,
+            password_hash=hash_password(settings.bootstrap_admin_password),
+            name="Platform Administrator",
+            role="admin",
+            status="active",
+            email_verified_at=utcnow(),
         )
-        print(f"\n=== TATARLAR STAGING CREDENTIALS ===\nclient_id: {TATARLAR_CLIENT_ID}\nclient_secret: {secret}\n=====================================\n")
+    )
 
 
-async def _sync_pilot_users(db) -> None:
-    import os
-
-    import httpx
-
-    from app.config import settings as s
-
-    for email, name in PILOT_USERS:
-        result = await db.execute(select(User).where(User.email == email))
-        if result.scalar_one_or_none():
-            continue
-        async with httpx.AsyncClient(timeout=15) as client:
-            token_resp = await client.post(
-                f"{s.keycloak_url}/realms/master/protocol/openid-connect/token",
-                data={
-                    "grant_type": "password",
-                    "client_id": "admin-cli",
-                    "username": os.environ.get("KEYCLOAK_ADMIN", "admin"),
-                    "password": os.environ.get("KEYCLOAK_ADMIN_PASSWORD", "admin"),
-                },
-            )
-            if token_resp.status_code != 200:
-                logger.warning("Could not sync pilot users — Keycloak admin unavailable")
-                return
-            token = token_resp.json()["access_token"]
-            search = await client.get(
-                f"{s.keycloak_url}/admin/realms/{s.keycloak_realm}/users",
-                params={"email": email, "exact": "true"},
-                headers={"Authorization": f"Bearer {token}"},
-            )
-            if search.status_code != 200 or not search.json():
-                logger.warning("Pilot user %s not found in Keycloak", email)
-                continue
-            kc_user = search.json()[0]
-            user = User(
-                email=email,
-                email_verified=kc_user.get("emailVerified", True),
-                name=name,
-                identity_provider_id=kc_user["id"],
-            )
-            db.add(user)
-            logger.info("Synced pilot user %s -> %s", email, user.id)
+async def seed_tatarlar_client(db: AsyncSession) -> None:
+    if not settings.tatarlar_client_secret:
+        return
+    client_id = "ods_tatarlar_staging"
+    existing = (
+        await db.execute(select(OAuthClient).where(OAuthClient.client_id == client_id))
+    ).scalar_one_or_none()
+    if existing:
+        return
+    db.add(
+        OAuthClient(
+            client_id=client_id,
+            client_secret_hash=hash_password(settings.tatarlar_client_secret),
+            name="Tatarlar Platform",
+            description="Staging and production OIDC integration",
+            redirect_uris=[
+                "https://api-staging.tatarlar.uz/api/v1/auth/sso/callback",
+                "http://localhost:3002/api/v1/auth/sso/callback",
+                "https://api.tatarlar.uz/api/v1/auth/sso/callback",
+            ],
+            allowed_scopes=["openid", "profile", "email", "offline_access"],
+            grant_types=["authorization_code", "refresh_token"],
+            token_endpoint_auth_method="client_secret_post",
+            is_public=False,
+            require_pkce=True,
+            enabled=True,
+        )
+    )

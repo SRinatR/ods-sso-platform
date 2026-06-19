@@ -1,43 +1,30 @@
-# GitHub Actions — secrets для deploy staging
+# GitHub CI/CD
 
-Добавьте в **Settings → Secrets and variables → Actions**:
+## CI gates
 
-| Secret | Пример | Описание |
-|--------|--------|----------|
-| `SSH_HOST` | `203.0.113.10` | IP или hostname VPS |
-| `SSH_USER` | `root` | SSH пользователь |
-| `SSH_PRIVATE_KEY` | `-----BEGIN OPENSSH...` | Приватный ключ (полностью) |
-| `DEPLOY_PATH` | `/opt/ods-platform` | Путь на сервере |
-| `SSH_PORT` | `22` | Опционально |
+`.github/workflows/ci.yml` runs:
 
-## Первый раз на сервере
+1. Ruff lint and formatting
+2. Mypy typecheck
+3. Backend tests with PostgreSQL and Redis
+4. Overall and auth/OAuth coverage thresholds
+5. Dedicated OAuth flow tests
+6. Dedicated security tests
+7. Alembic upgrade/downgrade validation
+8. OpenAPI drift check
+9. Frontend ESLint, TypeScript and production build
+10. Current-tree secret scan
+11. Backend and frontend Docker builds
 
-```bash
-# С вашего ПК — скопировать bootstrap + example env
-scp -r ods-platform root@YOUR_VPS:/opt/ods-platform
-ssh root@YOUR_VPS 'bash /opt/ods-platform/scripts/server-bootstrap.sh'
+## Deploy secrets
 
-# Отредактировать секреты на сервере
-ssh root@YOUR_VPS 'nano /opt/ods-platform/.env'
-```
+Configure repository Actions secrets:
 
-Обязательно в `.env` на сервере:
-- `POSTGRES_PASSWORD`
-- `KEYCLOAK_ADMIN_PASSWORD`
-- `KEYCLOAK_CLIENT_SECRET` (совпадает с `keycloak/realm-ods.json` или обновите realm)
-- `SESSION_SECRET` (мин. 32 символа)
-- `TATARLAR_CLIENT_SECRET`
-- `JWT_PRIVATE_KEY` / `JWT_PUBLIC_KEY` (openssl genrsa 2048)
+- `SSH_HOST`
+- `SSH_USER`
+- `SSH_PRIVATE_KEY`
+- `SSH_PORT`
+- `DEPLOY_PATH`
 
-## Deploy
+The server `.env` remains on the server and is backed up before transfer. Deployment runs only after a successful `CI` workflow on `main`, restores `.env`, builds containers, confirms the migration revision and polls `/ready`.
 
-Каждый push в `main` → GitHub Actions копирует код на VPS и запускает `docker compose up -d --build`.
-
-Ручной deploy: **Actions → Deploy Staging → Run workflow**
-
-## DNS
-
-```
-staging.api.ods.uz     → A → VPS IP
-staging.account.ods.uz → A → VPS IP
-```

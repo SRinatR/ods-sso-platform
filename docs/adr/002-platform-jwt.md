@@ -1,17 +1,16 @@
-# ADR-002: Platform JWT
+# ADR-002: Platform tokens
 
 ## Status
-Accepted
 
-## Context
-Partners must not receive raw Keycloak tokens. ODS issues its own JWTs signed with platform keys.
+Accepted.
 
 ## Decision
-- Issuer: `https://staging.api.ods.uz` (staging) / `https://api.ods.uz` (prod)
-- Algorithm: RS256
-- `sub` = canonical PostgreSQL user ID (`usr_xxx`)
-- `id_token` always includes `email`, `aud` (= client_id), `iss`
 
-## Consequences
-- Partners validate tokens against ODS JWKS, not Keycloak
-- Token revocation and session management owned by ODS API
+- Access and ID tokens are JWTs signed with RS256 and a `kid`.
+- Public verification keys are exposed through JWKS.
+- `sub` is the stable ODS user identifier; email is not an identity key.
+- Access tokens live for 15 minutes by default.
+- Refresh tokens are opaque `id.secret` values. Only the secret hash is stored.
+- Every refresh rotates. Reuse revokes the token family, the client's access tokens and user sessions.
+- ID Token and UserInfo claims are limited by scopes and active consent.
+

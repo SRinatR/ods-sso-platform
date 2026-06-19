@@ -1,49 +1,30 @@
-import json
-from typing import Optional
+from typing import Any
 
-from sqlalchemy import select
+from fastapi import Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import AuditLog
+from app.middleware import client_ip
+from app.repositories.audit import AuditRepository
+from app.security import sanitize_for_log
 
 
-async def log_audit(
+async def write_audit_log(
     db: AsyncSession,
+    request: Request,
     event_type: str,
-    actor_id: Optional[str] = None,
-    ip: Optional[str] = None,
-    user_agent: Optional[str] = None,
-    metadata: Optional[dict] = None,
-    trace_id: Optional[str] = None,
+    *,
+    actor_id: str | None = None,
+    subject_id: str | None = None,
+    client_id: str | None = None,
+    details: dict[str, Any] | None = None,
 ) -> None:
-    entry = AuditLog(
+    await AuditRepository(db).write(
         event_type=event_type,
+        request_id=request.state.request_id,
         actor_id=actor_id,
-        ip=ip,
-        user_agent=user_agent,
-        metadata_json=json.dumps(metadata) if metadata else None,
-        trace_id=trace_id,
+        subject_id=subject_id,
+        client_id=client_id,
+        ip_address=client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+        details=sanitize_for_log(details or {}),
     )
-    db.add(entry)
-    await db.commit()
-
-
-async def get_user_by_email(db: AsyncSession, email: str):
-    from app.db.models import User
-
-    result = await db.execute(select(User).where(User.email == email))
-    return result.scalar_one_or_none()
-
-
-async def get_user_by_id(db: AsyncSession, user_id: str):
-    from app.db.models import User
-
-    result = await db.execute(select(User).where(User.id == user_id))
-    return result.scalar_one_or_none()
-
-
-async def get_oauth_client(db: AsyncSession, client_id: str):
-    from app.db.models import OAuthClient
-
-    result = await db.execute(select(OAuthClient).where(OAuthClient.client_id == client_id))
-    return result.scalar_one_or_none()
