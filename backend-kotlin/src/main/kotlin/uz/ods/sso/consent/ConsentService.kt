@@ -117,14 +117,14 @@ class ConsentService(
     }
 }
 
-class MirroringAuthorizationConsentService(
+open class MirroringAuthorizationConsentService(
     private val delegate: OAuth2AuthorizationConsentService,
     private val consents: UserConsentRepository,
     private val users: uz.ods.sso.persistence.UserRepository,
     private val clients: RegisteredClientRepository,
 ) : OAuth2AuthorizationConsentService {
     @Transactional
-    override fun save(authorizationConsent: OAuth2AuthorizationConsent) {
+    open override fun save(authorizationConsent: OAuth2AuthorizationConsent) {
         delegate.save(authorizationConsent)
         val user = users.findById(authorizationConsent.principalName).orElse(null) ?: return
         val client = clients.findById(authorizationConsent.registeredClientId) ?: return
@@ -138,7 +138,7 @@ class MirroringAuthorizationConsentService(
     }
 
     @Transactional
-    override fun remove(authorizationConsent: OAuth2AuthorizationConsent) {
+    open override fun remove(authorizationConsent: OAuth2AuthorizationConsent) {
         delegate.remove(authorizationConsent)
         val client = clients.findById(authorizationConsent.registeredClientId) ?: return
         consents.findByUserIdAndClientId(authorizationConsent.principalName, client.clientId)?.let {

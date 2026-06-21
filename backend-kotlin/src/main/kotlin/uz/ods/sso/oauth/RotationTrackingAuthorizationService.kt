@@ -14,7 +14,7 @@ import uz.ods.sso.persistence.UserSessionRepository
 import uz.ods.sso.security.CryptoService
 import java.time.Instant
 
-class RotationTrackingAuthorizationService(
+open class RotationTrackingAuthorizationService(
     private val delegate: OAuth2AuthorizationService,
     private val usedTokens: UsedRefreshTokenRepository,
     private val users: UserRepository,
@@ -23,7 +23,7 @@ class RotationTrackingAuthorizationService(
     private val audit: AuditService,
 ) : OAuth2AuthorizationService {
     @Transactional
-    override fun save(authorization: OAuth2Authorization) {
+    open override fun save(authorization: OAuth2Authorization) {
         val previous = delegate.findById(authorization.id)
         val oldRefresh = previous?.refreshToken?.token?.tokenValue
         val newRefresh = authorization.refreshToken?.token?.tokenValue
@@ -50,7 +50,7 @@ class RotationTrackingAuthorizationService(
     override fun findById(id: String): OAuth2Authorization? = delegate.findById(id)
 
     @Transactional
-    override fun findByToken(token: String, tokenType: OAuth2TokenType?): OAuth2Authorization? {
+    open override fun findByToken(token: String, tokenType: OAuth2TokenType?): OAuth2Authorization? {
         val active = delegate.findByToken(token, tokenType)
         if (active != null) return active
         if (tokenType != null && tokenType != OAuth2TokenType.REFRESH_TOKEN) return null
