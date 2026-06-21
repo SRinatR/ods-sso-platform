@@ -11,7 +11,7 @@ import org.springframework.stereotype.Component
 import org.springframework.web.filter.OncePerRequestFilter
 import java.util.UUID
 
-@Component
+@Component("odsRequestContextFilter")
 @Order(Ordered.HIGHEST_PRECEDENCE)
 class RequestContextFilter : OncePerRequestFilter() {
     private val log = LoggerFactory.getLogger(javaClass)
