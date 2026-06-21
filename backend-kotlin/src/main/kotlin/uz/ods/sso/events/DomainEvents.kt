@@ -1,6 +1,7 @@
 package uz.ods.sso.events
 
 import org.slf4j.LoggerFactory
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.data.domain.PageRequest
 import org.springframework.kafka.core.KafkaTemplate
 import org.springframework.scheduling.annotation.Scheduled
@@ -30,6 +31,7 @@ class DomainEventService(
 }
 
 @Service
+@ConditionalOnProperty(prefix = "ods", name = ["kafka-events-enabled"], havingValue = "true")
 class OutboxPublisher(
     private val repository: DomainOutboxRepository,
     private val kafka: KafkaTemplate<String, String>,
