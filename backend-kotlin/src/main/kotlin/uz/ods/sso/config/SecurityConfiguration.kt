@@ -35,6 +35,7 @@ import org.springframework.security.oauth2.server.authorization.authentication.O
 import org.springframework.security.oauth2.server.authorization.authentication.OAuth2AuthorizationCodeRequestAuthenticationValidator
 import org.springframework.security.oauth2.server.authorization.authentication.OAuth2AuthorizationCodeRequestAuthenticationContext
 import org.springframework.security.oauth2.server.authorization.authentication.OAuth2AuthorizationCodeRequestAuthenticationToken
+import org.springframework.security.oauth2.server.authorization.web.OAuth2AuthorizationEndpointFilter
 import org.springframework.security.web.AuthenticationEntryPoint
 import org.springframework.security.web.SecurityFilterChain
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter
@@ -115,7 +116,7 @@ class SecurityConfiguration(
             .exceptionHandling { exceptions ->
                 exceptions.authenticationEntryPoint(accountLoginEntryPoint())
             }
-            .addFilterBefore(sessionFilter, UsernamePasswordAuthenticationFilter::class.java)
+            .addFilterBefore(sessionFilter, OAuth2AuthorizationEndpointFilter::class.java)
             .cors(withDefaults())
             .csrf { csrf -> csrf.ignoringRequestMatchers(endpointsMatcher) }
 

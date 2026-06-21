@@ -16,6 +16,7 @@ import uz.ods.sso.persistence.UserSessionRepository
 import uz.ods.sso.security.CryptoService
 import uz.ods.sso.shared.AppException
 import uz.ods.sso.shared.clientIp
+import java.security.Principal
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 
@@ -26,7 +27,9 @@ data class OdsPrincipal(
     val email: String,
     val role: String,
     val mfaCompleted: Boolean,
-)
+) : Principal {
+    override fun getName(): String = userId
+}
 
 data class CurrentPrincipal(
     val user: UserEntity,
