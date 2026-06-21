@@ -5,6 +5,7 @@ import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken
 import org.springframework.security.core.context.SecurityContextHolder
+import org.springframework.security.core.userdetails.User
 import org.springframework.stereotype.Component
 import org.springframework.web.filter.OncePerRequestFilter
 
@@ -21,11 +22,14 @@ class SessionCookieAuthenticationFilter(
             val raw = request.cookies?.firstOrNull { it.name == SessionService.COOKIE_NAME }?.value
             val principal = raw?.let(sessionService::authenticate)
             if (principal != null) {
-                SecurityContextHolder.getContext().authentication = UsernamePasswordAuthenticationToken.authenticated(
-                    principal,
+                val authorities = sessionService.authorities(principal)
+                val authentication = UsernamePasswordAuthenticationToken.authenticated(
+                    User(principal.userId, "", authorities),
                     null,
-                    sessionService.authorities(principal),
+                    authorities,
                 )
+                authentication.details = mapOf("session_id" to principal.sessionId)
+                SecurityContextHolder.getContext().authentication = authentication
             }
         }
         filterChain.doFilter(request, response)

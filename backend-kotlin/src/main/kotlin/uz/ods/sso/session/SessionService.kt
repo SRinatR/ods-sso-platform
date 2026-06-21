@@ -106,12 +106,17 @@ class SessionService(
     }
 
     fun current(): CurrentPrincipal {
-        val principal = SecurityContextHolder.getContext().authentication?.principal as? OdsPrincipal
+        val authentication = SecurityContextHolder.getContext().authentication
             ?: throw AppException(HttpStatus.UNAUTHORIZED, "not_authenticated", "Authentication is required")
-        val user = users.findById(principal.userId).orElseThrow {
+        val legacyPrincipal = authentication.principal as? OdsPrincipal
+        val userId = legacyPrincipal?.userId ?: authentication.name
+        val sessionId = legacyPrincipal?.sessionId
+            ?: (authentication.details as? Map<*, *>)?.get("session_id") as? String
+            ?: throw AppException(HttpStatus.UNAUTHORIZED, "not_authenticated", "Authentication is required")
+        val user = users.findById(userId).orElseThrow {
             AppException(HttpStatus.UNAUTHORIZED, "not_authenticated", "Authentication is required")
         }
-        val session = sessions.findById(principal.sessionId).orElseThrow {
+        val session = sessions.findById(sessionId).orElseThrow {
             AppException(HttpStatus.UNAUTHORIZED, "not_authenticated", "Authentication is required")
         }
         return CurrentPrincipal(user, session)
