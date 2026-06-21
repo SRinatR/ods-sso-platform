@@ -4,6 +4,7 @@ import jakarta.servlet.http.Cookie
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
 import org.springframework.http.HttpStatus
+import org.springframework.security.core.authority.FactorGrantedAuthority
 import org.springframework.security.core.authority.SimpleGrantedAuthority
 import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.stereotype.Service
@@ -27,6 +28,7 @@ data class OdsPrincipal(
     val email: String,
     val role: String,
     val mfaCompleted: Boolean,
+    val authenticatedAt: Instant,
 ) : Principal {
     override fun getName(): String = userId
 }
@@ -102,6 +104,7 @@ class SessionService(
             user.email,
             user.role,
             session.mfaCompletedAt != null,
+            session.createdAt,
         )
     }
 
@@ -125,6 +128,9 @@ class SessionService(
     fun authorities(principal: OdsPrincipal) = listOf(
         SimpleGrantedAuthority("ROLE_${principal.role.uppercase()}"),
         SimpleGrantedAuthority("TENANT_${principal.tenantId}"),
+        FactorGrantedAuthority.withAuthority(FactorGrantedAuthority.PASSWORD_AUTHORITY)
+            .issuedAt(principal.authenticatedAt)
+            .build(),
     ) + if (principal.mfaCompleted) listOf(SimpleGrantedAuthority("AMR_OTP")) else emptyList()
 
     @Transactional
