@@ -1,4 +1,5 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import java.math.BigDecimal
 
 plugins {
     id("org.springframework.boot") version "4.1.0"
@@ -11,6 +12,10 @@ plugins {
 
 group = "uz.ods"
 version = "2.0.0"
+
+jacoco {
+    toolVersion = "0.8.14"
+}
 
 java {
     toolchain {
@@ -72,4 +77,21 @@ tasks.jacocoTestReport {
         xml.required = true
         html.required = true
     }
+}
+
+tasks.jacocoTestCoverageVerification {
+    dependsOn(tasks.jacocoTestReport)
+    violationRules {
+        rule {
+            limit {
+                counter = "LINE"
+                value = "COVEREDRATIO"
+                minimum = BigDecimal("0.80")
+            }
+        }
+    }
+}
+
+tasks.check {
+    dependsOn(tasks.jacocoTestCoverageVerification)
 }

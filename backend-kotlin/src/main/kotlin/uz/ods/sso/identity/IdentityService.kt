@@ -78,9 +78,8 @@ class IdentityService(
     @Transactional
     fun verifyEmail(rawToken: String, request: HttpServletRequest) {
         val token = validateAccountToken(rawToken, "evt", "email_verification")
-        val user = users.findById(token.userId).orElseThrow {
+        val user = users.findByPublicId(token.userId) ?: throw
             AppException(HttpStatus.BAD_REQUEST, "invalid_verification_token", "Verification token is invalid")
-        }
         val now = Instant.now()
         token.usedAt = now
         user.emailVerifiedAt = now
@@ -115,9 +114,8 @@ class IdentityService(
     @Transactional
     fun resetPassword(body: ResetPasswordRequest, request: HttpServletRequest) {
         val token = validateAccountToken(body.token, "prt", "password_reset")
-        val user = users.findById(token.userId).orElseThrow {
+        val user = users.findByPublicId(token.userId) ?: throw
             AppException(HttpStatus.BAD_REQUEST, "invalid_reset_token", "Password reset token is invalid")
-        }
         val now = Instant.now()
         token.usedAt = now
         tokens.invalidate(user.id, "password_reset", now)
@@ -193,9 +191,8 @@ class IdentityService(
         val raw = ephemeral.get("mfa:challenge:$challengeToken")
             ?: throw AppException(HttpStatus.UNAUTHORIZED, "invalid_mfa_challenge", "MFA challenge is invalid")
         val parts = raw.split("|")
-        val user = users.findById(parts[0]).orElseThrow {
+        val user = users.findByPublicId(parts[0]) ?: throw
             AppException(HttpStatus.UNAUTHORIZED, "invalid_mfa_challenge", "MFA challenge is invalid")
-        }
         return Triple(user, parts.getOrNull(1)?.toIntOrNull() ?: 0, parts.getOrNull(2))
     }
 
@@ -205,19 +202,18 @@ class IdentityService(
         val (id, secret, raw) = crypto.opaqueToken(prefix)
         tokens.save(
             AccountTokenEntity(
-                id = id,
                 userId = userId,
                 type = type,
                 secretHash = crypto.hashSecret(secret),
                 expiresAt = Instant.now().plus(ttlSeconds, ChronoUnit.SECONDS),
-            ),
+            ).apply { publicId = id },
         )
         return raw
     }
 
     private fun validateAccountToken(raw: String, prefix: String, type: String): AccountTokenEntity {
         val (id, secret) = crypto.splitToken(raw, prefix)
-        val token = tokens.findByIdAndType(id, type)
+        val token = tokens.findByPublicIdAndType(id, type)
         if (
             token == null ||
             token.usedAt != null ||

@@ -246,7 +246,7 @@ class SecurityConfiguration(
             if (context.tokenType == OAuth2TokenType.ACCESS_TOKEN || context.tokenType.value == "id_token") {
                 val principal = context.getPrincipal<Authentication>()
                 val principalName = context.authorization?.principalName ?: principal?.name ?: return@OAuth2TokenCustomizer
-                val user = users.findById(principalName).orElse(null) ?: return@OAuth2TokenCustomizer
+                val user = users.findByPublicId(principalName) ?: return@OAuth2TokenCustomizer
                 val scopes = context.authorizedScopes
                 context.claims.claim("tenant_id", user.tenantId)
                 context.claims.claim("role", user.role)

@@ -83,7 +83,7 @@ class ConsentService(
     @Transactional
     fun revoke(consentId: String, request: HttpServletRequest): MessageResponse {
         val principal = sessions.current()
-        val consent = consents.findByIdAndUserId(consentId, principal.user.id)
+        val consent = consents.findByPublicIdAndUserId(consentId, principal.user.id)
             ?: throw AppException(HttpStatus.NOT_FOUND, "connected_application_not_found", "Application was not found")
         if (consent.status != "granted") {
             throw AppException(HttpStatus.NOT_FOUND, "connected_application_not_found", "Application was not found")
@@ -126,7 +126,7 @@ open class MirroringAuthorizationConsentService(
     @Transactional
     open override fun save(authorizationConsent: OAuth2AuthorizationConsent) {
         delegate.save(authorizationConsent)
-        val user = users.findById(authorizationConsent.principalName).orElse(null) ?: return
+        val user = users.findByPublicId(authorizationConsent.principalName) ?: return
         val client = clients.findById(authorizationConsent.registeredClientId) ?: return
         val entity = consents.findByUserIdAndClientId(user.id, client.clientId)
             ?: UserConsentEntity(tenantId = user.tenantId, userId = user.id, clientId = client.clientId)

@@ -33,7 +33,7 @@ class PartnerService(
     fun workspace(): PartnerWorkspaceResponse {
         val principal = sessions.current()
         val membership = activeMembership(principal)
-        val organization = membership?.let { organizations.findById(it.organizationId).orElse(null) }
+        val organization = membership?.let { organizations.findByPublicId(it.organizationId) }
         val appResponses = if (organization == null) {
             emptyList()
         } else {
@@ -134,7 +134,7 @@ class PartnerService(
         val principal = sessions.current()
         val (organization, membership) = requireOrganization(principal)
         requireManager(membership)
-        val metadata = applications.findByIdAndOrganizationId(applicationId, organization.id)
+        val metadata = applications.findByPublicIdAndOrganizationId(applicationId, organization.id)
             ?: throw AppException(HttpStatus.NOT_FOUND, "partner_application_not_found", "Application was not found")
         val existing = oauthClients.findIncludingDisabledById(metadata.registeredClientId)
             ?: throw AppException(HttpStatus.NOT_FOUND, "partner_application_not_found", "Application was not found")
@@ -156,7 +156,7 @@ class PartnerService(
         val principal = sessions.current()
         val (organization, membership) = requireOrganization(principal)
         requireManager(membership)
-        val metadata = applications.findByIdAndOrganizationId(applicationId, organization.id)
+        val metadata = applications.findByPublicIdAndOrganizationId(applicationId, organization.id)
             ?: throw AppException(HttpStatus.NOT_FOUND, "partner_application_not_found", "Application was not found")
         val existing = oauthClients.findIncludingDisabledById(metadata.registeredClientId)
             ?: throw AppException(HttpStatus.NOT_FOUND, "partner_application_not_found", "Application was not found")
@@ -185,9 +185,8 @@ class PartnerService(
                 "partner_organization_required",
                 "Create a partner organization first",
             )
-        val organization = organizations.findById(membership.organizationId).orElseThrow {
+        val organization = organizations.findByPublicId(membership.organizationId) ?: throw
             AppException(HttpStatus.NOT_FOUND, "partner_organization_not_found", "Partner organization was not found")
-        }
         if (organization.tenantId != principal.user.tenantId || organization.status != "active") {
             throw AppException(HttpStatus.NOT_FOUND, "partner_organization_not_found", "Partner organization was not found")
         }

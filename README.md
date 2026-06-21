@@ -6,11 +6,13 @@ The Python/FastAPI implementation has been removed. The only backend runtime is 
 
 ## Stack
 
-- Java 26.0.1 with virtual threads and scoped values
+- Java 26.0.1 with virtual threads, ScopedValue and native HTTP/3
 - Kotlin 2.4.0
 - Spring Boot 4.1.0 and Spring Security 7.1.0
 - Spring Authorization Server integrated into Spring Security
 - PostgreSQL 18.4 and Flyway 12.4
+- Gradle 9.5 with strict Configuration Cache
+- JaCoCo 0.8.14 with an enforced 80% line-coverage gate
 - Redis 8.6.3
 - Kafka 4.3 broker with Spring Boot-managed Kafka 4.2.1 client
 - OpenTelemetry Collector 0.154, Prometheus 3.12 and Grafana 13.0
@@ -32,6 +34,9 @@ The Python/FastAPI implementation has been removed. The only backend runtime is 
 - Transactional domain-event outbox and Kafka publisher
 - Admin APIs for users, clients, sessions, audit and policies
 - Partner self-service: organization registration and OIDC application provisioning
+- Native UUIDv7 internal primary keys with stable prefixed public IDs
+- Explicit HTTP/3 client configuration for latency-sensitive integrations
+- Multi-stage Java 26 container with ZGC-compatible CDS training
 - Flyway schema, OpenAPI UI, Actuator, Prometheus and OTLP tracing
 - Migration-before-readiness deployment checks
 
@@ -72,7 +77,7 @@ Backend:
 
 ```bash
 cd backend-kotlin
-./gradlew clean test bootJar
+./gradlew clean check bootJar
 ```
 
 Frontend:

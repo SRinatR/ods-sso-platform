@@ -58,7 +58,6 @@ class SessionService(
         val now = Instant.now()
         val session = sessions.save(
             UserSessionEntity(
-                id = id,
                 tenantId = user.tenantId,
                 userId = user.id,
                 secretHash = crypto.hashSecret(secret),
@@ -70,7 +69,7 @@ class SessionService(
                 expiresAt = now.plus(properties.sessionTtl, ChronoUnit.SECONDS),
                 mfaCompletedAt = now.takeIf { mfaCompleted },
                 riskScore = riskScore,
-            ),
+            ).apply { publicId = id },
         )
         response.addCookie(
             Cookie(COOKIE_NAME, raw).apply {
@@ -87,14 +86,14 @@ class SessionService(
     @Transactional
     fun authenticate(raw: String): OdsPrincipal? {
         val (id, secret) = runCatching { crypto.splitToken(raw, "ses") }.getOrNull() ?: return null
-        val session = sessions.findById(id).orElse(null) ?: return null
+        val session = sessions.findByPublicId(id) ?: return null
         val now = Instant.now()
         if (
             session.revokedAt != null ||
             !session.expiresAt.isAfter(now) ||
             !crypto.secretMatches(secret, session.secretHash)
         ) return null
-        val user = users.findById(session.userId).orElse(null) ?: return null
+        val user = users.findByPublicId(session.userId) ?: return null
         if (user.status != "active") return null
         session.lastSeenAt = now
         return OdsPrincipal(
@@ -116,12 +115,10 @@ class SessionService(
         val sessionId = legacyPrincipal?.sessionId
             ?: authentication.credentials as? String
             ?: throw AppException(HttpStatus.UNAUTHORIZED, "not_authenticated", "Authentication is required")
-        val user = users.findById(userId).orElseThrow {
+        val user = users.findByPublicId(userId) ?: throw
             AppException(HttpStatus.UNAUTHORIZED, "not_authenticated", "Authentication is required")
-        }
-        val session = sessions.findById(sessionId).orElseThrow {
+        val session = sessions.findByPublicId(sessionId) ?: throw
             AppException(HttpStatus.UNAUTHORIZED, "not_authenticated", "Authentication is required")
-        }
         return CurrentPrincipal(user, session)
     }
 
@@ -135,7 +132,7 @@ class SessionService(
 
     @Transactional
     fun revoke(userId: String, sessionId: String): Boolean {
-        val session = sessions.findByIdAndUserId(sessionId, userId) ?: return false
+        val session = sessions.findByPublicIdAndUserId(sessionId, userId) ?: return false
         if (session.revokedAt == null) session.revokedAt = Instant.now()
         return true
     }
@@ -146,17 +143,15 @@ class SessionService(
 
     @Transactional
     fun markStepUp(sessionId: String) {
-        val session = sessions.findById(sessionId).orElseThrow {
+        val session = sessions.findByPublicId(sessionId) ?: throw
             AppException(HttpStatus.UNAUTHORIZED, "not_authenticated", "Authentication is required")
-        }
         session.stepUpAt = Instant.now()
     }
 
     @Transactional
     fun markMfaCompleted(sessionId: String) {
-        val session = sessions.findById(sessionId).orElseThrow {
+        val session = sessions.findByPublicId(sessionId) ?: throw
             AppException(HttpStatus.UNAUTHORIZED, "not_authenticated", "Authentication is required")
-        }
         session.mfaCompletedAt = Instant.now()
     }
 

@@ -56,6 +56,8 @@ services:
     build: ./backend-kotlin
     restart: unless-stopped
     mem_limit: 768m
+    cpus: ${BACKEND_CPUS:-1.0}
+    cpuset: ${BACKEND_CPUSET:-0}
     env_file: .env
     environment:
       DATABASE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-ods_sso}
@@ -134,6 +136,7 @@ services:
     ports:
       - "80:80"
       - "443:443"
+      - "443:443/udp"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
@@ -143,6 +146,8 @@ services:
       ACCOUNT_DOMAIN: ${ACCOUNT_DOMAIN:-account.localhost}
       ACME_EMAIL: ${ACME_EMAIL:-admin@ods.uz}
       PUBLIC_DOMAIN: ${PUBLIC_DOMAIN:-localhost}
+      ROOT_DOMAIN: ${ROOT_DOMAIN:-localhost}
+      WWW_DOMAIN: ${WWW_DOMAIN:-www.localhost}
     depends_on:
       - backend
       - frontend

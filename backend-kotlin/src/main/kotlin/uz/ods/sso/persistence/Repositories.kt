@@ -5,25 +5,29 @@ import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query
 import java.time.Instant
+import java.util.UUID
 
-interface TenantRepository : JpaRepository<TenantEntity, String> {
+interface TenantRepository : JpaRepository<TenantEntity, UUID> {
     fun findBySlug(slug: String): TenantEntity?
+    fun findByPublicId(publicId: String): TenantEntity?
 }
 
-interface PartnerOrganizationRepository : JpaRepository<PartnerOrganizationEntity, String> {
+interface PartnerOrganizationRepository : JpaRepository<PartnerOrganizationEntity, UUID> {
+    fun findByPublicId(publicId: String): PartnerOrganizationEntity?
     fun findByTenantIdAndSlug(tenantId: String, slug: String): PartnerOrganizationEntity?
 }
 
-interface PartnerMembershipRepository : JpaRepository<PartnerMembershipEntity, String> {
+interface PartnerMembershipRepository : JpaRepository<PartnerMembershipEntity, UUID> {
     fun findFirstByUserIdAndStatusOrderByCreatedAtAsc(userId: String, status: String): PartnerMembershipEntity?
 }
 
-interface PartnerApplicationRepository : JpaRepository<PartnerApplicationEntity, String> {
+interface PartnerApplicationRepository : JpaRepository<PartnerApplicationEntity, UUID> {
     fun findByOrganizationIdOrderByCreatedAtDesc(organizationId: String): List<PartnerApplicationEntity>
-    fun findByIdAndOrganizationId(id: String, organizationId: String): PartnerApplicationEntity?
+    fun findByPublicIdAndOrganizationId(publicId: String, organizationId: String): PartnerApplicationEntity?
 }
 
-interface UserRepository : JpaRepository<UserEntity, String> {
+interface UserRepository : JpaRepository<UserEntity, UUID> {
+    fun findByPublicId(publicId: String): UserEntity?
     fun findByTenantIdAndEmailIgnoreCase(tenantId: String, email: String): UserEntity?
 
     @Query(
@@ -41,8 +45,9 @@ interface UserRepository : JpaRepository<UserEntity, String> {
     fun countByTenantIdAndStatus(tenantId: String, status: String): Long
 }
 
-interface UserSessionRepository : JpaRepository<UserSessionEntity, String> {
-    fun findByIdAndUserId(id: String, userId: String): UserSessionEntity?
+interface UserSessionRepository : JpaRepository<UserSessionEntity, UUID> {
+    fun findByPublicId(publicId: String): UserSessionEntity?
+    fun findByPublicIdAndUserId(publicId: String, userId: String): UserSessionEntity?
 
     @Query(
         "select s from UserSessionEntity s where s.userId = :userId and s.revokedAt is null and s.expiresAt > :now order by s.lastSeenAt desc",
@@ -57,35 +62,35 @@ interface UserSessionRepository : JpaRepository<UserSessionEntity, String> {
     fun countByTenantIdAndRevokedAtIsNullAndExpiresAtAfter(tenantId: String, now: Instant): Long
 
     @Modifying
-    @Query("update UserSessionEntity s set s.revokedAt = :now where s.userId = :userId and s.revokedAt is null and (:exceptId is null or s.id <> :exceptId)")
+    @Query("update UserSessionEntity s set s.revokedAt = :now where s.userId = :userId and s.revokedAt is null and (:exceptId is null or s.publicId <> :exceptId)")
     fun revokeAll(userId: String, now: Instant, exceptId: String? = null): Int
 }
 
-interface AccountTokenRepository : JpaRepository<AccountTokenEntity, String> {
-    fun findByIdAndType(id: String, type: String): AccountTokenEntity?
+interface AccountTokenRepository : JpaRepository<AccountTokenEntity, UUID> {
+    fun findByPublicIdAndType(publicId: String, type: String): AccountTokenEntity?
 
     @Modifying
     @Query("update AccountTokenEntity t set t.usedAt = :now where t.userId = :userId and t.type = :type and t.usedAt is null")
     fun invalidate(userId: String, type: String, now: Instant): Int
 }
 
-interface MfaMethodRepository : JpaRepository<MfaMethodEntity, String> {
+interface MfaMethodRepository : JpaRepository<MfaMethodEntity, UUID> {
     fun findByUserIdAndMethodTypeAndEnabledTrue(userId: String, methodType: String): MfaMethodEntity?
     fun findByUserIdAndMethodType(userId: String, methodType: String): MfaMethodEntity?
     fun deleteByUserId(userId: String)
 }
 
-interface BackupCodeRepository : JpaRepository<BackupCodeEntity, String> {
+interface BackupCodeRepository : JpaRepository<BackupCodeEntity, UUID> {
     fun findByUserId(userId: String): List<BackupCodeEntity>
     fun deleteByUserId(userId: String)
 }
 
-interface LoginHistoryRepository : JpaRepository<LoginHistoryEntity, String> {
+interface LoginHistoryRepository : JpaRepository<LoginHistoryEntity, UUID> {
     fun findByUserIdOrderByCreatedAtDesc(userId: String, pageable: Pageable): List<LoginHistoryEntity>
     fun countByTenantIdAndSuccessFalseAndCreatedAtAfter(tenantId: String, since: Instant): Long
 }
 
-interface AuditLogRepository : JpaRepository<AuditLogEntity, String> {
+interface AuditLogRepository : JpaRepository<AuditLogEntity, UUID> {
     fun findFirstByTenantIdOrderByCreatedAtDesc(tenantId: String): AuditLogEntity?
 
     @Query(
@@ -101,28 +106,28 @@ interface AuditLogRepository : JpaRepository<AuditLogEntity, String> {
     fun countByTenantIdAndCreatedAtAfter(tenantId: String, since: Instant): Long
 }
 
-interface UserConsentRepository : JpaRepository<UserConsentEntity, String> {
+interface UserConsentRepository : JpaRepository<UserConsentEntity, UUID> {
     fun findByUserIdAndStatus(userId: String, status: String): List<UserConsentEntity>
-    fun findByIdAndUserId(id: String, userId: String): UserConsentEntity?
+    fun findByPublicIdAndUserId(publicId: String, userId: String): UserConsentEntity?
     fun findByUserIdAndClientId(userId: String, clientId: String): UserConsentEntity?
 }
 
-interface SecurityPolicyRepository : JpaRepository<SecurityPolicyEntity, String> {
+interface SecurityPolicyRepository : JpaRepository<SecurityPolicyEntity, UUID> {
     fun findByTenantIdOrderByKey(tenantId: String): List<SecurityPolicyEntity>
     fun findByTenantIdAndKey(tenantId: String, key: String): SecurityPolicyEntity?
 }
 
-interface TrustedDeviceRepository : JpaRepository<TrustedDeviceEntity, String> {
+interface TrustedDeviceRepository : JpaRepository<TrustedDeviceEntity, UUID> {
     fun findByUserIdAndFingerprint(userId: String, fingerprint: String): TrustedDeviceEntity?
 }
 
-interface RiskAssessmentRepository : JpaRepository<RiskAssessmentEntity, String>
+interface RiskAssessmentRepository : JpaRepository<RiskAssessmentEntity, UUID>
 
-interface DomainOutboxRepository : JpaRepository<DomainOutboxEntity, String> {
+interface DomainOutboxRepository : JpaRepository<DomainOutboxEntity, UUID> {
     fun findByPublishedAtIsNullOrderByCreatedAt(pageable: Pageable): List<DomainOutboxEntity>
 }
 
-interface UsedRefreshTokenRepository : JpaRepository<UsedRefreshTokenEntity, String> {
+interface UsedRefreshTokenRepository : JpaRepository<UsedRefreshTokenEntity, UUID> {
     fun findByTokenHash(tokenHash: String): UsedRefreshTokenEntity?
 
     @Modifying
@@ -130,5 +135,5 @@ interface UsedRefreshTokenRepository : JpaRepository<UsedRefreshTokenEntity, Str
     fun deleteExpired(now: Instant): Int
 }
 
-interface FederationProviderRepository : JpaRepository<FederationProviderEntity, String>
-interface KeyMetadataRepository : JpaRepository<KeyMetadataEntity, String>
+interface FederationProviderRepository : JpaRepository<FederationProviderEntity, UUID>
+interface KeyMetadataRepository : JpaRepository<KeyMetadataEntity, UUID>

@@ -10,7 +10,8 @@ Last updated: 2026-06-21.
 | Kotlin 2.4 / Java 26 runtime | Implemented |
 | Spring Boot 4.1 / Security 7.1 | Implemented |
 | Spring Authorization Server | Implemented |
-| PostgreSQL 18 / Flyway schema | Implemented |
+| PostgreSQL 18.4 / Flyway schema | Implemented |
+| UUIDv7 internal PK / prefixed public ID model | Implemented |
 | Redis rate-limit and MFA state | Implemented |
 | Kafka transactional outbox | Implemented |
 | Identity, sessions and TOTP MFA | Implemented |
@@ -30,10 +31,13 @@ Last updated: 2026-06-21.
 ## Verified locally
 
 - JDK 26.0.1: verified
-- Gradle 9.6.0: verified
+- Gradle wrapper 9.5.0: configured
 - clean Kotlin compilation: passed
-- backend tests: 13 passed
+- backend tests: 48 passed locally; PostgreSQL 18.4 Testcontainers migration test is CI-gated
+- JaCoCo line coverage: 80.17% (80% gate passed)
+- Configuration Cache: stored and reused
 - executable Spring Boot JAR: built
+- ZGC-compatible CDS training archive: generated and loaded
 - frontend ESLint: passed
 - frontend TypeScript: passed
 - Next.js production build: passed
@@ -42,6 +46,6 @@ The pilot topology keeps PostgreSQL, Redis, Kotlin backend, Next.js and Caddy in
 profile. Kafka and the observability stack remain available as optional Compose profiles so the
 initial 2 GB VPS is not overloaded.
 
-GitHub Actions automation and the final security-flow coverage target are deferred until after the
-first partner pilot. Local release checks still require a clean backend and frontend production
-build before manual deployment.
+GitHub Actions enforces backend tests, the 80% coverage gate, frontend production checks, Docker
+26+ and a CDS-trained production image. Manual deployment remains available through
+`scripts/deploy.sh`.

@@ -181,9 +181,8 @@ class AdminService(
         request: HttpServletRequest,
     ): UserResponse {
         val principal = guard.require(request)
-        val user = users.findById(userId).orElseThrow {
+        val user = users.findByPublicId(userId) ?: throw
             AppException(HttpStatus.NOT_FOUND, "user_not_found", "User was not found")
-        }
         if (user.tenantId != principal.user.tenantId) {
             throw AppException(HttpStatus.NOT_FOUND, "user_not_found", "User was not found")
         }
@@ -216,9 +215,8 @@ class AdminService(
     @Transactional
     fun revokeUserSessions(userId: String, request: HttpServletRequest): MessageResponse {
         val principal = guard.require(request)
-        val user = users.findById(userId).orElseThrow {
+        val user = users.findByPublicId(userId) ?: throw
             AppException(HttpStatus.NOT_FOUND, "user_not_found", "User was not found")
-        }
         if (user.tenantId != principal.user.tenantId) {
             throw AppException(HttpStatus.NOT_FOUND, "user_not_found", "User was not found")
         }
@@ -231,9 +229,8 @@ class AdminService(
     @Transactional
     fun resetMfa(userId: String, request: HttpServletRequest): MessageResponse {
         val principal = guard.require(request)
-        val user = users.findById(userId).orElseThrow {
+        val user = users.findByPublicId(userId) ?: throw
             AppException(HttpStatus.NOT_FOUND, "user_not_found", "User was not found")
-        }
         if (user.tenantId != principal.user.tenantId) {
             throw AppException(HttpStatus.NOT_FOUND, "user_not_found", "User was not found")
         }

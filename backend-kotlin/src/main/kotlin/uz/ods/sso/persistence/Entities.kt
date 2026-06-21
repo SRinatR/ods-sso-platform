@@ -2,20 +2,15 @@ package uz.ods.sso.persistence
 
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
-import jakarta.persistence.Id
 import jakarta.persistence.Index
 import jakarta.persistence.Table
 import jakarta.persistence.UniqueConstraint
 import jakarta.persistence.Version
-import uz.ods.sso.shared.newId
 import java.time.Instant
 
 @Entity
 @Table(name = "tenants")
 class TenantEntity(
-    @Id
-    @Column(length = 40)
-    var id: String = newId("tnt"),
     @Column(unique = true, nullable = false, length = 96)
     var slug: String = "",
     @Column(nullable = false, length = 255)
@@ -28,7 +23,7 @@ class TenantEntity(
     var createdAt: Instant = Instant.now(),
     @Column(nullable = false)
     var updatedAt: Instant = Instant.now(),
-)
+) : IdentifiedEntity("tnt")
 
 @Entity
 @Table(
@@ -39,9 +34,6 @@ class TenantEntity(
     indexes = [Index(name = "ix_partner_organizations_tenant_status", columnList = "tenant_id,status")],
 )
 class PartnerOrganizationEntity(
-    @Id
-    @Column(length = 40)
-    var id: String = newId("org"),
     @Column(name = "tenant_id", nullable = false, length = 40)
     var tenantId: String = "",
     @Column(nullable = false, length = 96)
@@ -60,7 +52,7 @@ class PartnerOrganizationEntity(
     var createdAt: Instant = Instant.now(),
     @Column(nullable = false)
     var updatedAt: Instant = Instant.now(),
-)
+) : IdentifiedEntity("org")
 
 @Entity
 @Table(
@@ -74,9 +66,6 @@ class PartnerOrganizationEntity(
     indexes = [Index(name = "ix_partner_memberships_user_status", columnList = "user_id,status")],
 )
 class PartnerMembershipEntity(
-    @Id
-    @Column(length = 40)
-    var id: String = newId("mem"),
     @Column(name = "organization_id", nullable = false, length = 40)
     var organizationId: String = "",
     @Column(name = "user_id", nullable = false, length = 40)
@@ -87,7 +76,7 @@ class PartnerMembershipEntity(
     var status: String = "active",
     @Column(nullable = false)
     var createdAt: Instant = Instant.now(),
-)
+) : IdentifiedEntity("mem")
 
 @Entity
 @Table(
@@ -99,9 +88,6 @@ class PartnerMembershipEntity(
     indexes = [Index(name = "ix_partner_applications_organization_created", columnList = "organization_id,created_at")],
 )
 class PartnerApplicationEntity(
-    @Id
-    @Column(length = 40)
-    var id: String = newId("appmeta"),
     @Column(name = "organization_id", nullable = false, length = 40)
     var organizationId: String = "",
     @Column(name = "registered_client_id", nullable = false, length = 100)
@@ -114,7 +100,7 @@ class PartnerApplicationEntity(
     var createdAt: Instant = Instant.now(),
     @Column(nullable = false)
     var updatedAt: Instant = Instant.now(),
-)
+) : IdentifiedEntity("appmeta")
 
 @Entity
 @Table(
@@ -126,9 +112,6 @@ class PartnerApplicationEntity(
     ],
 )
 class UserEntity(
-    @Id
-    @Column(length = 40)
-    var id: String = newId("usr"),
     @Column(name = "tenant_id", nullable = false, length = 40)
     var tenantId: String = "",
     @Column(nullable = false, length = 320)
@@ -154,7 +137,7 @@ class UserEntity(
     var updatedAt: Instant = Instant.now(),
     @Version
     var version: Long = 0,
-) {
+) : IdentifiedEntity("usr") {
     val emailVerified: Boolean get() = emailVerifiedAt != null
 }
 
@@ -167,9 +150,6 @@ class UserEntity(
     ],
 )
 class UserSessionEntity(
-    @Id
-    @Column(length = 40)
-    var id: String = newId("ses"),
     @Column(name = "tenant_id", nullable = false, length = 40)
     var tenantId: String = "",
     @Column(name = "user_id", nullable = false, length = 40)
@@ -195,7 +175,7 @@ class UserSessionEntity(
     var riskScore: Int = 0,
     @Version
     var version: Long = 0,
-)
+) : IdentifiedEntity("ses")
 
 @Entity
 @Table(
@@ -203,9 +183,6 @@ class UserSessionEntity(
     indexes = [Index(name = "ix_account_tokens_user_type", columnList = "user_id,type,expires_at")],
 )
 class AccountTokenEntity(
-    @Id
-    @Column(length = 40)
-    var id: String = newId("tok"),
     @Column(name = "user_id", nullable = false, length = 40)
     var userId: String = "",
     @Column(nullable = false, length = 24)
@@ -217,7 +194,7 @@ class AccountTokenEntity(
     var usedAt: Instant? = null,
     @Column(nullable = false)
     var createdAt: Instant = Instant.now(),
-)
+) : IdentifiedEntity("tok")
 
 @Entity
 @Table(
@@ -225,9 +202,6 @@ class AccountTokenEntity(
     uniqueConstraints = [UniqueConstraint(name = "uq_mfa_user_type", columnNames = ["user_id", "method_type"])],
 )
 class MfaMethodEntity(
-    @Id
-    @Column(length = 40)
-    var id: String = newId("mfa"),
     @Column(name = "user_id", nullable = false, length = 40)
     var userId: String = "",
     @Column(name = "method_type", nullable = false, length = 24)
@@ -240,14 +214,11 @@ class MfaMethodEntity(
     var verifiedAt: Instant = Instant.now(),
     @Column(nullable = false)
     var createdAt: Instant = Instant.now(),
-)
+) : IdentifiedEntity("mfa")
 
 @Entity
 @Table(name = "backup_codes", indexes = [Index(name = "ix_backup_codes_user", columnList = "user_id")])
 class BackupCodeEntity(
-    @Id
-    @Column(length = 40)
-    var id: String = newId("bkc"),
     @Column(name = "user_id", nullable = false, length = 40)
     var userId: String = "",
     @Column(nullable = false, length = 64)
@@ -255,7 +226,7 @@ class BackupCodeEntity(
     var usedAt: Instant? = null,
     @Column(nullable = false)
     var createdAt: Instant = Instant.now(),
-)
+) : IdentifiedEntity("bkc")
 
 @Entity
 @Table(
@@ -266,9 +237,6 @@ class BackupCodeEntity(
     ],
 )
 class LoginHistoryEntity(
-    @Id
-    @Column(length = 40)
-    var id: String = newId("log"),
     @Column(name = "tenant_id", nullable = false, length = 40)
     var tenantId: String = "",
     @Column(name = "user_id", length = 40)
@@ -287,7 +255,7 @@ class LoginHistoryEntity(
     var riskScore: Int = 0,
     @Column(nullable = false)
     var createdAt: Instant = Instant.now(),
-)
+) : IdentifiedEntity("log")
 
 @Entity
 @Table(
@@ -298,9 +266,6 @@ class LoginHistoryEntity(
     ],
 )
 class AuditLogEntity(
-    @Id
-    @Column(length = 40)
-    var id: String = newId("aud"),
     @Column(name = "tenant_id", nullable = false, length = 40)
     var tenantId: String = "",
     @Column(name = "event_type", nullable = false, length = 96)
@@ -325,7 +290,7 @@ class AuditLogEntity(
     var eventHash: String = "",
     @Column(nullable = false)
     var createdAt: Instant = Instant.now(),
-)
+) : IdentifiedEntity("aud")
 
 @Entity
 @Table(
@@ -333,9 +298,6 @@ class AuditLogEntity(
     uniqueConstraints = [UniqueConstraint(name = "uq_consent_user_client", columnNames = ["user_id", "client_id"])],
 )
 class UserConsentEntity(
-    @Id
-    @Column(length = 40)
-    var id: String = newId("cns"),
     @Column(name = "tenant_id", nullable = false, length = 40)
     var tenantId: String = "",
     @Column(name = "user_id", nullable = false, length = 40)
@@ -349,7 +311,7 @@ class UserConsentEntity(
     @Column(nullable = false)
     var grantedAt: Instant = Instant.now(),
     var revokedAt: Instant? = null,
-)
+) : IdentifiedEntity("cns")
 
 @Entity
 @Table(
@@ -357,9 +319,6 @@ class UserConsentEntity(
     uniqueConstraints = [UniqueConstraint(name = "uq_policy_tenant_key", columnNames = ["tenant_id", "policy_key"])],
 )
 class SecurityPolicyEntity(
-    @Id
-    @Column(length = 40)
-    var id: String = newId("pol"),
     @Column(name = "tenant_id", nullable = false, length = 40)
     var tenantId: String = "",
     @Column(name = "policy_key", nullable = false, length = 96)
@@ -370,7 +329,7 @@ class SecurityPolicyEntity(
     var updatedBy: String? = null,
     @Column(nullable = false)
     var updatedAt: Instant = Instant.now(),
-)
+) : IdentifiedEntity("pol")
 
 @Entity
 @Table(
@@ -378,9 +337,6 @@ class SecurityPolicyEntity(
     uniqueConstraints = [UniqueConstraint(name = "uq_device_user_fingerprint", columnNames = ["user_id", "fingerprint"])],
 )
 class TrustedDeviceEntity(
-    @Id
-    @Column(length = 40)
-    var id: String = newId("dev"),
     @Column(name = "tenant_id", nullable = false, length = 40)
     var tenantId: String = "",
     @Column(name = "user_id", nullable = false, length = 40)
@@ -397,14 +353,11 @@ class TrustedDeviceEntity(
     var lastSeenAt: Instant = Instant.now(),
     @Column(nullable = false)
     var trusted: Boolean = false,
-)
+) : IdentifiedEntity("dev")
 
 @Entity
 @Table(name = "risk_assessments", indexes = [Index(name = "ix_risk_user_created", columnList = "user_id,created_at")])
 class RiskAssessmentEntity(
-    @Id
-    @Column(length = 40)
-    var id: String = newId("rsk"),
     @Column(name = "tenant_id", nullable = false, length = 40)
     var tenantId: String = "",
     @Column(name = "user_id", nullable = false, length = 40)
@@ -417,14 +370,11 @@ class RiskAssessmentEntity(
     var reasonsJson: String = "[]",
     @Column(nullable = false)
     var createdAt: Instant = Instant.now(),
-)
+) : IdentifiedEntity("rsk")
 
 @Entity
 @Table(name = "domain_outbox", indexes = [Index(name = "ix_outbox_unpublished", columnList = "published_at,created_at")])
 class DomainOutboxEntity(
-    @Id
-    @Column(length = 40)
-    var id: String = newId("evt"),
     @Column(name = "tenant_id", nullable = false, length = 40)
     var tenantId: String = "",
     @Column(nullable = false, length = 96)
@@ -440,7 +390,7 @@ class DomainOutboxEntity(
     var attempts: Int = 0,
     @Column(columnDefinition = "text")
     var lastError: String? = null,
-)
+) : IdentifiedEntity("evt")
 
 @Entity
 @Table(
@@ -451,9 +401,6 @@ class DomainOutboxEntity(
     ],
 )
 class UsedRefreshTokenEntity(
-    @Id
-    @Column(length = 40)
-    var id: String = newId("urt"),
     @Column(name = "tenant_id", nullable = false, length = 40)
     var tenantId: String = "",
     @Column(name = "authorization_id", nullable = false, length = 100)
@@ -469,14 +416,11 @@ class UsedRefreshTokenEntity(
     @Column(name = "rotated_at", nullable = false)
     var rotatedAt: Instant = Instant.now(),
     var reusedAt: Instant? = null,
-)
+) : IdentifiedEntity("urt")
 
 @Entity
 @Table(name = "federation_providers", uniqueConstraints = [UniqueConstraint(name = "uq_federation_tenant_alias", columnNames = ["tenant_id", "alias"])])
 class FederationProviderEntity(
-    @Id
-    @Column(length = 40)
-    var id: String = newId("idp"),
     @Column(name = "tenant_id", nullable = false, length = 40)
     var tenantId: String = "",
     @Column(nullable = false, length = 64)
@@ -489,14 +433,11 @@ class FederationProviderEntity(
     var enabled: Boolean = true,
     @Column(nullable = false)
     var createdAt: Instant = Instant.now(),
-)
+) : IdentifiedEntity("idp")
 
 @Entity
 @Table(name = "key_metadata", indexes = [Index(name = "ix_keys_level_state", columnList = "confidentiality_level,state")])
 class KeyMetadataEntity(
-    @Id
-    @Column(length = 40)
-    var id: String = newId("key"),
     @Column(name = "tenant_id", nullable = false, length = 40)
     var tenantId: String = "",
     @Column(nullable = false, length = 96)
@@ -516,4 +457,4 @@ class KeyMetadataEntity(
     var activatedAt: Instant? = null,
     var rotatedAt: Instant? = null,
     var destroyedAt: Instant? = null,
-)
+) : IdentifiedEntity("key")

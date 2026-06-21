@@ -26,7 +26,6 @@ import uz.ods.sso.persistence.UserSessionRepository
 import uz.ods.sso.security.CryptoService
 import java.time.Instant
 import java.time.temporal.ChronoUnit
-import java.util.Optional
 
 class RotationTrackingAuthorizationServiceTest {
     private val delegate: OAuth2AuthorizationService = mock()
@@ -58,9 +57,9 @@ class RotationTrackingAuthorizationServiceTest {
     fun `rotation stores only HMAC of previous refresh token`() {
         val previous = authorization("auth-1", "old-refresh")
         val rotated = authorization("auth-1", "new-refresh")
-        val user = UserEntity(id = "usr_1", tenantId = "tnt_1", email = "user@example.com")
+        val user = UserEntity(tenantId = "tnt_1", email = "user@example.com").apply { publicId = "usr_1" }
         whenever(delegate.findById("auth-1")).thenReturn(previous)
-        whenever(users.findById("usr_1")).thenReturn(Optional.of(user))
+        whenever(users.findByPublicId("usr_1")).thenReturn(user)
         whenever(usedTokens.findByTokenHash(crypto.hashSecret("old-refresh"))).thenReturn(null)
         whenever(usedTokens.save(any<UsedRefreshTokenEntity>())).thenAnswer { it.arguments[0] as UsedRefreshTokenEntity }
 

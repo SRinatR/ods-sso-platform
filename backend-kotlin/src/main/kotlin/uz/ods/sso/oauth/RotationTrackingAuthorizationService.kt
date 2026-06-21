@@ -28,7 +28,7 @@ open class RotationTrackingAuthorizationService(
         val oldRefresh = previous?.refreshToken?.token?.tokenValue
         val newRefresh = authorization.refreshToken?.token?.tokenValue
         if (oldRefresh != null && newRefresh != null && oldRefresh != newRefresh) {
-            val user = users.findById(authorization.principalName).orElse(null)
+            val user = users.findByPublicId(authorization.principalName)
             if (user != null && usedTokens.findByTokenHash(crypto.hashSecret(oldRefresh)) == null) {
                 usedTokens.save(
                     UsedRefreshTokenEntity(

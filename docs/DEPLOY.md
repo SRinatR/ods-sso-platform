@@ -28,25 +28,29 @@ Copy `.env.production.example` to `.env` on the server and configure:
 For the pilot, `REQUIRE_EMAIL_VERIFICATION=false` permits registration before SMTP is connected.
 Set it to `true` as soon as SMTP is configured.
 
-## DNS for sso.ods.uz
+## DNS for ods.uz
 
 The production deployment uses one canonical origin for the identity site, account portal, API and
 OIDC issuer:
 
 ```text
-https://sso.ods.uz
+https://auth.ods.uz
 ```
 
 Required records:
 
 | Type | Name | Value |
 |---|---|---|
-| A | `sso` | `94.232.44.189` |
+| A | `@` | `94.232.44.189` |
+| CNAME | `www` | `ods.uz` |
+| A | `auth` | `94.232.44.189` |
 
-The existing `ods.uz` and `www.ods.uz` website remains independent. Caddy obtains the
-`sso.ods.uz` TLS certificate automatically. Ports 80 and 443 must be reachable from the Internet.
+For the pilot, `ods.uz` and `www.ods.uz` redirect to the identity portal. The canonical OIDC issuer
+remains `auth.ods.uz`, so the public website can be separated later without changing partner
+configuration. Caddy obtains all TLS certificates automatically.
 
-No separate `api` or `auth` DNS records are required for the pilot. Mail delivery is a separate
+TCP ports 80 and 443 and UDP port 443 must be reachable from the Internet. UDP 443 enables HTTP/3.
+No separate `api` or `sso` record is required. Mail delivery is a separate
 increment: when SMTP is connected, publish the MX/SPF/DKIM/DMARC records provided by the selected
 mail service before enabling mandatory email verification.
 
@@ -60,3 +64,8 @@ bash scripts/deploy.sh
 
 The deployment script builds the containers, confirms the newest Flyway migration and polls
 `/ready`. A failed migration prevents backend readiness and fails the deployment.
+
+The backend image is built in three stages. The middle stage starts the Spring context with lazy
+database initialization and writes a CDS archive using the same Java 26, heap and ZGC flags as the
+runtime stage. A missing or incompatible archive fails the image build instead of silently
+disabling CDS.
