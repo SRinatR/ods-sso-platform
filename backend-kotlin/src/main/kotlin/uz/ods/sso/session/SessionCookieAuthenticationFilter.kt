@@ -25,10 +25,9 @@ class SessionCookieAuthenticationFilter(
                 val authorities = sessionService.authorities(principal)
                 val authentication = UsernamePasswordAuthenticationToken.authenticated(
                     User(principal.userId, "", authorities),
-                    null,
+                    principal.sessionId,
                     authorities,
                 )
-                authentication.details = mapOf("session_id" to principal.sessionId)
                 SecurityContextHolder.getContext().authentication = authentication
             }
         }

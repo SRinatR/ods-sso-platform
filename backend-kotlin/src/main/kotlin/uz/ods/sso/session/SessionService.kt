@@ -111,7 +111,7 @@ class SessionService(
         val legacyPrincipal = authentication.principal as? OdsPrincipal
         val userId = legacyPrincipal?.userId ?: authentication.name
         val sessionId = legacyPrincipal?.sessionId
-            ?: (authentication.details as? Map<*, *>)?.get("session_id") as? String
+            ?: authentication.credentials as? String
             ?: throw AppException(HttpStatus.UNAUTHORIZED, "not_authenticated", "Authentication is required")
         val user = users.findById(userId).orElseThrow {
             AppException(HttpStatus.UNAUTHORIZED, "not_authenticated", "Authentication is required")
