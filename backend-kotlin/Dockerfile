@@ -19,6 +19,7 @@ WORKDIR /app
 COPY --from=build /workspace/build/libs/ods-sso-backend-2.0.0.jar app.jar
 
 RUN java \
+    -Xint \
     -Xms128m \
     -Xmx512m \
     -XX:+UseZGC \
