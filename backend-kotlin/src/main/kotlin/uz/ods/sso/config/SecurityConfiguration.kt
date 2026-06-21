@@ -38,7 +38,7 @@ import org.springframework.security.oauth2.server.authorization.authentication.O
 import org.springframework.security.oauth2.server.authorization.authentication.OAuth2AuthorizationCodeRequestAuthenticationToken
 import org.springframework.security.web.AuthenticationEntryPoint
 import org.springframework.security.web.SecurityFilterChain
-import org.springframework.security.web.authentication.AnonymousAuthenticationFilter
+import org.springframework.security.web.authentication.logout.LogoutFilter
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter
 import org.springframework.security.web.util.matcher.RequestMatcher
 import org.springframework.web.cors.CorsConfiguration
@@ -117,7 +117,7 @@ class SecurityConfiguration(
             .exceptionHandling { exceptions ->
                 exceptions.authenticationEntryPoint(accountLoginEntryPoint())
             }
-            .addFilterBefore(sessionFilter, AnonymousAuthenticationFilter::class.java)
+            .addFilterAfter(sessionFilter, LogoutFilter::class.java)
             .cors(withDefaults())
             .csrf { csrf -> csrf.ignoringRequestMatchers(endpointsMatcher) }
 
