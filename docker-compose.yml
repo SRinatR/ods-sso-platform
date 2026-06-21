@@ -1,12 +1,13 @@
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:18.4-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-ods}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ods_dev_password}
       POSTGRES_DB: ${POSTGRES_DB:-ods_sso}
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ods} -d ${POSTGRES_DB:-ods_sso}"]
       interval: 5s
@@ -14,7 +15,8 @@ services:
       retries: 20
 
   redis:
-    image: redis:7-alpine
+    image: redis:8.6.3-alpine
+    restart: unless-stopped
     command: redis-server --appendonly yes
     volumes:
       - redis_data:/data
@@ -24,12 +26,44 @@ services:
       timeout: 3s
       retries: 20
 
+  kafka:
+    image: apache/kafka:4.3.0
+    profiles: ["events"]
+    restart: unless-stopped
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 20
+      start_period: 30s
+
   backend:
-    build: ./backend
+    build: ./backend-kotlin
+    restart: unless-stopped
+    mem_limit: 768m
     env_file: .env
     environment:
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-ods}:${POSTGRES_PASSWORD:-ods_dev_password}@postgres:5432/${POSTGRES_DB:-ods_sso}
+      DATABASE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-ods_sso}
       REDIS_URL: redis://redis:6379/0
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_EVENTS_ENABLED: ${KAFKA_EVENTS_ENABLED:-false}
+      OTEL_SDK_DISABLED: ${OTEL_SDK_DISABLED:-true}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4318/v1/traces}
     depends_on:
       postgres:
         condition: service_healthy
@@ -42,7 +76,48 @@ services:
       retries: 12
       start_period: 30s
 
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.154.0
+    profiles: ["observability"]
+    restart: unless-stopped
+    command: ["--config=/etc/otelcol-contrib/config.yml"]
+    volumes:
+      - ./observability/otel-collector.yml:/etc/otelcol-contrib/config.yml:ro
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+
+  prometheus:
+    image: prom/prometheus:v3.12.0
+    profiles: ["observability"]
+    restart: unless-stopped
+    command: ["--config.file=/etc/prometheus/prometheus.yml"]
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  grafana:
+    image: grafana/grafana:13.0.2
+    profiles: ["observability"]
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-change-before-production}
+    volumes:
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "3001:3000"
+    depends_on:
+      - prometheus
+
   frontend:
+    restart: unless-stopped
+    mem_limit: 384m
     build:
       context: ./frontend
       args:
@@ -55,6 +130,7 @@ services:
 
   caddy:
     image: caddy:2-alpine
+    restart: unless-stopped
     ports:
       - "80:80"
       - "443:443"
@@ -66,6 +142,7 @@ services:
       API_DOMAIN: ${API_DOMAIN:-localhost}
       ACCOUNT_DOMAIN: ${ACCOUNT_DOMAIN:-account.localhost}
       ACME_EMAIL: ${ACME_EMAIL:-admin@ods.uz}
+      PUBLIC_DOMAIN: ${PUBLIC_DOMAIN:-localhost}
     depends_on:
       - backend
       - frontend
@@ -73,6 +150,8 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  kafka_data:
   caddy_data:
   caddy_config:
-
+  prometheus_data:
+  grafana_data:

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { FormEvent, Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { AuthCard } from "@/components/Shell";
-import { api } from "@/lib/api";
+import { API_URL, api } from "@/lib/api";
 
 type LoginResult = {
   user_id?: string;
@@ -15,7 +15,7 @@ type LoginResult = {
 
 function LoginForm() {
   const params = useSearchParams();
-  const returnTo = params.get("return_to") || "/dashboard";
+  const returnTo = safeReturnTo(params.get("return_to"));
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [challenge, setChallenge] = useState("");
@@ -127,6 +127,18 @@ function LoginForm() {
   );
 }
 
+function safeReturnTo(value: string | null): string {
+  if (!value) return "/dashboard";
+  if (value.startsWith("/") && !value.startsWith("//")) return value;
+  try {
+    const candidate = new URL(value);
+    const apiOrigin = new URL(API_URL).origin;
+    return candidate.origin === apiOrigin ? candidate.toString() : "/dashboard";
+  } catch {
+    return "/dashboard";
+  }
+}
+
 export default function LoginPage() {
   return (
     <Suspense>
@@ -134,4 +146,3 @@ export default function LoginPage() {
     </Suspense>
   );
 }
-

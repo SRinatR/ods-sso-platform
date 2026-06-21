@@ -31,6 +31,7 @@ export function Shell({
           <Link href="/security">Безопасность и MFA</Link>
           <Link href="/sessions">Сессии и входы</Link>
           <Link href="/apps">Подключенные приложения</Link>
+          <Link href="/partner">Кабинет партнёра</Link>
           {admin && <Link href="/admin">Администрирование</Link>}
         </nav>
         <button className="button secondary" onClick={logout}>
@@ -71,4 +72,3 @@ export function AuthCard({
     </main>
   );
 }
-

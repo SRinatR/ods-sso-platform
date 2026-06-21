@@ -5,7 +5,7 @@
 (security_headers) {
 	header {
 		Strict-Transport-Security "max-age=63072000; includeSubDomains"
-		Content-Security-Policy "default-src 'self'; frame-ancestors 'none'; object-src 'none'"
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'"
 		X-Frame-Options "DENY"
 		X-Content-Type-Options "nosniff"
 		Referrer-Policy "strict-origin-when-cross-origin"
@@ -23,4 +23,3 @@ staging.account.ods.uz {
 	import security_headers
 	reverse_proxy frontend:3000
 }
-

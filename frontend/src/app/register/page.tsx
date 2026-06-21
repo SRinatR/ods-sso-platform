@@ -5,6 +5,10 @@ import { FormEvent, useState } from "react";
 import { AuthCard } from "@/components/Shell";
 import { api } from "@/lib/api";
 
+type MessageResponse = {
+  message: string;
+};
+
 export default function RegisterPage() {
   const [form, setForm] = useState({ name: "", email: "", password: "" });
   const [accepted, setAccepted] = useState(false);
@@ -15,11 +19,15 @@ export default function RegisterPage() {
     event.preventDefault();
     setError("");
     try {
-      await api("/api/v1/auth/register", {
+      const result = await api<MessageResponse>("/api/v1/auth/register", {
         method: "POST",
         body: JSON.stringify({ ...form, accept_terms: accepted }),
       });
-      setMessage("Аккаунт создан. Откройте письмо и подтвердите email.");
+      setMessage(
+        result.message.includes("sign in")
+          ? "Аккаунт создан. Теперь можно войти."
+          : "Аккаунт создан. Откройте письмо и подтвердите email.",
+      );
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Регистрация не выполнена");
     }
@@ -73,8 +81,8 @@ export default function RegisterPage() {
       )}
       <div className="auth-links">
         <Link href="/login">Вернуться ко входу</Link>
+        <Link href="/partner">Для контрагентов</Link>
       </div>
     </AuthCard>
   );
 }
-

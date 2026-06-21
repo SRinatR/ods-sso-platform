@@ -12,3 +12,7 @@ dist/
 .coverage
 coverage.xml
 postgres_data/
+.tools/
+.gradle/
+backend/build/
+backend-kotlin/build/

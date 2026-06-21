@@ -6,7 +6,6 @@ import { AuthCard } from "@/components/Shell";
 import { API_URL, api } from "@/lib/api";
 
 type Consent = {
-  request_id: string;
   client_id: string;
   client_name: string;
   client_description?: string;
@@ -22,15 +21,19 @@ const scopeLabels: Record<string, string> = {
 };
 
 function ConsentContent() {
-  const requestId = useSearchParams().get("request_id") || "";
+  const params = useSearchParams();
+  const clientId = params.get("client_id") || "";
+  const state = params.get("state") || "";
+  const scope = params.get("scope") || "";
   const [consent, setConsent] = useState<Consent | null>(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    api<Consent>(`/api/v1/oauth/consent/${encodeURIComponent(requestId)}`)
+    const query = new URLSearchParams({ client_id: clientId, scope });
+    api<Consent>(`/api/v1/oauth/consent?${query}`)
       .then(setConsent)
       .catch((cause) => setError(cause instanceof Error ? cause.message : "Запрос недействителен"));
-  }, [requestId]);
+  }, [clientId, scope]);
 
   return (
     <AuthCard
@@ -55,12 +58,22 @@ function ConsentContent() {
             Доступ можно отозвать в любой момент. Приложение не получит данные вне этого списка.
           </p>
           <div className="consent-actions">
-            <form method="post" action={`${API_URL}/api/v1/oauth/consent/deny`}>
-              <input type="hidden" name="request_id" value={consent.request_id} />
+            <form method="post" action={`${API_URL}/authorize`}>
+              <input type="hidden" name="client_id" value={clientId} />
+              <input type="hidden" name="state" value={state} />
               <button className="button secondary">Отказать</button>
             </form>
-            <form method="post" action={`${API_URL}/api/v1/oauth/consent/approve`}>
-              <input type="hidden" name="request_id" value={consent.request_id} />
+            <form method="post" action={`${API_URL}/authorize`}>
+              <input type="hidden" name="client_id" value={clientId} />
+              <input type="hidden" name="state" value={state} />
+              {consent.requested_scopes.map((requestedScope) => (
+                <input
+                  key={requestedScope}
+                  type="hidden"
+                  name="scope"
+                  value={requestedScope}
+                />
+              ))}
               <button className="button">Разрешить</button>
             </form>
           </div>
@@ -77,4 +90,3 @@ export default function ConsentPage() {
     </Suspense>
   );
 }
-
