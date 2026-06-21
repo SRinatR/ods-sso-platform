@@ -1,6 +1,8 @@
 spring:
   application:
     name: ods-sso
+  main:
+    keep-alive: true
   threads:
     virtual:
       enabled: true
