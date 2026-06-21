@@ -143,6 +143,7 @@ services:
       ACCOUNT_DOMAIN: ${ACCOUNT_DOMAIN:-account.localhost}
       ACME_EMAIL: ${ACME_EMAIL:-admin@ods.uz}
       PUBLIC_DOMAIN: ${PUBLIC_DOMAIN:-localhost}
+      WWW_DOMAIN: ${WWW_DOMAIN:-www.localhost}
     depends_on:
       - backend
       - frontend

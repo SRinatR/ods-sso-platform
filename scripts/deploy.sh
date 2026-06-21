@@ -10,6 +10,11 @@ fi
 
 required=(
   PUBLIC_DOMAIN
+  WWW_DOMAIN
+  ISSUER
+  ACCOUNT_URL
+  API_URL
+  ALLOWED_ORIGINS
   POSTGRES_PASSWORD
   SESSION_SECRET
   TOKEN_PEPPER
@@ -21,6 +26,23 @@ required=(
 for name in "${required[@]}"; do
   if ! grep -q "^${name}=.\+" .env; then
     echo "Deployment aborted: ${name} is not configured" >&2
+    exit 1
+  fi
+done
+
+public_domain="$(grep '^PUBLIC_DOMAIN=' .env | cut -d= -f2-)"
+www_domain="$(grep '^WWW_DOMAIN=' .env | cut -d= -f2-)"
+canonical_url="https://${public_domain}"
+
+if [ "${www_domain}" != "www.${public_domain}" ]; then
+  echo "Deployment aborted: WWW_DOMAIN must be www.${public_domain}" >&2
+  exit 1
+fi
+
+for name in ISSUER ACCOUNT_URL API_URL ALLOWED_ORIGINS; do
+  value="$(grep "^${name}=" .env | cut -d= -f2-)"
+  if [ "${value}" != "${canonical_url}" ]; then
+    echo "Deployment aborted: ${name} must equal ${canonical_url}" >&2
     exit 1
   fi
 done

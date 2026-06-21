@@ -14,5 +14,6 @@ coverage.xml
 postgres_data/
 .tools/
 .gradle/
+.kotlin/
 backend/build/
 backend-kotlin/build/
