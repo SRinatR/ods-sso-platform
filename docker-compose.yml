@@ -143,10 +143,16 @@ services:
       - caddy_config:/config
     environment:
       API_DOMAIN: ${API_DOMAIN:-localhost}
-      ACCOUNT_DOMAIN: ${ACCOUNT_DOMAIN:-account.localhost}
+      ACCOUNT_DOMAIN: ${ACCOUNT_DOMAIN:-accounts.localhost}
+      ADMIN_DOMAIN: ${ADMIN_DOMAIN:-admin.localhost}
       ACME_EMAIL: ${ACME_EMAIL:-admin@ods.uz}
+      DOCS_DOMAIN: ${DOCS_DOMAIN:-docs.localhost}
       PUBLIC_DOMAIN: ${PUBLIC_DOMAIN:-localhost}
       ROOT_DOMAIN: ${ROOT_DOMAIN:-localhost}
+      SCIM_DOMAIN: ${SCIM_DOMAIN:-scim.localhost}
+      SSO_DOMAIN: ${SSO_DOMAIN:-sso.localhost}
+      STATUS_DOMAIN: ${STATUS_DOMAIN:-status.localhost}
+      WEBHOOKS_DOMAIN: ${WEBHOOKS_DOMAIN:-webhooks.localhost}
       WWW_DOMAIN: ${WWW_DOMAIN:-www.localhost}
     depends_on:
       - backend

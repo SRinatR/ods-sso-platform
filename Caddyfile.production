@@ -18,6 +18,63 @@
 	redir https://{$PUBLIC_DOMAIN}{uri} permanent
 }
 
+{$SSO_DOMAIN} {
+	import security_headers
+	redir https://{$PUBLIC_DOMAIN}{uri} permanent
+}
+
+{$ACCOUNT_DOMAIN} {
+	import security_headers
+
+	@account_root path /
+	redir @account_root https://{$PUBLIC_DOMAIN}/dashboard permanent
+	redir https://{$PUBLIC_DOMAIN}{uri} permanent
+}
+
+{$ADMIN_DOMAIN} {
+	import security_headers
+
+	@admin_root path /
+	redir @admin_root https://{$PUBLIC_DOMAIN}/admin permanent
+	redir https://{$PUBLIC_DOMAIN}{uri} permanent
+}
+
+{$DOCS_DOMAIN} {
+	import security_headers
+
+	@docs_root path /
+	redir @docs_root https://{$PUBLIC_DOMAIN}/docs permanent
+	redir https://{$PUBLIC_DOMAIN}{uri} permanent
+}
+
+{$API_DOMAIN} {
+	import security_headers
+
+	@api path /api/* /health /ready /openapi.json /docs /docs/* /swagger-ui/* /webjars/*
+	handle @api {
+		reverse_proxy backend:8000
+	}
+
+	respond 404
+}
+
+{$STATUS_DOMAIN} {
+	import security_headers
+
+	@status path / /health /ready
+	handle @status {
+		rewrite * /ready
+		reverse_proxy backend:8000
+	}
+
+	respond 404
+}
+
+{$SCIM_DOMAIN}, {$WEBHOOKS_DOMAIN} {
+	import security_headers
+	respond 404
+}
+
 {$PUBLIC_DOMAIN} {
 	import security_headers
 
