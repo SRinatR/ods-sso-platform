@@ -28,26 +28,25 @@ Copy `.env.production.example` to `.env` on the server and configure:
 For the pilot, `REQUIRE_EMAIL_VERIFICATION=false` permits registration before SMTP is connected.
 Set it to `true` as soon as SMTP is configured.
 
-## DNS for ods.uz
+## DNS for sso.ods.uz
 
-The production deployment uses one canonical origin for the public site, account portal, API and
+The production deployment uses one canonical origin for the identity site, account portal, API and
 OIDC issuer:
 
 ```text
-https://ods.uz
+https://sso.ods.uz
 ```
 
 Required records:
 
 | Type | Name | Value |
 |---|---|---|
-| A | `@` | `94.232.44.189` |
-| CNAME | `www` | `ods.uz` |
+| A | `sso` | `94.232.44.189` |
 
-The Caddy configuration permanently redirects `www.ods.uz` to `ods.uz` and obtains both TLS
-certificates automatically. Ports 80 and 443 must be reachable from the Internet.
+The existing `ods.uz` and `www.ods.uz` website remains independent. Caddy obtains the
+`sso.ods.uz` TLS certificate automatically. Ports 80 and 443 must be reachable from the Internet.
 
-No `api`, `auth` or `sso` DNS records are required for the pilot. Mail delivery is a separate
+No separate `api` or `auth` DNS records are required for the pilot. Mail delivery is a separate
 increment: when SMTP is connected, publish the MX/SPF/DKIM/DMARC records provided by the selected
 mail service before enabling mandatory email verification.
 
