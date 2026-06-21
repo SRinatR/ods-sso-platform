@@ -3,6 +3,7 @@
 FROM eclipse-temurin:26-jdk AS build
 
 WORKDIR /workspace
+ENV JAVA_OPTS="-Djava.net.preferIPv4Stack=true"
 ENV GRADLE_OPTS="-Dorg.gradle.jvmargs=-Xmx768m -Dorg.gradle.workers.max=1"
 COPY gradle gradle
 COPY gradlew gradlew.bat settings.gradle.kts build.gradle.kts gradle.properties ./
