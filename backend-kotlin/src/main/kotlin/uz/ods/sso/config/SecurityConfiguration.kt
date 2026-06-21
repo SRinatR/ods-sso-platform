@@ -9,6 +9,7 @@ import jakarta.servlet.http.HttpServletResponse
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.core.annotation.Order
+import org.springframework.boot.web.servlet.FilterRegistrationBean
 import org.springframework.http.HttpStatus
 import org.springframework.jdbc.core.JdbcOperations
 import org.springframework.security.config.Customizer.withDefaults
@@ -35,9 +36,9 @@ import org.springframework.security.oauth2.server.authorization.authentication.O
 import org.springframework.security.oauth2.server.authorization.authentication.OAuth2AuthorizationCodeRequestAuthenticationValidator
 import org.springframework.security.oauth2.server.authorization.authentication.OAuth2AuthorizationCodeRequestAuthenticationContext
 import org.springframework.security.oauth2.server.authorization.authentication.OAuth2AuthorizationCodeRequestAuthenticationToken
-import org.springframework.security.oauth2.server.authorization.web.OAuth2AuthorizationEndpointFilter
 import org.springframework.security.web.AuthenticationEntryPoint
 import org.springframework.security.web.SecurityFilterChain
+import org.springframework.security.web.authentication.AnonymousAuthenticationFilter
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter
 import org.springframework.security.web.util.matcher.RequestMatcher
 import org.springframework.web.cors.CorsConfiguration
@@ -116,7 +117,7 @@ class SecurityConfiguration(
             .exceptionHandling { exceptions ->
                 exceptions.authenticationEntryPoint(accountLoginEntryPoint())
             }
-            .addFilterBefore(sessionFilter, OAuth2AuthorizationEndpointFilter::class.java)
+            .addFilterBefore(sessionFilter, AnonymousAuthenticationFilter::class.java)
             .cors(withDefaults())
             .csrf { csrf -> csrf.ignoringRequestMatchers(endpointsMatcher) }
 
@@ -165,6 +166,12 @@ class SecurityConfiguration(
             }
         return http.build()
     }
+
+    @Bean
+    fun disableSessionFilterServletRegistration(
+        filter: SessionCookieAuthenticationFilter,
+    ): FilterRegistrationBean<SessionCookieAuthenticationFilter> =
+        FilterRegistrationBean(filter).apply { isEnabled = false }
 
     @Bean
     fun registeredClientRepository(
