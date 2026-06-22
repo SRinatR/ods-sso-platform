@@ -3,11 +3,15 @@ package uz.ods.sso
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
 import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Test
 import org.mockito.kotlin.any
+import org.mockito.kotlin.doAnswer
+import org.mockito.kotlin.eq
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
+import org.springframework.http.HttpStatus
 import org.springframework.data.domain.Pageable
 import org.springframework.data.redis.core.StringRedisTemplate
 import org.springframework.data.redis.core.ValueOperations
@@ -52,6 +56,7 @@ import uz.ods.sso.session.AccountController
 import uz.ods.sso.session.CurrentPrincipal
 import uz.ods.sso.session.LoginHistoryResponse
 import uz.ods.sso.session.SessionService
+import uz.ods.sso.shared.AppException
 import java.time.Instant
 import java.util.concurrent.CopyOnWriteArrayList
 
@@ -120,6 +125,7 @@ class ControllerCoverageTest {
         val properties = properties()
         whenever(mfa.verifyLoginChallenge("challenge", "123456", "totp"))
             .thenReturn(ChallengeResult(user, 25, "fingerprint"))
+        whenever(mfa.loginChallengeRateLimitIdentity("challenge")).thenReturn("usr_1")
         whenever(identity.completeLogin(user, request, response, true, 25, "fingerprint"))
             .thenReturn(LoginResponse(userId = "usr_1"))
         whenever(sessions.current()).thenReturn(principal)
@@ -127,7 +133,7 @@ class ControllerCoverageTest {
         whenever(mfa.enable(user, "123456")).thenReturn(listOf("backup"))
         whenever(crypto.matchesPassword("password", "hash")).thenReturn(true)
         whenever(mfa.regenerateBackupCodes("usr_1")).thenReturn(listOf("backup2"))
-        val mfaController = MfaController(mfa, identity, sessions, crypto, audit, limiter, properties)
+        val mfaController = MfaController(mfa, identity, sessions, crypto, audit, limiter)
 
         assertThat(
             mfaController.verify(MfaChallengeRequest("challenge", "123456", "totp"), request, response).userId,
@@ -136,6 +142,22 @@ class ControllerCoverageTest {
         assertThat(mfaController.enable(TotpEnableRequest("123456"), request)).isEqualTo(BackupCodesResponse(listOf("backup")))
         assertThat(mfaController.regenerate(StepUpRequest("password", "123456"), request))
             .isEqualTo(BackupCodesResponse(listOf("backup2")))
+
+        user.lockedUntil = Instant.now().plusSeconds(MfaController.MFA_LOCK_DURATION.seconds)
+        whenever(mfa.loginChallengeRateLimitIdentity("limited")).thenReturn("usr_1")
+        whenever(mfa.lockLoginChallenge("limited", MfaController.MFA_LOCK_DURATION)).thenReturn(user)
+        doAnswer { invocation ->
+            invocation.getArgument<(Long) -> Unit>(2).invoke(42)
+            throw AppException(
+                HttpStatus.TOO_MANY_REQUESTS,
+                "rate_limit_exceeded",
+                "Too many requests",
+            )
+        }.whenever(limiter).enforce(eq(RateLimiter.MFA), any(), any())
+        assertThatThrownBy {
+            mfaController.verify(MfaChallengeRequest("limited", "123456", "totp"), request, response)
+        }.isInstanceOf(AppException::class.java)
+        verify(mfa).lockLoginChallenge("limited", MfaController.MFA_LOCK_DURATION)
 
         val partner = mock<PartnerService>()
         val integration = PartnerIntegrationMetadata("issuer", "discovery", "authorize", "token", "userinfo", "jwks")

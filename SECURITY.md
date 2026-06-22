@@ -37,8 +37,8 @@ dependency scanning, penetration testing, or an external audit.
 | SEC-BASE-008 | Production and staging Caddy listeners accept TLS 1.3 only | Enforced |
 | SEC-BASE-009 | Opaque token MACs use HMAC-SHA256 and constant-time comparison | Enforced; TOTP intentionally uses the interoperable OATH HMAC-SHA1 algorithm and is not used as a storage MAC |
 | SEC-BASE-010 | Login uses dummy Argon2 verification and a 100–200 ms timing floor; duplicate registration is non-disclosing | Enforced |
-| SEC-BASE-011 | Audit details redact known password, token, OTP, client-secret, and private-key fields | Partial; a process-wide logging sanitizer and automated log-content tests remain open |
-| SEC-BASE-012 | Login `5/15m`, registration `3/1h`, MFA `3/1m`, with `429` and `Retry-After` | Partial; Redis counters are fixed-window and MFA limit overflow does not yet impose a 30-minute account lock |
+| SEC-BASE-011 | Audit details and process logs redact known password, token, OTP, client-secret, private-key, bearer-token, JWT, and email values | Enforced by recursive audit sanitization and a process-wide Logback appender wrapper with automated content tests |
+| SEC-BASE-012 | Login `5/15m`, registration `3/1h`, per-account MFA `3/1m`, with `429` and dynamic `Retry-After`; MFA overflow locks the account for 30 minutes | Enforced with an atomic Redis-clock sorted-set Lua sliding window; production fails closed when Redis is unavailable |
 
 ## Operational requirements
 

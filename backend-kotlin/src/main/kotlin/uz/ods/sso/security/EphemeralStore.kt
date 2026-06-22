@@ -18,7 +18,7 @@ class EphemeralStore(
     fun set(key: String, value: String, ttl: Duration) {
         runCatching { redis.opsForValue().set(key, value, ttl) }.onFailure {
             if (properties.productionLike) throw it
-            log.warn("redis_ephemeral_fallback key={}", key)
+            log.warn("redis_ephemeral_fallback")
             local[key] = value to (System.currentTimeMillis() + ttl.toMillis())
         }
     }

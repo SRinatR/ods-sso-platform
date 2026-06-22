@@ -51,6 +51,11 @@ $cryptoService = "backend-kotlin/src/main/kotlin/uz/ods/sso/security/CryptoServi
 $identityService = "backend-kotlin/src/main/kotlin/uz/ods/sso/identity/IdentityService.kt"
 $rateLimiter = "backend-kotlin/src/main/kotlin/uz/ods/sso/security/RateLimiter.kt"
 $auditService = "backend-kotlin/src/main/kotlin/uz/ods/sso/audit/AuditService.kt"
+$mfaService = "backend-kotlin/src/main/kotlin/uz/ods/sso/mfa/MfaService.kt"
+$mfaController = "backend-kotlin/src/main/kotlin/uz/ods/sso/mfa/MfaController.kt"
+$loggingSanitizer = "backend-kotlin/src/main/kotlin/uz/ods/sso/shared/logging/LoggingSanitizer.kt"
+$ephemeralStore = "backend-kotlin/src/main/kotlin/uz/ods/sso/security/EphemeralStore.kt"
+$domainEvents = "backend-kotlin/src/main/kotlin/uz/ods/sso/events/DomainEvents.kt"
 
 Assert-Pattern "SEC-BASE-001" $oauthProvisioning '\.requireProofKey\(true\)' "PKCE must remain mandatory"
 Assert-Pattern "SEC-BASE-001" $securityConfig 'code_challenge_method.*S256|Only PKCE S256 is supported' "PKCE method must remain S256-only"
@@ -78,10 +83,20 @@ Assert-Pattern "SEC-BASE-010" $identityService 'withAuthenticationTiming' "authe
 Assert-Pattern "SEC-BASE-010" $identityService '(?s)findByTenantIdAndEmailIgnoreCase\(tenant\.id, email\) != null\) \{\s*return properties\.requireEmailVerification' "duplicate registration must not disclose account existence"
 Assert-Pattern "SEC-BASE-011" $auditService '"access_token"' "audit redaction must cover access tokens"
 Assert-Pattern "SEC-BASE-011" $auditService '"client_secret"' "audit redaction must cover client secrets"
+Assert-Pattern "SEC-BASE-011" $loggingSanitizer 'class LoggingSanitizerInstaller' "process-wide logging sanitizer must remain installed"
+Assert-Pattern "SEC-BASE-011" $loggingSanitizer 'sanitizeThrowable' "throwable messages must be sanitized"
+Assert-Absent "SEC-BASE-011" $ephemeralStore 'redis_ephemeral_fallback key=' "ephemeral token-bearing keys must not be logged"
+Assert-Pattern "SEC-BASE-011" $domainEvents 'LoggingSanitizer::sanitize' "persisted outbox error messages must be sanitized"
 Assert-Pattern "SEC-BASE-012" $rateLimiter 'RateLimitRule\("login", 5, Duration\.ofMinutes\(15\)\)' "login limit must remain 5 attempts per 15 minutes"
 Assert-Pattern "SEC-BASE-012" $rateLimiter 'RateLimitRule\("registration", 3, Duration\.ofHours\(1\)\)' "registration limit must remain 3 attempts per hour"
 Assert-Pattern "SEC-BASE-012" $rateLimiter 'RateLimitRule\("mfa", 3, Duration\.ofMinutes\(1\)\)' "MFA limit must remain 3 attempts per minute"
+Assert-Pattern "SEC-BASE-012" $rateLimiter 'ZREMRANGEBYSCORE' "rate limits must use a Redis sliding window"
+Assert-Pattern "SEC-BASE-012" $rateLimiter 'ZADD' "rate-limit attempts must be recorded atomically"
+Assert-Pattern "SEC-BASE-012" $rateLimiter "redis\.call\('TIME'\)" "distributed rate limits must use the Redis server clock"
 Assert-Pattern "SEC-BASE-012" $rateLimiter '"Retry-After"' "rate-limit responses must include Retry-After"
+Assert-Pattern "SEC-BASE-012" $mfaController 'Duration\.ofMinutes\(30\)' "MFA overflow must impose a 30-minute account lock"
+Assert-Pattern "SEC-BASE-012" $mfaController 'loginChallengeRateLimitIdentity' "MFA limits must be isolated per challenged account"
+Assert-Pattern "SEC-BASE-012" $mfaService 'user\.lockedUntil = now\.plus\(duration\)' "MFA account lock must be persisted"
 
 if ($violations.Count -gt 0) {
     Write-Error ("SEC-BASE rule violation detected:`n- " + ($violations -join "`n- "))

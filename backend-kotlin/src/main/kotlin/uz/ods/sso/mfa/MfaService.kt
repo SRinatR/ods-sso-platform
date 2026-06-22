@@ -80,9 +80,15 @@ class MfaService(
         return true
     }
 
+    fun loginChallengeRateLimitIdentity(challengeToken: String): String =
+        identity.challenge(challengeToken).first.id
+
     @Transactional
     fun verifyLoginChallenge(challengeToken: String, code: String, method: String): ChallengeResult {
         val (user, riskScore, fingerprint) = identity.challenge(challengeToken)
+        if (user.lockedUntil?.isAfter(Instant.now()) == true) {
+            throw AppException(HttpStatus.LOCKED, "account_locked", "Account is temporarily locked")
+        }
         val valid = when (method) {
             "totp" -> verifyTotp(user.id, code)
             "backup" -> verifyBackupCode(user.id, code)
@@ -92,6 +98,20 @@ class MfaService(
         identity.consumeChallenge(challengeToken)
         risk.trust(user.id, fingerprint)
         return ChallengeResult(user, riskScore, fingerprint)
+    }
+
+    @Transactional
+    fun lockLoginChallenge(challengeToken: String, duration: Duration): UserEntity? {
+        val user = try {
+            identity.challenge(challengeToken).first
+        } catch (exception: AppException) {
+            if (exception.status == HttpStatus.UNAUTHORIZED) return null
+            throw exception
+        }
+        val now = Instant.now()
+        if (user.lockedUntil?.isAfter(now) == true) return null
+        user.lockedUntil = now.plus(duration)
+        return users.save(user)
     }
 
     fun verifyStepUp(user: UserEntity, code: String?) {

@@ -19,6 +19,8 @@ import uz.ods.sso.risk.RiskService
 import uz.ods.sso.security.CryptoService
 import uz.ods.sso.security.EphemeralStore
 import uz.ods.sso.shared.AppException
+import java.time.Duration
+import java.time.Instant
 
 class MfaServiceTest {
     private val properties = OdsProperties(
@@ -78,8 +80,46 @@ class MfaServiceTest {
             .hasMessage("MFA must be enabled for step-up")
 
         whenever(identity.challenge("challenge")).thenReturn(Triple(user, 25, "fingerprint"))
+        assertThat(service.loginChallengeRateLimitIdentity("challenge")).isEqualTo("usr_1")
         assertThatThrownBy { service.verifyLoginChallenge("challenge", "bad", "unknown") }
             .isInstanceOf(AppException::class.java)
             .hasMessage("Second factor is invalid")
+    }
+
+    @Test
+    fun `rate limit lock persists for thirty minutes without extending an active lock`() {
+        whenever(identity.challenge("challenge")).thenReturn(Triple(user, 25, "fingerprint"))
+        whenever(users.save(user)).thenReturn(user)
+        val before = Instant.now().plus(Duration.ofMinutes(29))
+
+        assertThat(service.lockLoginChallenge("challenge", Duration.ofMinutes(30))).isSameAs(user)
+        assertThat(user.lockedUntil).isAfter(before)
+        assertThat(service.lockLoginChallenge("challenge", Duration.ofMinutes(30))).isNull()
+        verify(users).save(user)
+    }
+
+    @Test
+    fun `locked account cannot verify an existing MFA challenge`() {
+        user.lockedUntil = Instant.now().plus(Duration.ofMinutes(30))
+        whenever(identity.challenge("challenge")).thenReturn(Triple(user, 25, "fingerprint"))
+
+        assertThatThrownBy { service.verifyLoginChallenge("challenge", "123456", "totp") }
+            .isInstanceOfSatisfying(AppException::class.java) {
+                assertThat(it.status.value()).isEqualTo(423)
+                assertThat(it.code).isEqualTo("account_locked")
+            }
+    }
+
+    @Test
+    fun `invalid challenge cannot be used to select an account for lockout`() {
+        whenever(identity.challenge("invalid")).thenThrow(
+            AppException(
+                org.springframework.http.HttpStatus.UNAUTHORIZED,
+                "invalid_mfa_challenge",
+                "MFA challenge is invalid",
+            ),
+        )
+
+        assertThat(service.lockLoginChallenge("invalid", Duration.ofMinutes(30))).isNull()
     }
 }

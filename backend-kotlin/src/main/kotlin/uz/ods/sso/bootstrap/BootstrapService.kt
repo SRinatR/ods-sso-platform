@@ -78,7 +78,7 @@ class BootstrapService(
                 emailVerifiedAt = Instant.now(),
             ),
         )
-        log.info("bootstrap_admin_created email={}", email)
+        log.info("bootstrap_admin_created email_hash={}", crypto.sha256(email))
     }
 
     private fun seedTatarlarClient(tenantId: String) {

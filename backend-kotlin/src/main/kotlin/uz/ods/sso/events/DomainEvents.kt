@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional
 import uz.ods.sso.config.OdsProperties
 import uz.ods.sso.persistence.DomainOutboxEntity
 import uz.ods.sso.persistence.DomainOutboxRepository
+import uz.ods.sso.shared.logging.LoggingSanitizer
 import tools.jackson.databind.ObjectMapper
 import java.time.Instant
 
@@ -49,8 +50,12 @@ class OutboxPublisher(
                 event.publishedAt = Instant.now()
             }.onFailure {
                 event.attempts += 1
-                event.lastError = it.message?.take(2000)
-                log.error("outbox_publish_failed event_id={}", event.id, it)
+                event.lastError = it.message?.let(LoggingSanitizer::sanitize)?.take(2000)
+                log.error(
+                    "outbox_publish_failed event_id={} exception_type={}",
+                    event.id,
+                    it.javaClass.name,
+                )
             }
         }
     }
