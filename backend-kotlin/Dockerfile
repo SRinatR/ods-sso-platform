@@ -49,7 +49,11 @@ RUN java \
 
 FROM eclipse-temurin:26-jre
 
-RUN apt-get update \
+RUN sed -i \
+      -e 's|http://archive\.ubuntu\.com/ubuntu|https://ru-msk1.clouds.archive.ubuntu.com/ubuntu|g' \
+      -e 's|http://security\.ubuntu\.com/ubuntu|https://ru-msk1.clouds.archive.ubuntu.com/ubuntu|g' \
+      /etc/apt/sources.list /etc/apt/sources.list.d/*.sources 2>/dev/null || true \
+    && apt-get -o Acquire::ForceIPv4=true -o Acquire::Retries=5 update \
     && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd --gid 10001 app \

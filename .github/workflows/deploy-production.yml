@@ -161,9 +161,16 @@ jobs:
       - name: Upload configuration and deploy
         shell: bash
         run: |
-          scp -P "$VPS_PORT" -i ~/.ssh/ods-production \
+          ssh_options=(
+            -o BatchMode=yes
+            -o ConnectTimeout=30
+            -o ServerAliveInterval=15
+            -o ServerAliveCountMax=40
+            -o TCPKeepAlive=yes
+          )
+          scp "${ssh_options[@]}" -P "$VPS_PORT" -i ~/.ssh/ods-production \
             "$RUNNER_TEMP/production.env" "$VPS_USER@$VPS_HOST:/tmp/ods-production.env"
-          ssh -p "$VPS_PORT" -i ~/.ssh/ods-production "$VPS_USER@$VPS_HOST" \
+          ssh "${ssh_options[@]}" -p "$VPS_PORT" -i ~/.ssh/ods-production "$VPS_USER@$VPS_HOST" \
             "set -euo pipefail
              if ! command -v git >/dev/null 2>&1; then
                apt-get update
