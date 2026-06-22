@@ -29,6 +29,7 @@ export function Shell({
         </Link>
         <nav>
           <Link href={`${ACCOUNTS_URL}/dashboard`}>Обзор</Link>
+          <Link href={`${ACCOUNTS_URL}/profile`}>Личный профиль</Link>
           <Link href={`${ACCOUNTS_URL}/security`}>Безопасность и MFA</Link>
           <Link href={`${ACCOUNTS_URL}/sessions`}>Сессии и входы</Link>
           <Link href={`${ACCOUNTS_URL}/apps`}>Подключенные приложения</Link>

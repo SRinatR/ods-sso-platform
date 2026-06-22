@@ -15,10 +15,13 @@ import tools.jackson.databind.json.JsonMapper
 import uz.ods.sso.config.OdsProperties
 import uz.ods.sso.persistence.SecurityPolicyEntity
 import uz.ods.sso.persistence.SecurityPolicyRepository
+import uz.ods.sso.persistence.BackupCodeRepository
+import uz.ods.sso.persistence.MfaMethodRepository
 import uz.ods.sso.persistence.TenantEntity
 import uz.ods.sso.persistence.TenantRepository
 import uz.ods.sso.persistence.UserEntity
 import uz.ods.sso.persistence.UserRepository
+import uz.ods.sso.persistence.UserSessionRepository
 import uz.ods.sso.security.CryptoService
 
 class BootstrapServiceTest {
@@ -36,6 +39,9 @@ class BootstrapServiceTest {
         val tenants = mock<TenantRepository>()
         val users = mock<UserRepository>()
         val policies = mock<SecurityPolicyRepository>()
+        val mfaMethods = mock<MfaMethodRepository>()
+        val backupCodes = mock<BackupCodeRepository>()
+        val sessions = mock<UserSessionRepository>()
         val clients = mock<RegisteredClientRepository>()
         val crypto = CryptoService(properties)
         whenever(tenants.findBySlug("default")).thenReturn(null)
@@ -53,6 +59,9 @@ class BootstrapServiceTest {
             tenants,
             users,
             policies,
+            mfaMethods,
+            backupCodes,
+            sessions,
             clients,
             crypto,
             JsonMapper.builder().build(),

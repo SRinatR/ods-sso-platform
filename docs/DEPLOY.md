@@ -9,6 +9,7 @@ The default pilot profile runs:
 - Kotlin/Spring backend
 - Next.js account and partner portal
 - Caddy with automatic TLS
+- MinIO-compatible object storage for backup artifacts
 
 Kafka is enabled with `docker compose --profile events ...`. Prometheus, Grafana and the
 OpenTelemetry Collector are enabled with `--profile observability`. They are disabled on the
@@ -16,7 +17,9 @@ initial 2 GB VPS.
 
 ## Required configuration
 
-Copy `.env.production.example` to `.env` on the server and configure:
+Configure the GitHub Environment `production` as described in
+[`production-deployment.md`](production-deployment.md). GitHub Actions creates the restricted
+runtime file on the VPS; do not maintain a second hand-written production `.env`.
 
 - public domain and ACME email
 - PostgreSQL password
@@ -79,8 +82,8 @@ The service domains expose only implemented behavior:
   email, signs in, registers the organization and becomes its owner. The application then opens
   the organization portal such as `https://tatarlar.ods.uz`.
 - A platform administrator opens `https://admin.ods.uz`. The portal redirects to the canonical
-  login, verifies the `admin` or `security_admin` role, requires configured TOTP MFA, and then asks
-  for a fresh password + TOTP step-up before loading administrative data.
+  login, verifies the `admin` or `security_admin` role, requires a strong passkey or TOTP-authenticated
+  session, and then asks for a fresh step-up before loading administrative data.
 - `https://accounts.ods.uz` opens the ordinary account dashboard.
 
 Caddy obtains and renews TLS certificates automatically and the production/staging listeners
@@ -96,17 +99,16 @@ must be published and `SMTP_PASSWORD` must contain a live API key.
 
 ```bash
 bash scripts/server-bootstrap.sh /opt/ods-platform
-cd /opt/ods-platform
-bash scripts/deploy.sh
 ```
 
-The deployment script builds the containers, confirms the newest Flyway migration and polls
-`/ready`. Before changing containers it writes a mode-0600-compatible compressed PostgreSQL dump
-to `BACKUP_DIR` (default `/var/backups/ods-platform`). After Flyway it calls PostgreSQL `uuidv7()`
+Then run the reviewed GitHub `Deploy production` workflow. The deployment script builds the
+containers, confirms the newest Flyway migration and polls `/ready`. Before changing application
+containers it writes a compressed PostgreSQL dump to `BACKUP_DIR`
+(default `/var/backups/ods-platform`) and uploads it to MinIO. After Flyway it calls PostgreSQL `uuidv7()`
 and verifies that all 19 domain tables have native UUID internal identifiers. It validates the
-new Caddyfile and recreates the Caddy container so bind-mounted configuration cannot remain pinned
-to an old inode. A failed backup, migration, proxy validation or schema assertion stops the
-deployment.
+production Caddyfile and recreates the Caddy container. A failed backup, migration, proxy
+validation or schema assertion stops the deployment. Systemd recovery starts the complete stack
+after a VPS reboot, and a timer creates daily backups.
 
 The backend image is built in three stages. The middle stage starts the Spring context with lazy
 database initialization and writes a CDS archive using the same Java 26, heap and ZGC flags as the

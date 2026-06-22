@@ -31,6 +31,7 @@ data class OdsProperties(
     val requireEmailVerification: Boolean = true,
     val bootstrapAdminEmail: String = "",
     val bootstrapAdminPassword: String = "",
+    val bootstrapAdminReconcile: Boolean = false,
     val tatarlarClientSecret: String = "",
     val kafkaEventsEnabled: Boolean = false,
     val defaultTenant: String = "default",

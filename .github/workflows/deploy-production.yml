@@ -1,0 +1,170 @@
+name: Deploy production
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: VPS production
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: production
+    env:
+      VPS_HOST: ${{ vars.VPS_HOST }}
+      VPS_PORT: ${{ vars.VPS_PORT }}
+      VPS_USER: ${{ vars.VPS_USER }}
+      VPS_APP_DIR: ${{ vars.VPS_APP_DIR }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate deployment configuration
+        shell: bash
+        env:
+          VPS_SSH_PRIVATE_KEY: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+          VPS_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
+          TOKEN_PEPPER: ${{ secrets.TOKEN_PEPPER }}
+          TOTP_ENCRYPTION_KEY: ${{ secrets.TOTP_ENCRYPTION_KEY }}
+          JWT_PRIVATE_KEY: ${{ secrets.JWT_PRIVATE_KEY }}
+          JWT_PUBLIC_KEY: ${{ secrets.JWT_PUBLIC_KEY }}
+          BOOTSTRAP_ADMIN_PASSWORD: ${{ secrets.BOOTSTRAP_ADMIN_PASSWORD }}
+          TATARLAR_CLIENT_SECRET: ${{ secrets.TATARLAR_CLIENT_SECRET }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          MINIO_ROOT_USER: ${{ secrets.MINIO_ROOT_USER }}
+          MINIO_ROOT_PASSWORD: ${{ secrets.MINIO_ROOT_PASSWORD }}
+        run: |
+          for name in \
+            VPS_HOST VPS_PORT VPS_USER VPS_APP_DIR \
+            VPS_SSH_PRIVATE_KEY VPS_KNOWN_HOSTS POSTGRES_PASSWORD SESSION_SECRET \
+            TOKEN_PEPPER TOTP_ENCRYPTION_KEY JWT_PRIVATE_KEY JWT_PUBLIC_KEY \
+            BOOTSTRAP_ADMIN_PASSWORD TATARLAR_CLIENT_SECRET RESEND_API_KEY \
+            MINIO_ROOT_USER MINIO_ROOT_PASSWORD
+          do
+            if [ -z "${!name:-}" ]; then
+              echo "Missing production configuration: $name" >&2
+              exit 1
+            fi
+          done
+
+      - name: Configure SSH
+        shell: bash
+        env:
+          VPS_SSH_PRIVATE_KEY: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+          VPS_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$VPS_SSH_PRIVATE_KEY" > ~/.ssh/ods-production
+          printf '%s\n' "$VPS_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/ods-production ~/.ssh/known_hosts
+
+      - name: Build restricted runtime environment
+        shell: bash
+        env:
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
+          TOKEN_PEPPER: ${{ secrets.TOKEN_PEPPER }}
+          TOTP_ENCRYPTION_KEY: ${{ secrets.TOTP_ENCRYPTION_KEY }}
+          JWT_PRIVATE_KEY: ${{ secrets.JWT_PRIVATE_KEY }}
+          JWT_PUBLIC_KEY: ${{ secrets.JWT_PUBLIC_KEY }}
+          BOOTSTRAP_ADMIN_PASSWORD: ${{ secrets.BOOTSTRAP_ADMIN_PASSWORD }}
+          TATARLAR_CLIENT_SECRET: ${{ secrets.TATARLAR_CLIENT_SECRET }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          MINIO_ROOT_USER: ${{ secrets.MINIO_ROOT_USER }}
+          MINIO_ROOT_PASSWORD: ${{ secrets.MINIO_ROOT_PASSWORD }}
+          BACKUP_S3_ENDPOINT: ${{ secrets.BACKUP_S3_ENDPOINT }}
+          BACKUP_S3_ACCESS_KEY: ${{ secrets.BACKUP_S3_ACCESS_KEY }}
+          BACKUP_S3_SECRET_KEY: ${{ secrets.BACKUP_S3_SECRET_KEY }}
+          BACKUP_S3_BUCKET: ${{ vars.BACKUP_S3_BUCKET }}
+          BOOTSTRAP_ADMIN_RECONCILE: ${{ vars.BOOTSTRAP_ADMIN_RECONCILE }}
+        run: |
+          umask 077
+          runtime_env="$RUNNER_TEMP/production.env"
+          {
+            printf '%s\n' \
+              'ENV=production' \
+              'PUBLIC_DOMAIN=auth.ods.uz' \
+              'ROOT_DOMAIN=ods.uz' \
+              'WWW_DOMAIN=www.ods.uz' \
+              'ACCOUNT_DOMAIN=accounts.ods.uz' \
+              'ADMIN_DOMAIN=admin.ods.uz' \
+              'API_DOMAIN=api.ods.uz' \
+              'DOCS_DOMAIN=docs.ods.uz' \
+              'STATUS_DOMAIN=status.ods.uz' \
+              'SSO_DOMAIN=sso.ods.uz' \
+              'SCIM_DOMAIN=scim.ods.uz' \
+              'WEBHOOKS_DOMAIN=webhooks.ods.uz' \
+              'ISSUER=https://auth.ods.uz' \
+              'ACCOUNT_URL=https://auth.ods.uz' \
+              'ACCOUNTS_URL=https://accounts.ods.uz' \
+              'ADMIN_URL=https://admin.ods.uz' \
+              'ROOT_URL=https://ods.uz' \
+              'API_URL=https://auth.ods.uz' \
+              'ALLOWED_ORIGINS=https://auth.ods.uz,https://accounts.ods.uz,https://admin.ods.uz,https://ods.uz' \
+              'ALLOWED_ORIGIN_PATTERNS=https://*.ods.uz' \
+              'SESSION_COOKIE_DOMAIN=ods.uz' \
+              'POSTGRES_USER=ods' \
+              'POSTGRES_DB=ods_sso' \
+              'REQUIRE_EMAIL_VERIFICATION=true' \
+              'SMTP_HOST=smtp.resend.com' \
+              'SMTP_PORT=587' \
+              'SMTP_USER=resend' \
+              'SMTP_STARTTLS=true' \
+              'MAIL_FROM=ODS Identity <no-reply@ods.uz>' \
+              'MAIL_REPLY_TO=support@ods.uz' \
+              'BOOTSTRAP_ADMIN_EMAIL=rinat200355@gmail.com' \
+              'MINIO_BUCKET=ods-backups' \
+              'BACKUP_DIR=/var/backups/ods-platform' \
+              'RUNTIME_ENV_FILE=/etc/ods-platform/production.env' \
+              'KAFKA_EVENTS_ENABLED=false' \
+              'OTEL_SDK_DISABLED=true' \
+              'DEFAULT_TENANT=default' \
+              'TRUSTED_PROXY_COUNT=1'
+            printf 'POSTGRES_PASSWORD=%s\n' "$POSTGRES_PASSWORD"
+            printf 'SESSION_SECRET=%s\n' "$SESSION_SECRET"
+            printf 'TOKEN_PEPPER=%s\n' "$TOKEN_PEPPER"
+            printf 'TOTP_ENCRYPTION_KEY=%s\n' "$TOTP_ENCRYPTION_KEY"
+            printf 'JWT_PRIVATE_KEY=%s\n' "$JWT_PRIVATE_KEY"
+            printf 'JWT_PUBLIC_KEY=%s\n' "$JWT_PUBLIC_KEY"
+            printf 'BOOTSTRAP_ADMIN_PASSWORD=%s\n' "$BOOTSTRAP_ADMIN_PASSWORD"
+            printf 'BOOTSTRAP_ADMIN_RECONCILE=%s\n' "${BOOTSTRAP_ADMIN_RECONCILE:-false}"
+            printf 'TATARLAR_CLIENT_SECRET=%s\n' "$TATARLAR_CLIENT_SECRET"
+            printf 'SMTP_PASSWORD=%s\n' "$RESEND_API_KEY"
+            printf 'MINIO_ROOT_USER=%s\n' "$MINIO_ROOT_USER"
+            printf 'MINIO_ROOT_PASSWORD=%s\n' "$MINIO_ROOT_PASSWORD"
+            printf 'BACKUP_S3_ENDPOINT=%s\n' "$BACKUP_S3_ENDPOINT"
+            printf 'BACKUP_S3_ACCESS_KEY=%s\n' "$BACKUP_S3_ACCESS_KEY"
+            printf 'BACKUP_S3_SECRET_KEY=%s\n' "$BACKUP_S3_SECRET_KEY"
+            printf 'BACKUP_S3_BUCKET=%s\n' "$BACKUP_S3_BUCKET"
+          } > "$runtime_env"
+          test "$(stat -c '%a' "$runtime_env")" = "600"
+
+      - name: Upload configuration and deploy
+        shell: bash
+        run: |
+          scp -P "$VPS_PORT" -i ~/.ssh/ods-production \
+            "$RUNNER_TEMP/production.env" "$VPS_USER@$VPS_HOST:/tmp/ods-production.env"
+          ssh -p "$VPS_PORT" -i ~/.ssh/ods-production "$VPS_USER@$VPS_HOST" \
+            "set -euo pipefail
+             install -d -m 700 /etc/ods-platform
+             install -m 600 /tmp/ods-production.env /etc/ods-platform/production.env
+             rm -f /tmp/ods-production.env
+             cd '$VPS_APP_DIR'
+             git fetch --prune origin
+             git restore --worktree Caddyfile 2>/dev/null || true
+             git checkout --detach '$GITHUB_SHA'
+             ENV_FILE=/etc/ods-platform/production.env bash scripts/deploy.sh"
+
+      - name: Verify public endpoints
+        shell: bash
+        run: |
+          curl --fail --silent --show-error https://status.ods.uz/ready
+          curl --fail --silent --show-error https://auth.ods.uz/.well-known/openid-configuration >/dev/null
+          curl --fail --silent --show-error https://ods.uz/ >/dev/null

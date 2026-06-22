@@ -14,8 +14,7 @@ type RegistrationResponse = {
 
 function RegisterForm() {
   const partner = useSearchParams().get("kind") === "partner";
-  const [form, setForm] = useState({ name: "", email: "", password: "" });
-  const [accepted, setAccepted] = useState(false);
+  const [form, setForm] = useState({ email: "", password: "" });
   const [message, setMessage] = useState("");
   const [verificationRequired, setVerificationRequired] = useState(false);
   const [error, setError] = useState("");
@@ -26,7 +25,7 @@ function RegisterForm() {
     try {
       const result = await api<RegistrationResponse>("/api/v1/auth/register", {
         method: "POST",
-        body: JSON.stringify({ ...form, accept_terms: accepted }),
+        body: JSON.stringify(form),
       });
       setVerificationRequired(result.verification_required);
       setMessage(
@@ -70,14 +69,6 @@ function RegisterForm() {
         <form onSubmit={submit} className="stack">
           {error && <div className="alert error">{error}</div>}
           <label>
-            Имя
-            <input
-              required
-              value={form.name}
-              onChange={(event) => setForm({ ...form, name: event.target.value })}
-            />
-          </label>
-          <label>
             Email
             <input
               type="email"
@@ -97,14 +88,10 @@ function RegisterForm() {
               onChange={(event) => setForm({ ...form, password: event.target.value })}
             />
           </label>
-          <label className="checkbox">
-            <input
-              type="checkbox"
-              checked={accepted}
-              onChange={(event) => setAccepted(event.target.checked)}
-            />
-            Принимаю условия использования и политику конфиденциальности
-          </label>
+          <p className="legal-consent">
+            Нажимая «Создать аккаунт», вы принимаете{" "}
+            <Link href="/privacy">условия использования и политику конфиденциальности</Link>.
+          </p>
           <button className="button">Создать аккаунт</button>
         </form>
       )}

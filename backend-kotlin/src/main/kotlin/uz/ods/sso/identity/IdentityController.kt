@@ -87,8 +87,8 @@ class IdentityController(
 
     @GetMapping("/me")
     fun me(): UserResponse {
-        val user = sessions.current().user
-        return user.toResponse()
+        val principal = sessions.current()
+        return principal.user.toResponse(principal.session.authenticationMethod)
     }
 
     @PostMapping("/logout")
@@ -126,20 +126,24 @@ class IdentityController(
             audit.write(principal.user.tenantId, request, "STEP_UP_FAILED", principal.user.id, principal.user.id)
             throw AppException(HttpStatus.UNAUTHORIZED, "invalid_credentials", "Step-up authentication failed")
         }
-        mfa.verifyStepUp(principal.user, body.code)
+        if (principal.session.authenticationMethod != "passkey") {
+            mfa.verifyStepUp(principal.user, body.code)
+        }
         sessions.markStepUp(principal.session.id)
         audit.write(principal.user.tenantId, request, "STEP_UP_COMPLETED", principal.user.id, principal.user.id)
         return MessageResponse(message = "Step-up authentication completed")
     }
 }
 
-fun uz.ods.sso.persistence.UserEntity.toResponse() = UserResponse(
+fun uz.ods.sso.persistence.UserEntity.toResponse(authenticationMethod: String? = null) = UserResponse(
     id = id,
     email = email,
     name = name,
+    phone = phone,
     emailVerified = emailVerified,
     status = status,
     role = role,
     mfaEnabled = mfaEnabled,
+    authenticationMethod = authenticationMethod,
     createdAt = createdAt,
 )

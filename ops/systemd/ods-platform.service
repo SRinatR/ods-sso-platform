@@ -1,0 +1,19 @@
+[Unit]
+Description=ODS Platform recovery and startup
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/ods-platform
+Environment=ENV_FILE=/etc/ods-platform/production.env
+ExecStart=/opt/ods-platform/scripts/boot-recover.sh
+ExecReload=/opt/ods-platform/scripts/boot-recover.sh
+TimeoutStartSec=420
+Restart=on-failure
+RestartSec=15
+
+[Install]
+WantedBy=multi-user.target

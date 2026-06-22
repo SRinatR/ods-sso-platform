@@ -2,16 +2,23 @@ package uz.ods.sso.session
 
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
+import jakarta.validation.Valid
 import org.springframework.data.domain.PageRequest
 import org.springframework.http.HttpStatus
+import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.PatchMapping
 import org.springframework.web.bind.annotation.PathVariable
+import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 import uz.ods.sso.audit.AuditService
 import uz.ods.sso.config.OdsProperties
 import uz.ods.sso.identity.MessageResponse
+import uz.ods.sso.identity.ProfileUpdateRequest
+import uz.ods.sso.identity.UserResponse
+import uz.ods.sso.identity.toResponse
 import uz.ods.sso.persistence.LoginHistoryRepository
 import uz.ods.sso.persistence.UserSessionRepository
 import uz.ods.sso.shared.AppException
@@ -51,6 +58,26 @@ class AccountController(
     private val audit: AuditService,
     private val properties: OdsProperties,
 ) {
+    @PatchMapping("/profile")
+    @Transactional
+    fun updateProfile(
+        @Valid @RequestBody body: ProfileUpdateRequest,
+        request: HttpServletRequest,
+    ): UserResponse {
+        val principal = sessionService.current()
+        principal.user.name = body.name?.trim()?.takeIf(String::isNotEmpty)
+        principal.user.phone = body.phone?.trim()?.takeIf(String::isNotEmpty)
+        principal.user.updatedAt = Instant.now()
+        audit.write(
+            principal.user.tenantId,
+            request,
+            "PROFILE_UPDATED",
+            principal.user.id,
+            principal.user.id,
+        )
+        return principal.user.toResponse()
+    }
+
     @GetMapping("/sessions")
     fun sessions(): List<SessionResponse> {
         val principal = sessionService.current()

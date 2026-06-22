@@ -19,8 +19,11 @@ class SessionCookieAuthenticationFilter(
         filterChain: FilterChain,
     ) {
         if (SecurityContextHolder.getContext().authentication == null) {
-            val raw = request.cookies?.firstOrNull { it.name == SessionService.COOKIE_NAME }?.value
-            val principal = raw?.let(sessionService::authenticate)
+            val principal = request.cookies.orEmpty()
+                .asSequence()
+                .filter { it.name == SessionService.COOKIE_NAME }
+                .mapNotNull { sessionService.authenticate(it.value) }
+                .firstOrNull()
             if (principal != null) {
                 val authorities = sessionService.authorities(principal)
                 val authentication = UsernamePasswordAuthenticationToken.authenticated(

@@ -32,10 +32,9 @@ if [ "$(free -m | awk '/^Mem:/{print $2}')" -lt 3000 ] && [ "$(swapon --show | w
 fi
 
 mkdir -p "$deploy_path"
-if [ ! -f "$deploy_path/.env" ]; then
-  cp "$deploy_path/.env.production.example" "$deploy_path/.env"
-  chmod 600 "$deploy_path/.env"
-  echo "Populate $deploy_path/.env before deployment"
+install -d -m 700 /etc/ods-platform
+if [ ! -f /etc/ods-platform/production.env ]; then
+  echo "GitHub Environment production will create /etc/ods-platform/production.env on the first deploy"
 fi
 
 if command -v ufw >/dev/null 2>&1; then

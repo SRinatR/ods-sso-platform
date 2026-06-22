@@ -17,10 +17,13 @@ import tools.jackson.databind.ObjectMapper
 import uz.ods.sso.config.OdsProperties
 import uz.ods.sso.persistence.SecurityPolicyEntity
 import uz.ods.sso.persistence.SecurityPolicyRepository
+import uz.ods.sso.persistence.BackupCodeRepository
+import uz.ods.sso.persistence.MfaMethodRepository
 import uz.ods.sso.persistence.TenantEntity
 import uz.ods.sso.persistence.TenantRepository
 import uz.ods.sso.persistence.UserEntity
 import uz.ods.sso.persistence.UserRepository
+import uz.ods.sso.persistence.UserSessionRepository
 import uz.ods.sso.security.CryptoService
 import uz.ods.sso.shared.newId
 import java.time.Duration
@@ -32,6 +35,9 @@ class BootstrapService(
     private val tenants: TenantRepository,
     private val users: UserRepository,
     private val policies: SecurityPolicyRepository,
+    private val mfaMethods: MfaMethodRepository,
+    private val backupCodes: BackupCodeRepository,
+    private val sessions: UserSessionRepository,
     private val clients: RegisteredClientRepository,
     private val crypto: CryptoService,
     private val objectMapper: ObjectMapper,
@@ -66,19 +72,58 @@ class BootstrapService(
     private fun seedAdmin(tenantId: String) {
         if (properties.bootstrapAdminEmail.isBlank() || properties.bootstrapAdminPassword.isBlank()) return
         val email = properties.bootstrapAdminEmail.lowercase()
-        if (users.findByTenantIdAndEmailIgnoreCase(tenantId, email) != null) return
-        users.save(
-            UserEntity(
+        val existing = users.findByTenantIdAndEmailIgnoreCase(tenantId, email)
+        if (existing == null) {
+            users.save(
+                UserEntity(
+                    tenantId = tenantId,
+                    email = email,
+                    passwordHash = crypto.hashBootstrapPassword(properties.bootstrapAdminPassword),
+                    name = "Platform Administrator",
+                    role = "admin",
+                    status = "active",
+                    emailVerifiedAt = Instant.now(),
+                    termsAcceptedAt = Instant.now(),
+                ),
+            )
+            log.info("bootstrap_admin_created email_hash={}", crypto.sha256(email))
+            return
+        }
+        if (!properties.bootstrapAdminReconcile) return
+
+        val fingerprint = crypto.hashSecret("bootstrap-admin:$email:${properties.bootstrapAdminPassword}")
+        val markerValue = objectMapper.writeValueAsString(mapOf("fingerprint" to fingerprint))
+        val markerKey = "bootstrap_admin_reconcile"
+        val marker = policies.findByTenantIdAndKey(tenantId, markerKey)
+        if (marker?.valueJson == markerValue) return
+
+        existing.passwordHash = crypto.hashBootstrapPassword(properties.bootstrapAdminPassword)
+        existing.role = "admin"
+        existing.status = "active"
+        existing.emailVerifiedAt = existing.emailVerifiedAt ?: Instant.now()
+        existing.termsAcceptedAt = existing.termsAcceptedAt ?: Instant.now()
+        existing.mfaEnabled = false
+        existing.failedLoginCount = 0
+        existing.lockedUntil = null
+        existing.updatedAt = Instant.now()
+        users.save(existing)
+        mfaMethods.deleteByUserId(existing.id)
+        backupCodes.deleteByUserId(existing.id)
+        sessions.revokeAll(existing.id, Instant.now())
+
+        policies.save(
+            marker?.apply {
+                valueJson = markerValue
+                updatedBy = existing.id
+                updatedAt = Instant.now()
+            } ?: SecurityPolicyEntity(
                 tenantId = tenantId,
-                email = email,
-                passwordHash = crypto.hashPassword(properties.bootstrapAdminPassword),
-                name = "Platform Administrator",
-                role = "admin",
-                status = "active",
-                emailVerifiedAt = Instant.now(),
+                key = markerKey,
+                valueJson = markerValue,
+                updatedBy = existing.id,
             ),
         )
-        log.info("bootstrap_admin_created email_hash={}", crypto.sha256(email))
+        log.warn("bootstrap_admin_reconciled email_hash={}", crypto.sha256(email))
     }
 
     private fun seedTatarlarClient(tenantId: String) {
@@ -127,6 +172,7 @@ class BootstrapService(
         require(properties.tokenPepper.length >= 32) { "TOKEN_PEPPER must contain at least 32 characters" }
         require(properties.sessionSecret != properties.tokenPepper) { "SESSION_SECRET and TOKEN_PEPPER must be independent" }
         if (!properties.productionLike) return
+        require(properties.requireEmailVerification) { "REQUIRE_EMAIL_VERIFICATION must be true in production" }
         require("change-before-production" !in properties.sessionSecret) { "Development SESSION_SECRET cannot be used" }
         require("change-before-production" !in properties.tokenPepper) { "Development TOKEN_PEPPER cannot be used" }
         require(properties.encryptionKey.isNotBlank()) { "TOTP_ENCRYPTION_KEY is required" }

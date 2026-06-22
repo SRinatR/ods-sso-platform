@@ -46,9 +46,6 @@ class IdentityService(
     @Transactional
     fun register(body: RegisterRequest, request: HttpServletRequest): Boolean {
         rateLimiter.enforce(RateLimiter.REGISTRATION, clientIp(request, properties))
-        if (!body.acceptTerms) {
-            throw AppException(HttpStatus.UNPROCESSABLE_CONTENT, "terms_required", "Terms must be accepted")
-        }
         if (properties.requireEmailVerification) requireMailDelivery()
         val tenant = tenants.current()
         val email = body.email.trim().lowercase()
@@ -61,11 +58,19 @@ class IdentityService(
                 tenantId = tenant.id,
                 email = email,
                 passwordHash = passwordHash,
-                name = body.name.trim(),
+                name = null,
                 emailVerifiedAt = Instant.now().takeUnless { properties.requireEmailVerification },
+                termsAcceptedAt = Instant.now(),
             ),
         )
-        audit.write(tenant.id, request, "USER_REGISTERED", user.id, user.id)
+        audit.write(
+            tenant.id,
+            request,
+            "USER_REGISTERED",
+            user.id,
+            user.id,
+            details = mapOf("terms_version" to "2026-06-22"),
+        )
         events.append(tenant.id, "UserRegistered", user.id, mapOf("user_id" to user.id, "email" to user.email))
         if (!properties.requireEmailVerification) {
             audit.write(tenant.id, request, "EMAIL_VERIFICATION_SKIPPED", user.id, user.id)
@@ -203,13 +208,56 @@ class IdentityService(
         mfaCompleted: Boolean,
         riskScore: Int,
         fingerprint: String?,
+        authenticationMethod: String = if (mfaCompleted) "password_totp" else "password",
     ): LoginResponse {
-        sessions.create(request, response, user, mfaCompleted, riskScore, fingerprint)
+        sessions.create(request, response, user, mfaCompleted, riskScore, fingerprint, authenticationMethod)
         user.lastLoginAt = Instant.now()
         recordLogin(user.tenantId, user, user.email, true, null, riskScore, request)
-        audit.write(user.tenantId, request, "LOGIN_SUCCESS", user.id, user.id, details = mapOf("mfa" to mfaCompleted, "risk_score" to riskScore))
+        audit.write(
+            user.tenantId,
+            request,
+            "LOGIN_SUCCESS",
+            user.id,
+            user.id,
+            details = mapOf(
+                "mfa" to mfaCompleted,
+                "authentication_method" to authenticationMethod,
+                "risk_score" to riskScore,
+            ),
+        )
         events.append(user.tenantId, "UserLoggedIn", user.id, mapOf("user_id" to user.id, "risk_score" to riskScore))
         return LoginResponse(userId = user.id, email = user.email)
+    }
+
+    @Transactional(noRollbackFor = [AppException::class])
+    fun loginWithPasskey(
+        userId: String,
+        request: HttpServletRequest,
+        response: HttpServletResponse,
+    ): LoginResponse {
+        val user = users.findByPublicId(userId)
+            ?: throw AppException(HttpStatus.UNAUTHORIZED, "invalid_passkey", "Passkey authentication failed")
+        if (user.status != "active") {
+            throw AppException(HttpStatus.FORBIDDEN, "account_unavailable", "Account is not active")
+        }
+        if (!user.emailVerified) {
+            throw AppException(HttpStatus.FORBIDDEN, "email_not_verified", "Email verification is required")
+        }
+        val riskResult = risk.assess(user, clientIp(request, properties), request.getHeader("User-Agent"))
+        if (riskResult.decision == "deny") {
+            recordLogin(user.tenantId, user, user.email, false, "risk_denied", riskResult.score, request)
+            throw AppException(HttpStatus.FORBIDDEN, "risk_denied", "Login was blocked by risk policy")
+        }
+        risk.trust(user.id, riskResult.fingerprint)
+        return completeLogin(
+            user,
+            request,
+            response,
+            mfaCompleted = true,
+            riskScore = riskResult.score,
+            fingerprint = riskResult.fingerprint,
+            authenticationMethod = "passkey",
+        )
     }
 
     fun challenge(challengeToken: String): Triple<UserEntity, Int, String?> {

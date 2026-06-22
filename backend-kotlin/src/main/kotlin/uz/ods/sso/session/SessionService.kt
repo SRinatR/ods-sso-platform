@@ -28,6 +28,7 @@ data class OdsPrincipal(
     val email: String,
     val role: String,
     val mfaCompleted: Boolean,
+    val authenticationMethod: String,
     val authenticatedAt: Instant,
 ) : Principal {
     override fun getName(): String = userId
@@ -53,6 +54,7 @@ class SessionService(
         mfaCompleted: Boolean,
         riskScore: Int,
         deviceId: String?,
+        authenticationMethod: String = if (mfaCompleted) "password_totp" else "password",
     ): UserSessionEntity {
         val (id, secret, raw) = crypto.opaqueToken("ses")
         val now = Instant.now()
@@ -68,15 +70,22 @@ class SessionService(
                 lastSeenAt = now,
                 expiresAt = now.plus(properties.sessionTtl, ChronoUnit.SECONDS),
                 mfaCompletedAt = now.takeIf { mfaCompleted },
+                authenticationMethod = authenticationMethod,
                 riskScore = riskScore,
             ).apply { publicId = id },
         )
+        val cookieDomain = properties.sessionCookieDomain.trim().ifBlank { null }
+        if (cookieDomain != null) {
+            // Remove the legacy host-only cookie before issuing the shared ods.uz cookie.
+            // Browsers may otherwise send both values and keep a user in a 401 loop.
+            response.addCookie(expiredCookie(null))
+        }
         response.addCookie(
             Cookie(COOKIE_NAME, raw).apply {
                 isHttpOnly = true
                 secure = properties.productionLike
                 path = "/"
-                properties.sessionCookieDomain.trim().ifBlank { null }?.let { domain = it }
+                cookieDomain?.let { domain = it }
                 maxAge = properties.sessionTtl.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
                 setAttribute("SameSite", "Lax")
             },
@@ -104,6 +113,7 @@ class SessionService(
             user.email,
             user.role,
             session.mfaCompletedAt != null,
+            session.authenticationMethod,
             session.createdAt,
         )
     }
@@ -129,7 +139,11 @@ class SessionService(
         FactorGrantedAuthority.withAuthority(FactorGrantedAuthority.PASSWORD_AUTHORITY)
             .issuedAt(principal.authenticatedAt)
             .build(),
-    ) + if (principal.mfaCompleted) listOf(SimpleGrantedAuthority("AMR_OTP")) else emptyList()
+    ) + when (principal.authenticationMethod) {
+        "passkey" -> listOf(SimpleGrantedAuthority("AMR_WEBAUTHN"))
+        "password_totp" -> listOf(SimpleGrantedAuthority("AMR_OTP"))
+        else -> emptyList()
+    }
 
     @Transactional
     fun revoke(userId: String, sessionId: String): Boolean {

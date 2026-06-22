@@ -204,7 +204,8 @@ export default function PartnerPage() {
             <label>
               Сайт
               <input
-                type="url"
+                type="text"
+                inputMode="url"
                 placeholder="tatarlar.uz"
                 value={organizationForm.websiteUrl}
                 onChange={(event) => {

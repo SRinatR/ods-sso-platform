@@ -121,7 +121,10 @@ class UserEntity(
     var passwordHash: String = "",
     @Column(length = 255)
     var name: String? = null,
+    @Column(length = 32)
+    var phone: String? = null,
     var emailVerifiedAt: Instant? = null,
+    var termsAcceptedAt: Instant? = null,
     @Column(nullable = false, length = 24)
     var status: String = "active",
     @Column(nullable = false, length = 24)
@@ -171,6 +174,8 @@ class UserSessionEntity(
     var expiresAt: Instant = Instant.now(),
     var revokedAt: Instant? = null,
     var mfaCompletedAt: Instant? = null,
+    @Column(nullable = false, length = 32)
+    var authenticationMethod: String = "password",
     var stepUpAt: Instant? = null,
     @Column(nullable = false)
     var riskScore: Int = 0,

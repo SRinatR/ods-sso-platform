@@ -41,6 +41,11 @@ class CryptoService(
         return requireNotNull(passwordEncoder.encode(password))
     }
 
+    fun hashBootstrapPassword(password: String): String {
+        require(password.length in 8..128) { "Bootstrap password must contain 8 to 128 characters" }
+        return requireNotNull(passwordEncoder.encode(password))
+    }
+
     fun matchesPassword(password: String, encoded: String?): Boolean {
         val candidateHash = encoded ?: dummyPasswordHash
         val matches = password.length <= 128 &&

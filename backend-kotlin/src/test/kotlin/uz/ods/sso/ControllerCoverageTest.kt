@@ -27,6 +27,7 @@ import uz.ods.sso.identity.LoginResponse
 import uz.ods.sso.identity.MailService
 import uz.ods.sso.identity.MessageResponse
 import uz.ods.sso.identity.MfaChallengeRequest
+import uz.ods.sso.identity.ProfileUpdateRequest
 import uz.ods.sso.identity.RegisterRequest
 import uz.ods.sso.identity.ResendVerificationRequest
 import uz.ods.sso.identity.ResetPasswordRequest
@@ -99,7 +100,7 @@ class ControllerCoverageTest {
         whenever(sessions.revokeAll("usr_1")).thenReturn(2)
         whenever(crypto.matchesPassword("password", "hash")).thenReturn(true)
 
-        assertThat(controller.register(RegisterRequest("user@example.com", "password-value", "User", true), request).statusCode.value())
+        assertThat(controller.register(RegisterRequest("user@example.com", "password-value"), request).statusCode.value())
             .isEqualTo(201)
         assertThat(controller.verifyEmail(VerifyEmailRequest("token"), request).ok).isTrue()
         assertThat(controller.resend(ResendVerificationRequest("user@example.com"), request).ok).isTrue()
@@ -211,6 +212,7 @@ class ControllerCoverageTest {
         whenever(historyRepository.findByUserIdOrderByCreatedAtDesc(any(), any<Pageable>())).thenReturn(listOf(history))
         val account = AccountController(sessions, sessionRepository, historyRepository, audit, properties)
 
+        assertThat(account.updateProfile(ProfileUpdateRequest("User", "+998901234567"), request).name).isEqualTo("User")
         assertThat(account.sessions().single().id).isEqualTo("ses_1")
         assertThat(account.revoke("ses_1", request, response)).isEqualTo(MessageResponse(message = "Session revoked"))
         assertThat(account.history().single()).isEqualTo(

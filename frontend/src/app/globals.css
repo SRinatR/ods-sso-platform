@@ -220,6 +220,34 @@ code {
   font-size: 0.9rem;
 }
 
+.legal-consent {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.passkey-button {
+  background: linear-gradient(135deg, #4f8cff, #7c5cff);
+}
+
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+  text-align: center;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  content: "";
+  height: 1px;
+  flex: 1;
+  background: var(--border);
+}
+
 .alert {
   margin-bottom: 1rem;
   padding: 0.85rem 1rem;
@@ -412,6 +440,55 @@ code {
   background: #07111f;
 }
 
+.qr-setup {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  gap: 1.4rem;
+  align-items: start;
+}
+
+.qr-frame {
+  display: grid;
+  place-items: center;
+  min-height: 260px;
+  overflow: hidden;
+  border-radius: 16px;
+  background: white;
+  color: #08111f;
+}
+
+.qr-frame img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.credential-list {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.credential-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #0b1626;
+}
+
+.credential-item div {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.credential-item span {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
 .table-wrap {
   overflow-x: auto;
 }
@@ -571,6 +648,10 @@ th {
   }
 
   .integration-list {
+    grid-template-columns: 1fr;
+  }
+
+  .qr-setup {
     grid-template-columns: 1fr;
   }
 

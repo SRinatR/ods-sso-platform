@@ -129,8 +129,8 @@ class AdminGuard(
         if (principal.user.role !in setOf("admin", "security_admin")) {
             deny("admin_required", "Administrator access is required", "role")
         }
-        if (!principal.user.mfaEnabled || principal.session.mfaCompletedAt == null) {
-            deny("mfa_required", "Administrator MFA is required", "mfa")
+        if (principal.session.mfaCompletedAt == null) {
+            deny("mfa_required", "Administrator MFA or passkey authentication is required", "mfa")
         }
         if (principal.session.stepUpAt?.plus(properties.stepUpTtl, ChronoUnit.SECONDS)?.isAfter(Instant.now()) != true) {
             deny("step_up_required", "Recent step-up authentication is required", "step_up")

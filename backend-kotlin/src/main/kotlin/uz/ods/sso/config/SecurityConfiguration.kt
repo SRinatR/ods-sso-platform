@@ -19,6 +19,9 @@ import org.springframework.security.oauth2.core.OAuth2Error
 import org.springframework.security.oauth2.core.OAuth2ErrorCodes
 import org.springframework.security.oauth2.core.oidc.OidcScopes
 import org.springframework.security.core.Authentication
+import org.springframework.security.core.userdetails.User
+import org.springframework.security.core.userdetails.UserDetailsService
+import org.springframework.security.core.userdetails.UsernameNotFoundException
 import org.springframework.security.oauth2.jwt.JwtDecoder
 import org.springframework.security.oauth2.server.authorization.JdbcOAuth2AuthorizationConsentService
 import org.springframework.security.oauth2.server.authorization.JdbcOAuth2AuthorizationService
@@ -41,6 +44,10 @@ import org.springframework.security.web.AuthenticationEntryPoint
 import org.springframework.security.web.SecurityFilterChain
 import org.springframework.security.web.authentication.logout.LogoutFilter
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter
+import org.springframework.security.web.context.RequestAttributeSecurityContextRepository
+import org.springframework.security.web.webauthn.authentication.WebAuthnAuthenticationFilter
+import org.springframework.security.web.webauthn.management.JdbcPublicKeyCredentialUserEntityRepository
+import org.springframework.security.web.webauthn.management.JdbcUserCredentialRepository
 import org.springframework.security.web.util.matcher.RequestMatcher
 import org.springframework.web.cors.CorsConfiguration
 import org.springframework.web.cors.CorsConfigurationSource
@@ -55,6 +62,7 @@ import uz.ods.sso.tenant.TenantAwareRegisteredClientRepository
 import uz.ods.sso.security.CryptoService
 import uz.ods.sso.audit.AuditService
 import uz.ods.sso.oauth.RotationTrackingAuthorizationService
+import uz.ods.sso.passkey.PasskeyAuthenticationSuccessHandler
 import uz.ods.sso.session.SessionCookieAuthenticationFilter
 import uz.ods.sso.shared.ApiErrorResponse
 import tools.jackson.databind.ObjectMapper
@@ -146,6 +154,7 @@ class SecurityConfiguration(
     fun applicationSecurityFilterChain(
         http: HttpSecurity,
         sessionFilter: SessionCookieAuthenticationFilter,
+        passkeySuccessHandler: PasskeyAuthenticationSuccessHandler,
     ): SecurityFilterChain {
         http
             .authorizeHttpRequests { requests ->
@@ -165,6 +174,8 @@ class SecurityConfiguration(
                         "/api/v1/auth/reset-password",
                         "/api/v1/auth/login",
                         "/api/v1/auth/mfa/verify",
+                        "/webauthn/authenticate/options",
+                        "/login/webauthn",
                         "/api/v1/dev/mailbox",
                         "/internal/caddy/allow-domain",
                         "/actuator/health/**",
@@ -173,16 +184,28 @@ class SecurityConfiguration(
                     .anyRequest().authenticated()
             }
             .addFilterBefore(sessionFilter, UsernamePasswordAuthenticationFilter::class.java)
+            .webAuthn {
+                it.rpId(properties.rootDomain)
+                    .rpName("ODS Identity")
+                    .allowedOrigins(passkeyOrigins())
+                    .disableDefaultRegistrationPage(true)
+            }
             .cors(withDefaults())
             .csrf { it.disable() }
-            .sessionManagement { it.disable() }
+            .securityContext {
+                it.securityContextRepository(RequestAttributeSecurityContextRepository())
+            }
             .requestCache { it.disable() }
             .exceptionHandling { exceptions ->
                 exceptions.authenticationEntryPoint { request, response, _ ->
                     writeUnauthorized(request, response)
                 }
             }
-        return http.build()
+        val chain = http.build()
+        chain.filters.filterIsInstance<WebAuthnAuthenticationFilter>().forEach {
+            it.setAuthenticationSuccessHandler(passkeySuccessHandler)
+        }
+        return chain
     }
 
     @Bean
@@ -199,6 +222,24 @@ class SecurityConfiguration(
         JdbcRegisteredClientRepository(jdbc),
         tenants,
     )
+
+    @Bean
+    fun passkeyUserDetailsService(users: UserRepository): UserDetailsService = UserDetailsService { userId ->
+        val user = users.findByPublicId(userId) ?: throw UsernameNotFoundException("User was not found")
+        User.withUsername(user.id)
+            .password(user.passwordHash)
+            .roles(user.role.uppercase())
+            .disabled(user.status != "active")
+            .build()
+    }
+
+    @Bean
+    fun passkeyUserEntityRepository(jdbc: JdbcOperations) =
+        JdbcPublicKeyCredentialUserEntityRepository(jdbc)
+
+    @Bean
+    fun passkeyCredentialRepository(jdbc: JdbcOperations) =
+        JdbcUserCredentialRepository(jdbc)
 
     @Bean
     fun authorizationService(
@@ -272,9 +313,14 @@ class SecurityConfiguration(
                 if (OidcScopes.EMAIL in scopes) context.claims.claim("email", user.email)
                 val name = user.name
                 if (OidcScopes.PROFILE in scopes && name != null) context.claims.claim("name", name)
-                val mfa = principal?.authorities.orEmpty().any { it.authority == "AMR_OTP" }
-                context.claims.claim("amr", if (mfa) listOf("pwd", "otp") else listOf("pwd"))
-                context.claims.claim("acr", if (mfa) "urn:ods:loa:2" else "urn:ods:loa:1")
+                val authorities = principal?.authorities.orEmpty().map { it.authority }.toSet()
+                val amr = when {
+                    "AMR_WEBAUTHN" in authorities -> listOf("webauthn")
+                    "AMR_OTP" in authorities -> listOf("pwd", "otp")
+                    else -> listOf("pwd")
+                }
+                context.claims.claim("amr", amr)
+                context.claims.claim("acr", if (amr == listOf("pwd")) "urn:ods:loa:1" else "urn:ods:loa:2")
             }
         }
 
@@ -291,6 +337,20 @@ class SecurityConfiguration(
         return UrlBasedCorsConfigurationSource().apply {
             registerCorsConfiguration("/**", configuration)
         }
+    }
+
+    private fun passkeyOrigins(): Set<String> {
+        val configured = properties.corsOrigins.filter { it.startsWith("https://") }
+        val fixed = if (properties.productionLike) {
+            listOf(
+                "https://auth.${properties.rootDomain}",
+                "https://accounts.${properties.rootDomain}",
+                "https://admin.${properties.rootDomain}",
+            )
+        } else {
+            properties.corsOrigins
+        }
+        return (configured + fixed).toSet()
     }
 
     private fun accountLoginEntryPoint() = AuthenticationEntryPoint { request, response, _ ->

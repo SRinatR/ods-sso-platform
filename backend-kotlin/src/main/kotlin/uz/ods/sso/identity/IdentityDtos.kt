@@ -15,8 +15,6 @@ data class RegistrationResponse(
 data class RegisterRequest(
     @field:Email val email: String,
     @field:Size(min = 12, max = 128) val password: String,
-    @field:Size(min = 1, max = 255) val name: String,
-    val acceptTerms: Boolean,
 )
 
 data class LoginRequest(
@@ -49,11 +47,18 @@ data class UserResponse(
     val id: String,
     val email: String,
     val name: String?,
+    val phone: String?,
     val emailVerified: Boolean,
     val status: String,
     val role: String,
     val mfaEnabled: Boolean,
+    val authenticationMethod: String? = null,
     val createdAt: Instant,
+)
+
+data class ProfileUpdateRequest(
+    @field:Size(max = 255) val name: String?,
+    @field:Size(max = 32) val phone: String?,
 )
 
 data class MfaChallengeRequest(

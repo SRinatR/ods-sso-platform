@@ -58,11 +58,13 @@ class SessionServiceTest {
         assertThat(entity.id).startsWith("ses_")
         assertThat(entity.mfaCompletedAt).isNotNull()
         val cookie = argumentCaptor<Cookie>()
-        verify(response).addCookie(cookie.capture())
-        assertThat(cookie.firstValue.name).isEqualTo(SessionService.COOKIE_NAME)
-        assertThat(cookie.firstValue.isHttpOnly).isTrue()
-        assertThat(cookie.firstValue.domain).isEqualTo("ods.uz")
-        assertThat(cookie.firstValue.value).startsWith("${entity.id}.")
+        verify(response, times(2)).addCookie(cookie.capture())
+        assertThat(cookie.firstValue.maxAge).isZero()
+        val sessionCookie = cookie.secondValue
+        assertThat(sessionCookie.name).isEqualTo(SessionService.COOKIE_NAME)
+        assertThat(sessionCookie.isHttpOnly).isTrue()
+        assertThat(sessionCookie.domain).isEqualTo("ods.uz")
+        assertThat(sessionCookie.value).startsWith("${entity.id}.")
     }
 
     @Test
@@ -75,6 +77,7 @@ class SessionServiceTest {
             createdAt = Instant.now().minusSeconds(10),
             expiresAt = Instant.now().plusSeconds(60),
             mfaCompletedAt = Instant.now(),
+            authenticationMethod = "password_totp",
         ).apply { publicId = id }
         whenever(sessions.findByPublicId(id)).thenReturn(entity)
         whenever(users.findByPublicId("usr_1")).thenReturn(user)
@@ -84,6 +87,7 @@ class SessionServiceTest {
         assertThat(principal.userId).isEqualTo("usr_1")
         assertThat(principal.sessionId).isEqualTo(id)
         assertThat(principal.mfaCompleted).isTrue()
+        assertThat(principal.authenticationMethod).isEqualTo("password_totp")
         assertThat(service.authorities(principal).map { it.authority })
             .contains("ROLE_USER", "TENANT_tnt_1", "FACTOR_PASSWORD", "AMR_OTP")
     }

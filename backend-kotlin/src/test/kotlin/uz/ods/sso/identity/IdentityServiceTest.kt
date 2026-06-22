@@ -21,6 +21,7 @@ import uz.ods.sso.persistence.TenantEntity
 import uz.ods.sso.persistence.UserEntity
 import uz.ods.sso.persistence.UserRepository
 import uz.ods.sso.risk.RiskService
+import uz.ods.sso.risk.RiskResult
 import uz.ods.sso.security.CryptoService
 import uz.ods.sso.security.EphemeralStore
 import uz.ods.sso.security.RateLimiter
@@ -67,15 +68,20 @@ class IdentityServiceTest {
     private val request = mock<HttpServletRequest>()
 
     @Test
-    fun `registration rejects missing terms and does not disclose duplicate email`() {
+    fun `registration needs only email and password and does not disclose duplicate email`() {
         whenever(tenants.current()).thenReturn(tenant)
-        assertThatThrownBy {
-            service.register(RegisterRequest("user@example.com", "long-enough-password", "User", false), request)
-        }.isInstanceOf(AppException::class.java).hasMessage("Terms must be accepted")
+        whenever(users.findByTenantIdAndEmailIgnoreCase("tnt_1", "user@example.com")).thenReturn(null)
+        whenever(users.save(any<UserEntity>())).thenAnswer { it.arguments[0] }
+
+        assertThat(service.register(RegisterRequest("user@example.com", "long-enough-password"), request)).isFalse()
+        val created = org.mockito.kotlin.argumentCaptor<UserEntity>()
+        verify(users).save(created.capture())
+        assertThat(created.firstValue.name).isNull()
+        assertThat(created.firstValue.termsAcceptedAt).isNotNull()
 
         whenever(users.findByTenantIdAndEmailIgnoreCase("tnt_1", "user@example.com")).thenReturn(UserEntity())
         assertThat(
-            service.register(RegisterRequest("user@example.com", "long-enough-password", "User", true), request),
+            service.register(RegisterRequest("user@example.com", "long-enough-password"), request),
         ).isFalse()
     }
 
@@ -150,5 +156,26 @@ class IdentityServiceTest {
         assertThat(challenge.third).isEqualTo("fingerprint")
         service.consumeChallenge("challenge")
         verify(ephemeral).delete("mfa:challenge:challenge")
+    }
+
+    @Test
+    fun `passkey login creates a strong opaque session`() {
+        val response = mock<HttpServletResponse>()
+        val user = UserEntity(
+            tenantId = "tnt_1",
+            email = "user@example.com",
+            emailVerifiedAt = Instant.now(),
+        ).apply { publicId = "usr_1" }
+        whenever(users.findByPublicId("usr_1")).thenReturn(user)
+        whenever(request.remoteAddr).thenReturn("127.0.0.1")
+        whenever(request.getHeader("User-Agent")).thenReturn("test")
+        whenever(risk.assess(user, "127.0.0.1", "test"))
+            .thenReturn(RiskResult(25, "allow", listOf("new_device"), "fingerprint"))
+
+        val result = service.loginWithPasskey("usr_1", request, response)
+
+        assertThat(result.userId).isEqualTo("usr_1")
+        verify(risk).trust("usr_1", "fingerprint")
+        verify(sessions).create(request, response, user, true, 25, "fingerprint", "passkey")
     }
 }

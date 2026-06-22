@@ -3,6 +3,12 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
+env_file="${ENV_FILE:-/etc/ods-platform/production.env}"
+
+compose() {
+  docker compose --env-file "${env_file}" "$@"
+}
+
 if ! command -v curl >/dev/null 2>&1; then
   echo "Deployment aborted: curl is missing; run scripts/server-bootstrap.sh first" >&2
   exit 1
@@ -30,8 +36,8 @@ ensure_docker_forwarding() {
 
 ensure_docker_forwarding
 
-if [ ! -f .env ]; then
-  echo "Deployment aborted: .env is missing" >&2
+if [ ! -f "${env_file}" ]; then
+  echo "Deployment aborted: ${env_file} is missing" >&2
   exit 1
 fi
 
@@ -59,18 +65,26 @@ required=(
   TOTP_ENCRYPTION_KEY
   JWT_PRIVATE_KEY
   JWT_PUBLIC_KEY
+  REQUIRE_EMAIL_VERIFICATION
+  SMTP_HOST
+  SMTP_USER
+  SMTP_PASSWORD
+  MAIL_FROM
+  MINIO_ROOT_USER
+  MINIO_ROOT_PASSWORD
+  MINIO_BUCKET
 )
 
 for name in "${required[@]}"; do
-  if ! grep -q "^${name}=.\+" .env; then
+  if ! grep -q "^${name}=.\+" "${env_file}"; then
     echo "Deployment aborted: ${name} is not configured" >&2
     exit 1
   fi
 done
 
-public_domain="$(grep '^PUBLIC_DOMAIN=' .env | cut -d= -f2-)"
-root_domain="$(grep '^ROOT_DOMAIN=' .env | cut -d= -f2-)"
-www_domain="$(grep '^WWW_DOMAIN=' .env | cut -d= -f2-)"
+public_domain="$(grep '^PUBLIC_DOMAIN=' "${env_file}" | cut -d= -f2-)"
+root_domain="$(grep '^ROOT_DOMAIN=' "${env_file}" | cut -d= -f2-)"
+www_domain="$(grep '^WWW_DOMAIN=' "${env_file}" | cut -d= -f2-)"
 canonical_url="https://${public_domain}"
 
 if [ "${public_domain}" != "auth.${root_domain}" ]; then
@@ -95,7 +109,7 @@ declare -A service_domains=(
 )
 
 for name in "${!service_domains[@]}"; do
-  value="$(grep "^${name}=" .env | cut -d= -f2-)"
+  value="$(grep "^${name}=" "${env_file}" | cut -d= -f2-)"
   expected="${service_domains[${name}]}.${root_domain}"
   if [ "${value}" != "${expected}" ]; then
     echo "Deployment aborted: ${name} must equal ${expected}" >&2
@@ -104,15 +118,15 @@ for name in "${!service_domains[@]}"; do
 done
 
 for name in ISSUER ACCOUNT_URL API_URL; do
-  value="$(grep "^${name}=" .env | cut -d= -f2-)"
+  value="$(grep "^${name}=" "${env_file}" | cut -d= -f2-)"
   if [ "${value}" != "${canonical_url}" ]; then
     echo "Deployment aborted: ${name} must equal ${canonical_url}" >&2
     exit 1
   fi
 done
 
-allowed_origin_patterns="$(grep '^ALLOWED_ORIGIN_PATTERNS=' .env | cut -d= -f2-)"
-session_cookie_domain="$(grep '^SESSION_COOKIE_DOMAIN=' .env | cut -d= -f2-)"
+allowed_origin_patterns="$(grep '^ALLOWED_ORIGIN_PATTERNS=' "${env_file}" | cut -d= -f2-)"
+session_cookie_domain="$(grep '^SESSION_COOKIE_DOMAIN=' "${env_file}" | cut -d= -f2-)"
 if [ "${allowed_origin_patterns}" != "https://*.${root_domain}" ]; then
   echo "Deployment aborted: ALLOWED_ORIGIN_PATTERNS must equal https://*.${root_domain}" >&2
   exit 1
@@ -122,44 +136,32 @@ if [ "${session_cookie_domain}" != "${root_domain}" ]; then
   exit 1
 fi
 
-require_email_verification="$(grep '^REQUIRE_EMAIL_VERIFICATION=' .env | cut -d= -f2-)"
-if [ "${require_email_verification}" = "true" ]; then
-  for name in SMTP_HOST SMTP_USER SMTP_PASSWORD MAIL_FROM; do
-    if ! grep -q "^${name}=.\+" .env; then
-      echo "Deployment aborted: ${name} is required when email verification is enabled" >&2
-      exit 1
-    fi
-  done
+require_email_verification="$(grep '^REQUIRE_EMAIL_VERIFICATION=' "${env_file}" | cut -d= -f2-)"
+if [ "${require_email_verification}" != "true" ]; then
+  echo "Deployment aborted: REQUIRE_EMAIL_VERIFICATION must be true in production" >&2
+  exit 1
 fi
 
-cp -f Caddyfile.production Caddyfile
-
-docker compose config --quiet
+compose config --quiet
+compose up -d --build minio minio-init
 
 backup_dir="${BACKUP_DIR:-/var/backups/ods-platform}"
-umask 077
-mkdir -p "${backup_dir}"
-if docker compose ps --status running --services | grep -qx postgres; then
-  timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
-  backup_path="${backup_dir}/ods_sso-pre-deploy-${timestamp}.sql.gz"
-  docker compose exec -T postgres sh -lc \
-    'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB"' | gzip -9 > "${backup_path}"
-  test -s "${backup_path}"
-  echo "Database backup created at ${backup_path}"
+if compose ps --status running --services | grep -qx postgres; then
+  ENV_FILE="${env_file}" BACKUP_DIR="${backup_dir}" scripts/backup.sh
 fi
 
-docker compose up -d --build --remove-orphans
-docker compose run --rm --no-deps --entrypoint caddy caddy \
+compose up -d --build --remove-orphans
+compose run --rm --no-deps --entrypoint caddy caddy \
   validate --config /etc/caddy/Caddyfile --adapter caddyfile
-docker compose up -d --force-recreate --no-deps caddy
+compose up -d --force-recreate --no-deps caddy
 ensure_docker_forwarding
-docker compose exec -T postgres sh -lc \
+compose exec -T postgres sh -lc \
   'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "select version, description, success from flyway_schema_history order by installed_rank desc limit 1"'
-docker compose exec -T postgres sh -lc \
+compose exec -T postgres sh -lc \
   'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "select uuidv7()"'
 
 uuid_table_count="$(
-  docker compose exec -T postgres sh -lc \
+  compose exec -T postgres sh -lc \
     'psql -v ON_ERROR_STOP=1 -At -U "$POSTGRES_USER" -d "$POSTGRES_DB"' <<'SQL' |
 select count(*)
 from information_schema.columns
@@ -196,7 +198,15 @@ if [ "${uuid_table_count}" != "19" ]; then
   exit 1
 fi
 
-api_url="$(grep '^API_URL=' .env | cut -d= -f2-)"
+install -m 0644 ops/systemd/ods-platform.service /etc/systemd/system/ods-platform.service
+install -m 0644 ops/systemd/ods-platform-backup.service /etc/systemd/system/ods-platform-backup.service
+install -m 0644 ops/systemd/ods-platform-backup.timer /etc/systemd/system/ods-platform-backup.timer
+chmod 0755 scripts/deploy.sh scripts/backup.sh scripts/restore.sh scripts/boot-recover.sh
+systemctl daemon-reload
+systemctl enable ods-platform.service ods-platform-backup.timer
+systemctl start ods-platform-backup.timer
+
+api_url="$(grep '^API_URL=' "${env_file}" | cut -d= -f2-)"
 for _ in $(seq 1 30); do
   if curl --fail --silent "${api_url}/ready" >/dev/null; then
     echo "Deployment is ready at ${api_url}"
@@ -206,6 +216,6 @@ for _ in $(seq 1 30); do
 done
 
 echo "Deployment failed readiness verification" >&2
-docker compose ps
-docker compose logs --tail=200 backend caddy
+compose ps
+compose logs --tail=200 backend caddy
 exit 1

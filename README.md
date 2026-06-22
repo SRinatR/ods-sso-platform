@@ -54,6 +54,10 @@ cp .env.example .env
 docker compose up --build
 ```
 
+Production deployment, GitHub Environment secrets, reboot recovery and
+MinIO backup/restore are documented in
+[`docs/production-deployment.md`](docs/production-deployment.md).
+
 Endpoints:
 
 - Account UI: `http://account.localhost`

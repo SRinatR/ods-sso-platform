@@ -9,6 +9,7 @@ import { ADMIN_URL, loginUrl } from "@/lib/domains";
 type CurrentUser = {
   role: string;
   mfa_enabled: boolean;
+  authentication_method?: string;
 };
 type Dashboard = {
   users_total: number;
@@ -158,7 +159,9 @@ export default function AdminPage() {
     );
   }
 
-  if (!currentUser.mfa_enabled) {
+  const passkeySession = currentUser.authentication_method === "passkey";
+
+  if (!currentUser.mfa_enabled && !passkeySession) {
     return (
       <Shell title="Настройте MFA" subtitle="Для админки обязательна двухфакторная защита" admin>
         <section className="panel narrow">
@@ -173,7 +176,7 @@ export default function AdminPage() {
 
   if (!ready) {
     return (
-      <Shell title="Администрирование" subtitle="Требуется свежая MFA step-up проверка" admin>
+      <Shell title="Администрирование" subtitle="Требуется свежая step-up проверка" admin>
         <section className="panel narrow">
           {error && <div className="alert error">{error}</div>}
           <form className="stack" onSubmit={stepUp}>
@@ -186,15 +189,19 @@ export default function AdminPage() {
                 onChange={(event) => setPassword(event.target.value)}
               />
             </label>
-            <label>
-              TOTP-код
-              <input
-                inputMode="numeric"
-                required
-                value={code}
-                onChange={(event) => setCode(event.target.value)}
-              />
-            </label>
+            {!passkeySession && (
+              <label>
+                TOTP-код
+                <input
+                  inputMode="numeric"
+                  pattern="\d{6}"
+                  maxLength={6}
+                  required
+                  value={code}
+                  onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
+                />
+              </label>
+            )}
             <button className="button">Подтвердить доступ</button>
           </form>
         </section>
