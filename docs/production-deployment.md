@@ -5,6 +5,20 @@ No production secret is committed to the repository. GitHub Actions writes a
 restricted `/etc/ods-platform/production.env` file on the VPS with mode `0600`;
 this file is generated on every deployment and is not the source of truth.
 
+## Release flow
+
+Production uses a dedicated protected branch:
+
+1. Changes are merged into `main`.
+2. A successful `Quality Gate` on `main` creates or reuses a `main → prod`
+   promotion pull request.
+3. Merging that pull request runs `Quality Gate` on the exact `prod` commit.
+4. A successful `prod` gate automatically starts `Deploy production`.
+
+The production environment accepts deployments only from `prod`. A manual
+deployment is also supported, but the workflow must be dispatched from `prod`.
+Pull request code is never deployed before it is merged.
+
 ## GitHub location
 
 Open:
@@ -89,6 +103,19 @@ systemctl --no-pager --full status ssh
 Inbound TCP `22` must also be allowed in the provider-level network firewall.
 Do not restrict port `22` to a single administrator IP while deployments use
 GitHub-hosted runners, because their source addresses are not fixed.
+
+After a VPS reinstall, add the production deployment public key to root before
+the first workflow run:
+
+```bash
+install -d -m 700 /root/.ssh
+printf '%s\n' 'DEPLOYMENT_PUBLIC_KEY' >> /root/.ssh/authorized_keys
+chmod 600 /root/.ssh/authorized_keys
+```
+
+The workflow detects an empty VPS, installs Git and Docker, clones the
+repository into `/opt/ods-platform`, writes the restricted runtime environment,
+and then performs the normal deployment.
 
 ## Reboot recovery
 

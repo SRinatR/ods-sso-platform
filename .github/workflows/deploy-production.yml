@@ -1,6 +1,13 @@
 name: Deploy production
 
 on:
+  workflow_run:
+    workflows:
+      - Quality Gate
+    types:
+      - completed
+    branches:
+      - prod
   workflow_dispatch:
 
 permissions:
@@ -13,16 +20,23 @@ concurrency:
 jobs:
   deploy:
     name: VPS production
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     environment: production
     env:
+      DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+      REPOSITORY_URL: https://github.com/${{ github.repository }}.git
       VPS_HOST: ${{ vars.VPS_HOST }}
       VPS_PORT: ${{ vars.VPS_PORT }}
       VPS_USER: ${{ vars.VPS_USER }}
       VPS_APP_DIR: ${{ vars.VPS_APP_DIR }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
 
       - name: Validate deployment configuration
         shell: bash
@@ -41,8 +55,13 @@ jobs:
           MINIO_ROOT_USER: ${{ secrets.MINIO_ROOT_USER }}
           MINIO_ROOT_PASSWORD: ${{ secrets.MINIO_ROOT_PASSWORD }}
         run: |
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ] &&
+             [ "$GITHUB_REF" != "refs/heads/prod" ]; then
+            echo "Manual production deployment must be dispatched from the prod branch" >&2
+            exit 1
+          fi
           for name in \
-            VPS_HOST VPS_PORT VPS_USER VPS_APP_DIR \
+            DEPLOY_SHA REPOSITORY_URL VPS_HOST VPS_PORT VPS_USER VPS_APP_DIR \
             VPS_SSH_PRIVATE_KEY VPS_KNOWN_HOSTS POSTGRES_PASSWORD SESSION_SECRET \
             TOKEN_PEPPER TOTP_ENCRYPTION_KEY JWT_PRIVATE_KEY JWT_PUBLIC_KEY \
             BOOTSTRAP_ADMIN_PASSWORD TATARLAR_CLIENT_SECRET RESEND_API_KEY \
@@ -153,13 +172,26 @@ jobs:
             "$RUNNER_TEMP/production.env" "$VPS_USER@$VPS_HOST:/tmp/ods-production.env"
           ssh -p "$VPS_PORT" -i ~/.ssh/ods-production "$VPS_USER@$VPS_HOST" \
             "set -euo pipefail
-             install -d -m 700 /etc/ods-platform
-             install -m 600 /tmp/ods-production.env /etc/ods-platform/production.env
-             rm -f /tmp/ods-production.env
+             if ! command -v git >/dev/null 2>&1; then
+               apt-get update
+               DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends ca-certificates git
+             fi
+             install -d -m 755 '$VPS_APP_DIR'
+             if [ ! -d '$VPS_APP_DIR/.git' ]; then
+               if find '$VPS_APP_DIR' -mindepth 1 -maxdepth 1 -print -quit | grep -q .; then
+                 echo 'Deployment aborted: $VPS_APP_DIR exists but is not an empty Git repository' >&2
+                 exit 1
+               fi
+               git clone '$REPOSITORY_URL' '$VPS_APP_DIR'
+             fi
              cd '$VPS_APP_DIR'
              git fetch --prune origin
              git restore --worktree Caddyfile 2>/dev/null || true
-             git checkout --detach '$GITHUB_SHA'
+             git checkout --detach '$DEPLOY_SHA'
+             bash scripts/server-bootstrap.sh '$VPS_APP_DIR'
+             install -d -m 700 /etc/ods-platform
+             install -m 600 /tmp/ods-production.env /etc/ods-platform/production.env
+             rm -f /tmp/ods-production.env
              ENV_FILE=/etc/ods-platform/production.env bash scripts/deploy.sh"
 
       - name: Verify public endpoints
