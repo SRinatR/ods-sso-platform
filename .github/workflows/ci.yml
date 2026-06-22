@@ -54,6 +54,9 @@ jobs:
       - name: Build CDS-trained production image
         run: docker build --tag ods-sso-backend:ci backend-kotlin
 
+      - name: Build production MinIO image
+        run: docker build --tag ods-minio:ci infra/minio
+
   frontend:
     runs-on: ubuntu-latest
     timeout-minutes: 20
