@@ -69,6 +69,27 @@ The `ods.uz` sending domain must be verified in Resend. Registration is blocked
 when email delivery is unavailable because email verification is mandatory in
 production.
 
+## SSH recovery
+
+`scripts/server-bootstrap.sh` installs and enables OpenSSH and preserves inbound
+TCP ports `22`, `80`, and `443` in UFW. If SSH is already unavailable, open the
+provider's web/VNC console and run:
+
+```bash
+apt-get update
+apt-get install -y openssh-server
+systemctl unmask ssh
+systemctl enable --now ssh
+ufw allow 22/tcp
+ufw reload
+ss -lntp | grep ':22'
+systemctl --no-pager --full status ssh
+```
+
+Inbound TCP `22` must also be allowed in the provider-level network firewall.
+Do not restrict port `22` to a single administrator IP while deployments use
+GitHub-hosted runners, because their source addresses are not fixed.
+
 ## Reboot recovery
 
 `ods-platform.service` runs after Docker and network readiness, recreates the

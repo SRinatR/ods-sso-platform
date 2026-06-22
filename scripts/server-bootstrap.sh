@@ -3,6 +3,13 @@ set -euo pipefail
 
 deploy_path="${1:-/opt/ods-platform}"
 
+if ! dpkg-query -W -f='${Status}' openssh-server 2>/dev/null | grep -q 'ok installed'; then
+  apt-get update
+  DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends openssh-server
+fi
+systemctl unmask ssh
+systemctl enable --now ssh
+
 if ! command -v curl >/dev/null 2>&1; then
   apt-get update
   apt-get install -y --reinstall --no-install-recommends ca-certificates curl
@@ -38,6 +45,7 @@ if [ ! -f /etc/ods-platform/production.env ]; then
 fi
 
 if command -v ufw >/dev/null 2>&1; then
+  ufw allow 22/tcp
   ufw allow 80/tcp
   ufw allow 443/tcp
 fi
