@@ -1,6 +1,8 @@
 package uz.ods.sso.operations
 
 import org.springframework.data.redis.core.StringRedisTemplate
+import org.springframework.http.HttpStatus
+import org.springframework.http.ResponseEntity
 import org.springframework.jdbc.core.JdbcOperations
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.RequestMapping
@@ -20,10 +22,12 @@ class OperationsController(
     fun health() = mapOf("status" to "ok", "environment" to properties.environment)
 
     @GetMapping("/ready")
-    fun ready(): Map<String, String> {
+    fun ready(): ResponseEntity<Map<String, String>> = runCatching {
         check(jdbc.queryForObject("select 1", Int::class.java) == 1) { "Database is not ready" }
         redis.opsForValue().set("health:ready", "ok", java.time.Duration.ofSeconds(10))
-        return mapOf("status" to "ready")
+        ResponseEntity.ok(mapOf("status" to "ready"))
+    }.getOrElse {
+        ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(mapOf("status" to "not_ready"))
     }
 
     @GetMapping("/privacy")

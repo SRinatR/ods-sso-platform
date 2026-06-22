@@ -226,8 +226,12 @@ class ControllerCoverageTest {
         whenever(mail.outbox).thenReturn(CopyOnWriteArrayList())
         val operations = OperationsController(properties, jdbc, redis, mail)
         assertThat(operations.health()["status"]).isEqualTo("ok")
-        assertThat(operations.ready()["status"]).isEqualTo("ready")
+        assertThat(operations.ready().body?.get("status")).isEqualTo("ready")
         assertThat(operations.privacy()["status"]).isEqualTo("published")
         assertThat(operations.mailbox("user@example.com")).isEmpty()
+
+        whenever(redis.opsForValue()).thenThrow(IllegalStateException("redis unavailable"))
+        assertThat(operations.ready().statusCode.value()).isEqualTo(503)
+        assertThat(operations.ready().body?.get("status")).isEqualTo("not_ready")
     }
 }
