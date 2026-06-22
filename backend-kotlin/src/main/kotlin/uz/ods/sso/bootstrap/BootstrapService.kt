@@ -3,14 +3,6 @@ package uz.ods.sso.bootstrap
 import org.slf4j.LoggerFactory
 import org.springframework.boot.ApplicationArguments
 import org.springframework.boot.ApplicationRunner
-import org.springframework.security.oauth2.core.AuthorizationGrantType
-import org.springframework.security.oauth2.core.ClientAuthenticationMethod
-import org.springframework.security.oauth2.core.oidc.OidcScopes
-import org.springframework.security.oauth2.jose.jws.SignatureAlgorithm
-import org.springframework.security.oauth2.server.authorization.client.RegisteredClient
-import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository
-import org.springframework.security.oauth2.server.authorization.settings.ClientSettings
-import org.springframework.security.oauth2.server.authorization.settings.TokenSettings
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
 import tools.jackson.databind.ObjectMapper
@@ -25,8 +17,6 @@ import uz.ods.sso.persistence.UserEntity
 import uz.ods.sso.persistence.UserRepository
 import uz.ods.sso.persistence.UserSessionRepository
 import uz.ods.sso.security.CryptoService
-import uz.ods.sso.shared.newId
-import java.time.Duration
 import java.time.Instant
 
 @Component
@@ -38,7 +28,6 @@ class BootstrapService(
     private val mfaMethods: MfaMethodRepository,
     private val backupCodes: BackupCodeRepository,
     private val sessions: UserSessionRepository,
-    private val clients: RegisteredClientRepository,
     private val crypto: CryptoService,
     private val objectMapper: ObjectMapper,
 ) : ApplicationRunner {
@@ -52,7 +41,6 @@ class BootstrapService(
         )
         seedPolicies(tenant.id)
         seedAdmin(tenant.id)
-        seedTatarlarClient(tenant.id)
     }
 
     private fun seedPolicies(tenantId: String) {
@@ -124,47 +112,6 @@ class BootstrapService(
             ),
         )
         log.warn("bootstrap_admin_reconciled email_hash={}", crypto.sha256(email))
-    }
-
-    private fun seedTatarlarClient(tenantId: String) {
-        if (properties.tatarlarClientSecret.isBlank()) return
-        val clientId = "ods_tatarlar_staging"
-        if (clients.findByClientId(clientId) != null) return
-        clients.save(
-            RegisteredClient.withId(newId("app"))
-                .clientId(clientId)
-                .clientIdIssuedAt(Instant.now())
-                .clientSecret("{argon2}${crypto.hashPassword(properties.tatarlarClientSecret)}")
-                .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_POST)
-                .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
-                .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
-                .redirectUri("https://api-staging.tatarlar.uz/api/v1/auth/sso/callback")
-                .redirectUri("http://localhost:3002/api/v1/auth/sso/callback")
-                .redirectUri("https://api.tatarlar.uz/api/v1/auth/sso/callback")
-                .scope(OidcScopes.OPENID)
-                .scope(OidcScopes.PROFILE)
-                .scope(OidcScopes.EMAIL)
-                .scope("offline_access")
-                .clientName("Tatarlar Platform")
-                .clientSettings(
-                    ClientSettings.builder()
-                        .requireProofKey(true)
-                        .requireAuthorizationConsent(true)
-                        .setting("description", "Staging and production OIDC integration")
-                        .setting("enabled", true)
-                        .setting("tenant_id", tenantId)
-                        .build(),
-                )
-                .tokenSettings(
-                    TokenSettings.builder()
-                        .accessTokenTimeToLive(Duration.ofSeconds(properties.accessTokenTtl))
-                        .refreshTokenTimeToLive(Duration.ofSeconds(properties.refreshTokenTtl))
-                        .reuseRefreshTokens(false)
-                        .idTokenSignatureAlgorithm(SignatureAlgorithm.RS256)
-                        .build(),
-                )
-                .build(),
-        )
     }
 
     private fun validateRuntime() {

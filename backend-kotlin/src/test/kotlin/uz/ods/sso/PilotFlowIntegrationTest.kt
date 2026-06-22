@@ -40,7 +40,6 @@ import uz.ods.sso.persistence.UserRepository
         "ods.require-email-verification=false",
         "ods.bootstrap-admin-email=",
         "ods.bootstrap-admin-password=",
-        "ods.tatarlar-client-secret=",
         "ods.kafka-events-enabled=false",
         "management.endpoints.enabled-by-default=false",
     ],

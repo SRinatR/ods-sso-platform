@@ -50,7 +50,6 @@ jobs:
           JWT_PRIVATE_KEY: ${{ secrets.JWT_PRIVATE_KEY }}
           JWT_PUBLIC_KEY: ${{ secrets.JWT_PUBLIC_KEY }}
           BOOTSTRAP_ADMIN_PASSWORD: ${{ secrets.BOOTSTRAP_ADMIN_PASSWORD }}
-          TATARLAR_CLIENT_SECRET: ${{ secrets.TATARLAR_CLIENT_SECRET }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           MINIO_ROOT_USER: ${{ secrets.MINIO_ROOT_USER }}
           MINIO_ROOT_PASSWORD: ${{ secrets.MINIO_ROOT_PASSWORD }}
@@ -64,7 +63,7 @@ jobs:
             DEPLOY_SHA REPOSITORY_URL VPS_HOST VPS_PORT VPS_USER VPS_APP_DIR \
             VPS_SSH_PRIVATE_KEY VPS_KNOWN_HOSTS POSTGRES_PASSWORD SESSION_SECRET \
             TOKEN_PEPPER TOTP_ENCRYPTION_KEY JWT_PRIVATE_KEY JWT_PUBLIC_KEY \
-            BOOTSTRAP_ADMIN_PASSWORD TATARLAR_CLIENT_SECRET RESEND_API_KEY \
+            BOOTSTRAP_ADMIN_PASSWORD RESEND_API_KEY \
             MINIO_ROOT_USER MINIO_ROOT_PASSWORD
           do
             if [ -z "${!name:-}" ]; then
@@ -94,7 +93,6 @@ jobs:
           JWT_PRIVATE_KEY: ${{ secrets.JWT_PRIVATE_KEY }}
           JWT_PUBLIC_KEY: ${{ secrets.JWT_PUBLIC_KEY }}
           BOOTSTRAP_ADMIN_PASSWORD: ${{ secrets.BOOTSTRAP_ADMIN_PASSWORD }}
-          TATARLAR_CLIENT_SECRET: ${{ secrets.TATARLAR_CLIENT_SECRET }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           MINIO_ROOT_USER: ${{ secrets.MINIO_ROOT_USER }}
           MINIO_ROOT_PASSWORD: ${{ secrets.MINIO_ROOT_PASSWORD }}
@@ -154,7 +152,6 @@ jobs:
             printf 'JWT_PUBLIC_KEY=%s\n' "$JWT_PUBLIC_KEY"
             printf 'BOOTSTRAP_ADMIN_PASSWORD=%s\n' "$BOOTSTRAP_ADMIN_PASSWORD"
             printf 'BOOTSTRAP_ADMIN_RECONCILE=%s\n' "${BOOTSTRAP_ADMIN_RECONCILE:-false}"
-            printf 'TATARLAR_CLIENT_SECRET=%s\n' "$TATARLAR_CLIENT_SECRET"
             printf 'SMTP_PASSWORD=%s\n' "$RESEND_API_KEY"
             printf 'MINIO_ROOT_USER=%s\n' "$MINIO_ROOT_USER"
             printf 'MINIO_ROOT_PASSWORD=%s\n' "$MINIO_ROOT_PASSWORD"
