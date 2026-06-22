@@ -6,6 +6,11 @@ import jakarta.validation.constraints.Size
 import java.time.Instant
 
 data class MessageResponse(val ok: Boolean = true, val message: String)
+data class RegistrationResponse(
+    val ok: Boolean = true,
+    val message: String,
+    val verificationRequired: Boolean,
+)
 
 data class RegisterRequest(
     @field:Email val email: String,

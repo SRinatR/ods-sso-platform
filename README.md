@@ -34,6 +34,9 @@ The Python/FastAPI implementation has been removed. The only backend runtime is 
 - Transactional domain-event outbox and Kafka publisher
 - Admin APIs for users, clients, sessions, audit and policies
 - Partner self-service: organization registration and OIDC application provisioning
+- Dedicated public, authentication, account, administration and tenant portal domains
+- Database-authorized partner portals at `https://{organization}.ods.uz`
+- Resend-compatible SMTP delivery for verification, password reset and security notifications
 - Native UUIDv7 internal primary keys with stable prefixed public IDs
 - Explicit HTTP/3 client configuration for latency-sensitive integrations
 - Multi-stage Java 26 container with ZGC-compatible CDS training
@@ -64,10 +67,12 @@ Endpoints:
 For the first partner pilot, the standard flow is:
 
 1. Create a personal ODS account.
-2. Open **Partner workspace** and register the organization.
-3. Create an OIDC application and enter its exact callback URL.
-4. Save the generated client secret immediately.
-5. Integrate through the published Discovery URL using Authorization Code + PKCE S256.
+2. Verify the email and sign in through `auth.ods.uz`.
+3. Open **Counterparty workspace** and register the organization. A website such as
+   `tatarlar.uz` proposes the portal `https://tatarlar.ods.uz`.
+4. Create an OIDC application and enter its exact callback URL.
+5. Save the generated client secret immediately.
+6. Integrate through the published Discovery URL using Authorization Code + PKCE S256.
 
 Flyway migrations run before Spring reports the application as ready.
 

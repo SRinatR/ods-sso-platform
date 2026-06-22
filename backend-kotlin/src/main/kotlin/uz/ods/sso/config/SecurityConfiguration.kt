@@ -166,6 +166,7 @@ class SecurityConfiguration(
                         "/api/v1/auth/login",
                         "/api/v1/auth/mfa/verify",
                         "/api/v1/dev/mailbox",
+                        "/internal/caddy/allow-domain",
                         "/actuator/health/**",
                         "/actuator/prometheus",
                     ).permitAll()
@@ -281,6 +282,7 @@ class SecurityConfiguration(
     fun corsConfigurationSource(): CorsConfigurationSource {
         val configuration = CorsConfiguration().apply {
             allowedOrigins = properties.corsOrigins
+            allowedOriginPatterns = properties.corsOriginPatterns
             allowedMethods = listOf("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
             allowedHeaders = listOf("Authorization", "Content-Type", "X-Request-ID", "X-Tenant-Slug")
             allowCredentials = true

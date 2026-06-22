@@ -26,6 +26,7 @@ import java.time.Instant
 class SessionServiceTest {
     private val properties = OdsProperties(
         environment = "test",
+        sessionCookieDomain = "ods.uz",
         sessionSecret = "session-secret-that-is-longer-than-32-characters",
         tokenPepper = "token-pepper-that-is-independent-and-long",
     )
@@ -59,6 +60,7 @@ class SessionServiceTest {
         verify(response).addCookie(cookie.capture())
         assertThat(cookie.firstValue.name).isEqualTo(SessionService.COOKIE_NAME)
         assertThat(cookie.firstValue.isHttpOnly).isTrue()
+        assertThat(cookie.firstValue.domain).isEqualTo("ods.uz")
         assertThat(cookie.firstValue.value).startsWith("${entity.id}.")
     }
 
@@ -119,5 +121,6 @@ class SessionServiceTest {
         val cookie = argumentCaptor<Cookie>()
         verify(response).addCookie(cookie.capture())
         assertThat(cookie.firstValue.maxAge).isZero()
+        assertThat(cookie.firstValue.domain).isEqualTo("ods.uz")
     }
 }

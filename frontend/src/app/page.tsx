@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ACCOUNTS_URL, AUTH_URL, onAuth } from "@/lib/domains";
 
 export default function HomePage() {
   return (
@@ -8,13 +9,13 @@ export default function HomePage() {
           ODS Identity
         </Link>
         <div className="actions">
-          <Link href="/partner" className="button secondary">
+          <Link href={onAuth("/partner")} className="button secondary">
             Кабинет контрагента
           </Link>
-          <Link href="/login" className="button secondary">
+          <Link href={onAuth("/login")} className="button secondary">
             Войти
           </Link>
-          <Link href="/register" className="button">
+          <Link href={onAuth("/register")} className="button">
             Создать аккаунт
           </Link>
         </div>
@@ -28,13 +29,13 @@ export default function HomePage() {
           подключенные сервисы получают стандартный OAuth 2.1 / OpenID Connect вход.
         </p>
         <div className="actions">
-          <Link href="/register" className="button">
+          <Link href={onAuth("/register")} className="button">
             Зарегистрироваться
           </Link>
-          <Link href="/partner" className="button secondary">
+          <Link href={onAuth("/register?kind=partner")} className="button secondary">
             Войти как контрагент
           </Link>
-          <Link href="/login" className="button secondary">
+          <Link href={ACCOUNTS_URL} className="button secondary">
             Войти в аккаунт
           </Link>
         </div>
@@ -56,7 +57,7 @@ export default function HomePage() {
             Создайте организацию и OIDC-приложение, укажите callback URL и добавьте кнопку «Войти
             через ODS».
           </p>
-          <Link href="/register">Создать аккаунт партнёра →</Link>
+          <Link href={onAuth("/register?kind=partner")}>Создать аккаунт контрагента →</Link>
         </article>
         <article className="panel">
           <p className="eyebrow">Стандарт</p>
@@ -66,6 +67,18 @@ export default function HomePage() {
             нестандартных интеграционных протоколов.
           </p>
         </article>
+      </section>
+      <section className="panel top-gap">
+        <p className="eyebrow">Разделение сервисов</p>
+        <h2>Каждый адрес выполняет одну понятную роль</h2>
+        <div className="integration-list">
+          <span>Регистрация и вход</span>
+          <code>{AUTH_URL}</code>
+          <span>Личный кабинет пользователя</span>
+          <code>{ACCOUNTS_URL}</code>
+          <span>Кабинет контрагента</span>
+          <code>https://company.ods.uz</code>
+        </div>
       </section>
     </main>
   );

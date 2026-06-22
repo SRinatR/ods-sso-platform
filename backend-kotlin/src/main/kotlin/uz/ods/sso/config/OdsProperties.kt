@@ -9,7 +9,12 @@ data class OdsProperties(
     val issuer: String = "http://localhost:8080",
     val accountUrl: String = "http://account.localhost",
     val apiUrl: String = "http://localhost:8080",
+    val rootDomain: String = "localhost",
     val allowedOrigins: String = "http://account.localhost,http://localhost:3000",
+    val allowedOriginPatterns: String = "",
+    val sessionCookieDomain: String = "",
+    val mailFrom: String = "ODS Identity <no-reply@ods.uz>",
+    val mailReplyTo: String = "support@ods.uz",
     val sessionSecret: String,
     val tokenPepper: String,
     val encryptionKey: String = "",
@@ -34,4 +39,8 @@ data class OdsProperties(
     val productionLike: Boolean get() = environment in setOf("staging", "production")
     val corsOrigins: List<String>
         get() = (allowedOrigins.split(",") + accountUrl).map(String::trim).filter(String::isNotEmpty).distinct()
+    val corsOriginPatterns: List<String>
+        get() = allowedOriginPatterns.split(",").map(String::trim).filter(String::isNotEmpty).distinct()
+
+    fun partnerPortalUrl(slug: String): String = "https://$slug.$rootDomain"
 }

@@ -74,6 +74,7 @@ class PilotFlowIntegrationTest {
     fun `pilot registration login and partner provisioning flow`() {
         val email = "pilot-${System.nanoTime()}@example.com"
         val password = "A-strong-pilot-password-123!"
+        val organizationSlug = "pilot-${System.nanoTime()}"
 
         mvc.perform(
             post("/api/v1/auth/register")
@@ -128,7 +129,7 @@ class PilotFlowIntegrationTest {
                     objectMapper.writeValueAsString(
                         mapOf(
                             "name" to "Pilot Partner",
-                            "slug" to "pilot-${System.nanoTime()}",
+                            "slug" to organizationSlug,
                             "website_url" to "https://partner.example",
                             "contact_email" to email,
                         ),
@@ -137,9 +138,23 @@ class PilotFlowIntegrationTest {
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.organization.id").value(org.hamcrest.Matchers.startsWith("org_")))
+            .andExpect(jsonPath("$.organization.portal_url").value("https://$organizationSlug.localhost"))
 
         val organization = organizations.findAll().single()
         assertThat(organization.internalId.version()).isEqualTo(7)
+
+        mvc.perform(
+            get("/api/v1/partner/workspace")
+                .cookie(sessionCookie)
+                .with { it.serverName = "$organizationSlug.localhost"; it },
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.organization.slug").value(organizationSlug))
+
+        mvc.perform(get("/internal/caddy/allow-domain").param("domain", "$organizationSlug.localhost"))
+            .andExpect(status().isNoContent)
+        mvc.perform(get("/internal/caddy/allow-domain").param("domain", "unknown.localhost"))
+            .andExpect(status().isNotFound)
 
         mvc.perform(
             post("/api/v1/partner/applications")

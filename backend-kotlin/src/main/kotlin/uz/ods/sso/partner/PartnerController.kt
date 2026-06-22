@@ -16,7 +16,7 @@ class PartnerController(
     private val service: PartnerService,
 ) {
     @GetMapping("/workspace")
-    fun workspace(): PartnerWorkspaceResponse = service.workspace()
+    fun workspace(request: HttpServletRequest): PartnerWorkspaceResponse = service.workspace(request)
 
     @PostMapping("/organizations")
     fun createOrganization(

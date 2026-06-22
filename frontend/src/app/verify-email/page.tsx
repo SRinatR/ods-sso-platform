@@ -5,6 +5,7 @@ import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { AuthCard } from "@/components/Shell";
 import { api } from "@/lib/api";
+import { onAuth } from "@/lib/domains";
 
 function Verification() {
   const token = useSearchParams().get("token");
@@ -26,7 +27,7 @@ function Verification() {
 
   return (
     <AuthCard title="Подтверждение email" subtitle={status}>
-      <Link className="button link-button" href="/login">
+      <Link className="button link-button" href={onAuth("/login")}>
         Перейти ко входу
       </Link>
     </AuthCard>

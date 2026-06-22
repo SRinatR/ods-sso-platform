@@ -124,8 +124,18 @@ services:
       context: ./frontend
       args:
         NEXT_PUBLIC_API_URL: ${API_URL:-http://localhost:8080}
+        NEXT_PUBLIC_ROOT_URL: ${ROOT_URL:-http://localhost}
+        NEXT_PUBLIC_AUTH_URL: ${ACCOUNT_URL:-http://account.localhost}
+        NEXT_PUBLIC_ACCOUNTS_URL: ${ACCOUNTS_URL:-http://accounts.localhost}
+        NEXT_PUBLIC_ADMIN_URL: ${ADMIN_URL:-http://admin.localhost}
+        NEXT_PUBLIC_ROOT_DOMAIN: ${ROOT_DOMAIN:-localhost}
     environment:
       NEXT_PUBLIC_API_URL: ${API_URL:-http://localhost:8080}
+      NEXT_PUBLIC_ROOT_URL: ${ROOT_URL:-http://localhost}
+      NEXT_PUBLIC_AUTH_URL: ${ACCOUNT_URL:-http://account.localhost}
+      NEXT_PUBLIC_ACCOUNTS_URL: ${ACCOUNTS_URL:-http://accounts.localhost}
+      NEXT_PUBLIC_ADMIN_URL: ${ADMIN_URL:-http://admin.localhost}
+      NEXT_PUBLIC_ROOT_DOMAIN: ${ROOT_DOMAIN:-localhost}
     depends_on:
       backend:
         condition: service_healthy

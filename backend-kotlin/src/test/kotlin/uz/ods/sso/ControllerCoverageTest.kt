@@ -175,7 +175,7 @@ class ControllerCoverageTest {
             true,
             Instant.now(),
         )
-        whenever(partner.workspace()).thenReturn(workspace)
+        whenever(partner.workspace(any())).thenReturn(workspace)
         whenever(partner.createOrganization(any(), any())).thenReturn(workspace)
         whenever(partner.createApplication(any(), any())).thenReturn(application)
         whenever(partner.updateApplication(any(), any(), any())).thenReturn(application)
@@ -184,7 +184,7 @@ class ControllerCoverageTest {
         val organizationCreate = PartnerOrganizationCreate("Org", "org-code", null, null, "owner@example.com")
         val applicationCreate = PartnerApplicationCreate("App", null, listOf("https://example.com/callback"))
 
-        assertThat(partnerController.workspace()).isSameAs(workspace)
+        assertThat(partnerController.workspace(request)).isSameAs(workspace)
         assertThat(partnerController.createOrganization(organizationCreate, request)).isSameAs(workspace)
         assertThat(partnerController.createApplication(applicationCreate, request)).isSameAs(application)
         assertThat(partnerController.updateApplication("appmeta_1", PartnerApplicationUpdate(enabled = false), request))

@@ -125,6 +125,7 @@ class IdentityService(
         sessions.revokeAll(user.id)
         audit.write(user.tenantId, request, "PASSWORD_RESET_COMPLETED", user.id, user.id)
         events.append(user.tenantId, "PasswordChanged", user.id, mapOf("user_id" to user.id))
+        mail.trySendPasswordChanged(user.email)
     }
 
     @Transactional(noRollbackFor = [AppException::class])

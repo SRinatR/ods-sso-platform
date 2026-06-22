@@ -51,6 +51,8 @@ required=(
   ACCOUNT_URL
   API_URL
   ALLOWED_ORIGINS
+  ALLOWED_ORIGIN_PATTERNS
+  SESSION_COOKIE_DOMAIN
   POSTGRES_PASSWORD
   SESSION_SECRET
   TOKEN_PEPPER
@@ -101,13 +103,34 @@ for name in "${!service_domains[@]}"; do
   fi
 done
 
-for name in ISSUER ACCOUNT_URL API_URL ALLOWED_ORIGINS; do
+for name in ISSUER ACCOUNT_URL API_URL; do
   value="$(grep "^${name}=" .env | cut -d= -f2-)"
   if [ "${value}" != "${canonical_url}" ]; then
     echo "Deployment aborted: ${name} must equal ${canonical_url}" >&2
     exit 1
   fi
 done
+
+allowed_origin_patterns="$(grep '^ALLOWED_ORIGIN_PATTERNS=' .env | cut -d= -f2-)"
+session_cookie_domain="$(grep '^SESSION_COOKIE_DOMAIN=' .env | cut -d= -f2-)"
+if [ "${allowed_origin_patterns}" != "https://*.${root_domain}" ]; then
+  echo "Deployment aborted: ALLOWED_ORIGIN_PATTERNS must equal https://*.${root_domain}" >&2
+  exit 1
+fi
+if [ "${session_cookie_domain}" != "${root_domain}" ]; then
+  echo "Deployment aborted: SESSION_COOKIE_DOMAIN must equal ${root_domain}" >&2
+  exit 1
+fi
+
+require_email_verification="$(grep '^REQUIRE_EMAIL_VERIFICATION=' .env | cut -d= -f2-)"
+if [ "${require_email_verification}" = "true" ]; then
+  for name in SMTP_HOST SMTP_USER SMTP_PASSWORD MAIL_FROM; do
+    if ! grep -q "^${name}=.\+" .env; then
+      echo "Deployment aborted: ${name} is required when email verification is enabled" >&2
+      exit 1
+    fi
+  done
+fi
 
 cp -f Caddyfile.production Caddyfile
 

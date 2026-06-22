@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Shell } from "@/components/Shell";
 import { api } from "@/lib/api";
+import { AUTH_URL, onAuth } from "@/lib/domains";
 
 type Organization = {
   id: string;
@@ -13,6 +14,7 @@ type Organization = {
   contact_email: string;
   status: string;
   role: string;
+  portal_url: string;
 };
 
 type Application = {
@@ -61,9 +63,20 @@ export default function PartnerPage() {
 
   function load() {
     api<Workspace>("/api/v1/partner/workspace")
-      .then(setWorkspace)
+      .then((loaded) => {
+        if (
+          loaded.organization?.portal_url &&
+          window.location.origin === new URL(AUTH_URL).origin
+        ) {
+          window.location.href = loaded.organization.portal_url;
+          return;
+        }
+        setWorkspace(loaded);
+      })
       .catch(() => {
-        window.location.href = "/login?return_to=/partner";
+        window.location.href = onAuth(
+          `/login?return_to=${encodeURIComponent(window.location.href)}`,
+        );
       });
   }
 
@@ -84,6 +97,9 @@ export default function PartnerPage() {
         }),
       });
       setWorkspace(created);
+      if (created.organization?.portal_url) {
+        window.location.href = created.organization.portal_url;
+      }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Не удалось создать организацию");
     }
@@ -131,7 +147,7 @@ export default function PartnerPage() {
 
   return (
     <Shell
-      title={workspace?.organization ? workspace.organization.name : "Кабинет партнёра"}
+      title={workspace?.organization ? workspace.organization.name : "Кабинет контрагента"}
       subtitle="Подключение сервисов к единой авторизации ODS"
     >
       {error && <div className="alert error">{error}</div>}
@@ -142,8 +158,8 @@ export default function PartnerPage() {
           <p className="eyebrow">Шаг 1</p>
           <h2>Зарегистрируйте организацию</h2>
           <p className="muted">
-            Ваш личный аккаунт станет владельцем кабинета контрагента. Позже сюда можно будет
-            пригласить других администраторов.
+            Ваш личный аккаунт станет владельцем кабинета контрагента. Для сайта tatarlar.uz
+            будет предложен адрес tatarlar.ods.uz.
           </p>
           <form className="stack" onSubmit={createOrganization}>
             <label>
@@ -158,11 +174,10 @@ export default function PartnerPage() {
               />
             </label>
             <label>
-              Короткий код
+              Адрес кабинета
               <input
-                required
                 pattern="[a-z0-9][a-z0-9-]{2,62}"
-                placeholder="my-company"
+                placeholder="tatarlar"
                 value={organizationForm.slug}
                 onChange={(event) =>
                   setOrganizationForm({
@@ -171,6 +186,11 @@ export default function PartnerPage() {
                   })
                 }
               />
+              <small className="muted">
+                {organizationForm.slug
+                  ? `https://${organizationForm.slug}.ods.uz`
+                  : "Заполнится автоматически из адреса сайта"}
+              </small>
             </label>
             <label>
               Юридическое название
@@ -185,11 +205,17 @@ export default function PartnerPage() {
               Сайт
               <input
                 type="url"
-                placeholder="https://example.uz"
+                placeholder="tatarlar.uz"
                 value={organizationForm.websiteUrl}
-                onChange={(event) =>
-                  setOrganizationForm({ ...organizationForm, websiteUrl: event.target.value })
-                }
+                onChange={(event) => {
+                  const websiteUrl = event.target.value;
+                  const derived = deriveSlug(websiteUrl);
+                  setOrganizationForm({
+                    ...organizationForm,
+                    websiteUrl,
+                    slug: organizationForm.slug || derived,
+                  });
+                }}
               />
             </label>
             <label>
@@ -219,6 +245,7 @@ export default function PartnerPage() {
                 <br />
                 Контакт: {workspace.organization.contact_email}
               </p>
+              <a href={workspace.organization.portal_url}>{workspace.organization.portal_url}</a>
               <span className="badge success">{workspace.organization.status}</span>
             </section>
             <section className="panel">
@@ -340,4 +367,15 @@ export default function PartnerPage() {
       )}
     </Shell>
   );
+}
+
+function deriveSlug(website: string): string {
+  try {
+    const normalized = website.includes("://") ? website : `https://${website}`;
+    const hostname = new URL(normalized).hostname.toLowerCase().replace(/^www\./, "");
+    const slug = hostname.split(".")[0] || "";
+    return /^[a-z0-9][a-z0-9-]{2,62}$/.test(slug) ? slug : "";
+  } catch {
+    return "";
+  }
 }

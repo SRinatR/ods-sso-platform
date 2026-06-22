@@ -24,9 +24,11 @@ Copy `.env.production.example` to `.env` on the server and configure:
 - 32-byte URL-safe base64 `TOTP_ENCRYPTION_KEY`
 - RSA private/public signing key pair
 - bootstrap administrator credentials
+- wildcard tenant DNS (`*.ods.uz`)
+- Resend SMTP API key
 
-For the pilot, `REQUIRE_EMAIL_VERIFICATION=false` permits registration before SMTP is connected.
-Set it to `true` as soon as SMTP is configured.
+Production registration requires verified email. For Resend use `smtp.resend.com:587`, username
+`resend`, the Resend API key as `SMTP_PASSWORD`, and a verified ODS sender in `MAIL_FROM`.
 
 ## DNS for ods.uz
 
@@ -51,27 +53,31 @@ Required records:
 | A | `sso` | `94.232.44.189` |
 | A | `scim` | `94.232.44.189` |
 | A | `webhooks` | `94.232.44.189` |
+| A | `*` | `94.232.44.189` |
 
-For the pilot, `ods.uz` and `www.ods.uz` redirect to the identity portal. The canonical OIDC issuer
-remains `auth.ods.uz`, so the public website can be separated later without changing partner
-configuration.
+`ods.uz` is the public product website. It does not redirect to the identity portal. The canonical
+OIDC issuer remains `auth.ods.uz`.
 
 The service domains expose only implemented behavior:
 
-- `accounts.ods.uz` redirects to the account dashboard.
-- `admin.ods.uz` redirects to the administration UI.
-- `docs.ods.uz` redirects to the OpenAPI UI.
+- `auth.ods.uz` owns registration, login, consent, verification and password reset.
+- `accounts.ods.uz` serves the ordinary account dashboard.
+- `admin.ods.uz` serves the administration UI.
+- `docs.ods.uz` serves the OpenAPI UI.
 - `sso.ods.uz` redirects to the canonical issuer.
-- `api.ods.uz` redirects its root to the OpenAPI UI and exposes REST, health and OpenAPI routes,
+- `api.ods.uz` redirects its root to `docs.ods.uz` and exposes REST, health and OpenAPI routes,
   but not alternate OIDC issuer endpoints.
 - `status.ods.uz` exposes the real database-and-Redis readiness result.
+- `{slug}.ods.uz` serves the matching counterparty workspace. Caddy asks the backend whether the
+  slug belongs to an active organization before obtaining a certificate.
 - `scim.ods.uz` and `webhooks.ods.uz` terminate TLS and return an explicit HTTP 501 JSON status
   until those capabilities are implemented. They must not claim successful service availability.
 
 ## User entry points
 
-- A counterparty opens `https://auth.ods.uz/partner`. If there is no session, the portal redirects
-  to registration or login. The first user registers the organization and becomes its owner.
+- A counterparty starts at `https://auth.ods.uz/register?kind=partner`. The first user verifies
+  email, signs in, registers the organization and becomes its owner. The application then opens
+  the organization portal such as `https://tatarlar.ods.uz`.
 - A platform administrator opens `https://admin.ods.uz`. The portal redirects to the canonical
   login, verifies the `admin` or `security_admin` role, requires configured TOTP MFA, and then asks
   for a fresh password + TOTP step-up before loading administrative data.
@@ -83,8 +89,8 @@ listener. Caddy may manage separate certificates per site, avoiding one shared p
 every subdomain.
 
 TCP ports 80 and 443 and UDP port 443 must be reachable from the Internet. UDP 443 enables HTTP/3.
-Mail delivery is a separate increment: when SMTP is connected, publish the MX/SPF/DKIM/DMARC
-records provided by the selected mail service before enabling mandatory email verification.
+Before mandatory verification is enabled, Resend domain verification and MX/SPF/DKIM/DMARC records
+must be published and `SMTP_PASSWORD` must contain a live API key.
 
 ## Deploy
 

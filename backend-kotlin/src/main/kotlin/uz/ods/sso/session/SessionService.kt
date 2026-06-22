@@ -76,6 +76,7 @@ class SessionService(
                 isHttpOnly = true
                 secure = properties.productionLike
                 path = "/"
+                properties.sessionCookieDomain.trim().ifBlank { null }?.let { domain = it }
                 maxAge = properties.sessionTtl.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
                 setAttribute("SameSite", "Lax")
             },
@@ -161,6 +162,7 @@ class SessionService(
                 isHttpOnly = true
                 secure = properties.productionLike
                 path = "/"
+                properties.sessionCookieDomain.trim().ifBlank { null }?.let { domain = it }
                 maxAge = 0
                 setAttribute("SameSite", "Lax")
             },

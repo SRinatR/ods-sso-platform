@@ -17,7 +17,6 @@ import uz.ods.sso.persistence.PartnerOrganizationRepository
 import uz.ods.sso.session.CurrentPrincipal
 import uz.ods.sso.session.SessionService
 import uz.ods.sso.shared.AppException
-import java.net.URI
 import java.time.Instant
 
 @Service
@@ -29,11 +28,13 @@ class PartnerService(
     private val oauthClients: OAuthClientProvisioningService,
     private val audit: AuditService,
     private val properties: OdsProperties,
+    private val domains: PartnerDomainService,
 ) {
-    fun workspace(): PartnerWorkspaceResponse {
+    fun workspace(request: HttpServletRequest): PartnerWorkspaceResponse {
         val principal = sessions.current()
         val membership = activeMembership(principal)
         val organization = membership?.let { organizations.findByPublicId(it.organizationId) }
+        requireRequestedOrganization(request, organization)
         val appResponses = if (organization == null) {
             emptyList()
         } else {
@@ -60,12 +61,16 @@ class PartnerService(
                 "Your account already belongs to a partner organization",
             )
         }
-        val slug = body.slug.trim().lowercase()
-        if (organizations.findByTenantIdAndSlug(principal.user.tenantId, slug) != null) {
-            throw AppException(HttpStatus.CONFLICT, "partner_slug_taken", "This organization code is already in use")
-        }
-        val websiteUrl = body.websiteUrl?.trim()?.ifBlank { null }
-        validateWebsite(websiteUrl)
+        val websiteUrl = domains.normalizeWebsite(body.websiteUrl)
+        val slug = domains.requireAvailableSlug(
+            body.slug?.trim()?.ifBlank { null }
+                ?: domains.deriveSlug(websiteUrl)
+                ?: throw AppException(
+                    HttpStatus.UNPROCESSABLE_CONTENT,
+                    "partner_slug_required",
+                    "Organization code is required when it cannot be derived from the website",
+                ),
+        )
         val organization = organizations.save(
             PartnerOrganizationEntity(
                 tenantId = principal.user.tenantId,
@@ -91,13 +96,13 @@ class PartnerService(
             organization.id,
             details = mapOf("slug" to organization.slug),
         )
-        return workspace()
+        return workspace(request)
     }
 
     @Transactional
     fun createApplication(body: PartnerApplicationCreate, request: HttpServletRequest): PartnerApplicationResponse {
         val principal = sessions.current()
-        val (organization, membership) = requireOrganization(principal)
+        val (organization, membership) = requireOrganization(principal, request)
         requireManager(membership)
         val provisioned = oauthClients.createConfidential(
             tenantId = principal.user.tenantId,
@@ -132,7 +137,7 @@ class PartnerService(
         request: HttpServletRequest,
     ): PartnerApplicationResponse {
         val principal = sessions.current()
-        val (organization, membership) = requireOrganization(principal)
+        val (organization, membership) = requireOrganization(principal, request)
         requireManager(membership)
         val metadata = applications.findByPublicIdAndOrganizationId(applicationId, organization.id)
             ?: throw AppException(HttpStatus.NOT_FOUND, "partner_application_not_found", "Application was not found")
@@ -154,7 +159,7 @@ class PartnerService(
     @Transactional
     fun rotateSecret(applicationId: String, request: HttpServletRequest): PartnerApplicationResponse {
         val principal = sessions.current()
-        val (organization, membership) = requireOrganization(principal)
+        val (organization, membership) = requireOrganization(principal, request)
         requireManager(membership)
         val metadata = applications.findByPublicIdAndOrganizationId(applicationId, organization.id)
             ?: throw AppException(HttpStatus.NOT_FOUND, "partner_application_not_found", "Application was not found")
@@ -178,6 +183,7 @@ class PartnerService(
 
     private fun requireOrganization(
         principal: CurrentPrincipal,
+        request: HttpServletRequest,
     ): Pair<PartnerOrganizationEntity, PartnerMembershipEntity> {
         val membership = activeMembership(principal)
             ?: throw AppException(
@@ -190,6 +196,7 @@ class PartnerService(
         if (organization.tenantId != principal.user.tenantId || organization.status != "active") {
             throw AppException(HttpStatus.NOT_FOUND, "partner_organization_not_found", "Partner organization was not found")
         }
+        requireRequestedOrganization(request, organization)
         return organization to membership
     }
 
@@ -227,6 +234,7 @@ class PartnerService(
         contactEmail = contactEmail,
         status = status,
         role = role,
+        portalUrl = domains.portalUrl(slug),
         createdAt = createdAt,
     )
 
@@ -242,11 +250,17 @@ class PartnerService(
         )
     }
 
-    private fun validateWebsite(value: String?) {
-        if (value == null) return
-        val uri = runCatching { URI(value) }.getOrNull()
-        if (uri?.scheme !in setOf("http", "https") || uri?.host.isNullOrBlank()) {
-            throw AppException(HttpStatus.UNPROCESSABLE_CONTENT, "validation_error", "Website URL is invalid")
+    private fun requireRequestedOrganization(
+        request: HttpServletRequest,
+        organization: PartnerOrganizationEntity?,
+    ) {
+        val requestedSlug = domains.requestedSlug(request) ?: return
+        if (organization?.slug != requestedSlug) {
+            throw AppException(
+                HttpStatus.NOT_FOUND,
+                "partner_workspace_not_found",
+                "Partner workspace was not found for this domain",
+            )
         }
     }
 }

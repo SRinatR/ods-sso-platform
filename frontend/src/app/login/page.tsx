@@ -4,7 +4,8 @@ import Link from "next/link";
 import { FormEvent, Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { AuthCard } from "@/components/Shell";
-import { API_URL, api } from "@/lib/api";
+import { api } from "@/lib/api";
+import { ACCOUNTS_URL, isTrustedReturnUrl, onAuth } from "@/lib/domains";
 
 type LoginResult = {
   user_id?: string;
@@ -120,23 +121,16 @@ function LoginForm() {
         </form>
       )}
       <div className="auth-links">
-        <Link href="/register">Создать аккаунт</Link>
-        <Link href="/forgot-password">Забыли пароль?</Link>
+        <Link href={onAuth("/register")}>Создать аккаунт</Link>
+        <Link href={onAuth("/forgot-password")}>Забыли пароль?</Link>
       </div>
     </AuthCard>
   );
 }
 
 function safeReturnTo(value: string | null): string {
-  if (!value) return "/dashboard";
-  if (value.startsWith("/") && !value.startsWith("//")) return value;
-  try {
-    const candidate = new URL(value);
-    const apiOrigin = new URL(API_URL).origin;
-    return candidate.origin === apiOrigin ? candidate.toString() : "/dashboard";
-  } catch {
-    return "/dashboard";
-  }
+  if (!value) return `${ACCOUNTS_URL}/dashboard`;
+  return isTrustedReturnUrl(value) ? value : `${ACCOUNTS_URL}/dashboard`;
 }
 
 export default function LoginPage() {

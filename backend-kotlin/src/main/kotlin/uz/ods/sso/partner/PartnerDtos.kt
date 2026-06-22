@@ -11,7 +11,7 @@ data class PartnerOrganizationCreate(
     @field:Size(min = 2, max = 160)
     val name: String,
     @field:Pattern(regexp = "^[a-z0-9][a-z0-9-]{2,62}$")
-    val slug: String,
+    val slug: String? = null,
     @field:Size(max = 255)
     val legalName: String? = null,
     @field:Size(max = 512)
@@ -29,6 +29,7 @@ data class PartnerOrganizationResponse(
     val contactEmail: String,
     val status: String,
     val role: String,
+    val portalUrl: String,
     val createdAt: Instant,
 )
 

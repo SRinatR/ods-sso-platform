@@ -1,32 +1,38 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useState } from "react";
+import { FormEvent, Suspense, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { AuthCard } from "@/components/Shell";
 import { api } from "@/lib/api";
+import { onAuth } from "@/lib/domains";
 
-type MessageResponse = {
+type RegistrationResponse = {
   message: string;
+  verification_required: boolean;
 };
 
-export default function RegisterPage() {
+function RegisterForm() {
+  const partner = useSearchParams().get("kind") === "partner";
   const [form, setForm] = useState({ name: "", email: "", password: "" });
   const [accepted, setAccepted] = useState(false);
   const [message, setMessage] = useState("");
+  const [verificationRequired, setVerificationRequired] = useState(false);
   const [error, setError] = useState("");
 
   async function submit(event: FormEvent) {
     event.preventDefault();
     setError("");
     try {
-      const result = await api<MessageResponse>("/api/v1/auth/register", {
+      const result = await api<RegistrationResponse>("/api/v1/auth/register", {
         method: "POST",
         body: JSON.stringify({ ...form, accept_terms: accepted }),
       });
+      setVerificationRequired(result.verification_required);
       setMessage(
-        result.message.includes("sign in")
-          ? "Аккаунт создан. Теперь можно войти."
-          : "Аккаунт создан. Откройте письмо и подтвердите email.",
+        result.verification_required
+          ? "Аккаунт создан. Откройте письмо и подтвердите email."
+          : "Аккаунт создан. Теперь можно войти.",
       );
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Регистрация не выполнена");
@@ -34,9 +40,32 @@ export default function RegisterPage() {
   }
 
   return (
-    <AuthCard title="Регистрация" subtitle="Создайте единую учетную запись">
+    <AuthCard
+      title={partner ? "Регистрация контрагента" : "Регистрация"}
+      subtitle={
+        partner
+          ? "Сначала создайте личную учетную запись, затем организацию и её кабинет"
+          : "Создайте единую учетную запись"
+      }
+    >
       {message ? (
-        <div className="alert success">{message}</div>
+        <>
+          <div className="alert success">{message}</div>
+          {verificationRequired && (
+            <button
+              className="button secondary link-button"
+              onClick={async () => {
+                await api("/api/v1/auth/resend-verification", {
+                  method: "POST",
+                  body: JSON.stringify({ email: form.email }),
+                });
+                setMessage("Письмо отправлено повторно. Проверьте также папку «Спам».");
+              }}
+            >
+              Отправить письмо ещё раз
+            </button>
+          )}
+        </>
       ) : (
         <form onSubmit={submit} className="stack">
           {error && <div className="alert error">{error}</div>}
@@ -80,9 +109,19 @@ export default function RegisterPage() {
         </form>
       )}
       <div className="auth-links">
-        <Link href="/login">Вернуться ко входу</Link>
-        <Link href="/partner">Для контрагентов</Link>
+        <Link href={onAuth(`/login${partner ? "?return_to=/partner" : ""}`)}>
+          Вернуться ко входу
+        </Link>
+        {!partner && <Link href={onAuth("/register?kind=partner")}>Для контрагентов</Link>}
       </div>
     </AuthCard>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense>
+      <RegisterForm />
+    </Suspense>
   );
 }

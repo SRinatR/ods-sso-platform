@@ -1,20 +1,28 @@
 "use client";
 
+import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { AuthCard } from "@/components/Shell";
 import { api } from "@/lib/api";
+import { onAuth } from "@/lib/domains";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    await api("/api/v1/auth/forgot-password", {
-      method: "POST",
-      body: JSON.stringify({ email }),
-    });
-    setMessage("Если аккаунт существует, письмо уже отправлено.");
+    setError("");
+    try {
+      await api("/api/v1/auth/forgot-password", {
+        method: "POST",
+        body: JSON.stringify({ email }),
+      });
+      setMessage("Если аккаунт существует, письмо уже отправлено.");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Не удалось отправить письмо");
+    }
   }
 
   return (
@@ -23,6 +31,7 @@ export default function ForgotPasswordPage() {
         <div className="alert success">{message}</div>
       ) : (
         <form onSubmit={submit} className="stack">
+          {error && <div className="alert error">{error}</div>}
           <label>
             Email
             <input
@@ -35,7 +44,9 @@ export default function ForgotPasswordPage() {
           <button className="button">Отправить ссылку</button>
         </form>
       )}
+      <div className="auth-links">
+        <Link href={onAuth("/login")}>Вернуться ко входу</Link>
+      </div>
     </AuthCard>
   );
 }
-

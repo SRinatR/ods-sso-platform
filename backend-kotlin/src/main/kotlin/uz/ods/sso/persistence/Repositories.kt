@@ -15,6 +15,8 @@ interface TenantRepository : JpaRepository<TenantEntity, UUID> {
 interface PartnerOrganizationRepository : JpaRepository<PartnerOrganizationEntity, UUID> {
     fun findByPublicId(publicId: String): PartnerOrganizationEntity?
     fun findByTenantIdAndSlug(tenantId: String, slug: String): PartnerOrganizationEntity?
+    fun findBySlug(slug: String): PartnerOrganizationEntity?
+    fun findBySlugAndStatus(slug: String, status: String): PartnerOrganizationEntity?
 }
 
 interface PartnerMembershipRepository : JpaRepository<PartnerMembershipEntity, UUID> {

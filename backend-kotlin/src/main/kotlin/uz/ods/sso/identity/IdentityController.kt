@@ -34,7 +34,7 @@ class IdentityController(
     fun register(
         @Valid @RequestBody body: RegisterRequest,
         request: HttpServletRequest,
-    ): ResponseEntity<MessageResponse> {
+    ): ResponseEntity<RegistrationResponse> {
         val verificationRequired = identity.register(body, request)
         val message = if (verificationRequired) {
             "Registration completed. Verify your email to continue."
@@ -42,7 +42,7 @@ class IdentityController(
             "Registration completed. You can sign in now."
         }
         return ResponseEntity.status(HttpStatus.CREATED)
-            .body(MessageResponse(message = message))
+            .body(RegistrationResponse(message = message, verificationRequired = verificationRequired))
     }
 
     @PostMapping("/verify-email")

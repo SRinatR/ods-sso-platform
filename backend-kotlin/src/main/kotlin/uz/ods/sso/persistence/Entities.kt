@@ -30,6 +30,7 @@ class TenantEntity(
     name = "partner_organizations",
     uniqueConstraints = [
         UniqueConstraint(name = "uq_partner_organizations_tenant_slug", columnNames = ["tenant_id", "slug"]),
+        UniqueConstraint(name = "uq_partner_organizations_slug", columnNames = ["slug"]),
     ],
     indexes = [Index(name = "ix_partner_organizations_tenant_status", columnList = "tenant_id,status")],
 )

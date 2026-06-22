@@ -1,9 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import { FormEvent, Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { AuthCard } from "@/components/Shell";
 import { api } from "@/lib/api";
+import { onAuth } from "@/lib/domains";
 
 function ResetForm() {
   const token = useSearchParams().get("token") || "";
@@ -28,7 +30,12 @@ function ResetForm() {
   return (
     <AuthCard title="Новый пароль" subtitle="После изменения потребуется войти заново">
       {message ? (
-        <div className="alert success">{message}</div>
+        <>
+          <div className="alert success">{message}</div>
+          <Link className="button link-button" href={onAuth("/login")}>
+            Войти с новым паролем
+          </Link>
+        </>
       ) : (
         <form onSubmit={submit} className="stack">
           {error && <div className="alert error">{error}</div>}
@@ -57,4 +64,3 @@ export default function ResetPasswordPage() {
     </Suspense>
   );
 }
-
