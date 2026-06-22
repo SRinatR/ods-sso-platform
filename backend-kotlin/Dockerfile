@@ -14,10 +14,19 @@ COPY src src
 RUN --mount=type=cache,target=/root/.gradle \
     ./gradlew --no-daemon clean check bootJar
 
+FROM eclipse-temurin:26-jre AS extract
+
+WORKDIR /builder
+COPY --from=build /workspace/build/libs/ods-sso-backend-2.0.0.jar application.jar
+RUN java -Djarmode=tools -jar application.jar extract --layers --destination extracted
+
 FROM eclipse-temurin:26-jre AS cds
 
 WORKDIR /app
-COPY --from=build /workspace/build/libs/ods-sso-backend-2.0.0.jar app.jar
+COPY --from=extract /builder/extracted/dependencies/ ./
+COPY --from=extract /builder/extracted/spring-boot-loader/ ./
+COPY --from=extract /builder/extracted/snapshot-dependencies/ ./
+COPY --from=extract /builder/extracted/application/ ./
 
 RUN java \
     -Xint \
@@ -26,7 +35,7 @@ RUN java \
     -XX:+UseZGC \
     -XX:ArchiveClassesAtExit=/app/application.jsa \
     -Dspring.context.exit=onRefresh \
-    -jar /app/app.jar \
+    -jar /app/application.jar \
     --spring.main.web-application-type=none \
     --spring.main.lazy-initialization=true \
     --spring.flyway.enabled=false \
@@ -47,11 +56,11 @@ RUN apt-get update \
     && useradd --uid 10001 --gid app --create-home app
 
 WORKDIR /app
-COPY --from=cds --chown=app:app /app/app.jar /app/application.jsa ./
+COPY --from=cds --chown=app:app /app ./
 
 USER app
 EXPOSE 8000
 HEALTHCHECK --interval=15s --timeout=5s --start-period=30s --retries=5 \
   CMD ["curl", "--fail", "http://127.0.0.1:8000/health"]
 
-ENTRYPOINT ["java", "-Xms128m", "-Xmx512m", "-XX:+UseZGC", "-XX:SharedArchiveFile=/app/application.jsa", "-jar", "/app/app.jar"]
+ENTRYPOINT ["java", "-Xms128m", "-Xmx512m", "-XX:+UseZGC", "-XX:SharedArchiveFile=/app/application.jsa", "-jar", "/app/application.jar"]
