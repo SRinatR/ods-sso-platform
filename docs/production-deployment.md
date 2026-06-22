@@ -103,6 +103,11 @@ Inbound TCP `22` must also be allowed in the provider-level network firewall.
 Do not restrict port `22` to a single administrator IP while deployments use
 GitHub-hosted runners, because their source addresses are not fixed.
 
+After a non-empty root `authorized_keys` file is present, bootstrap disables
+SSH password and keyboard-interactive authentication and permits root only with
+a public key. The deploy workflow uses SSH keepalives so long package installs
+and container builds do not appear idle to intermediate firewalls.
+
 After a VPS reinstall, add the production deployment public key to root before
 the first workflow run:
 
