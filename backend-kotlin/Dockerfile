@@ -1,0 +1,66 @@
+# syntax=docker/dockerfile:1.7
+
+FROM eclipse-temurin:26-jdk AS build
+
+WORKDIR /workspace
+ENV JAVA_OPTS="-Djava.net.preferIPv4Stack=true"
+ENV GRADLE_OPTS="-Dorg.gradle.jvmargs=-Xmx768m -Dorg.gradle.workers.max=1"
+COPY gradle gradle
+COPY gradlew gradlew.bat settings.gradle.kts build.gradle.kts gradle.properties ./
+RUN --mount=type=cache,target=/root/.gradle \
+    chmod +x gradlew && ./gradlew --no-daemon dependencies
+
+COPY src src
+RUN --mount=type=cache,target=/root/.gradle \
+    ./gradlew --no-daemon clean check bootJar
+
+FROM eclipse-temurin:26-jre AS extract
+
+WORKDIR /builder
+COPY --from=build /workspace/build/libs/ods-sso-backend-2.0.0.jar application.jar
+RUN java -Djarmode=tools -jar application.jar extract --layers --destination extracted
+
+FROM eclipse-temurin:26-jre AS cds
+
+WORKDIR /app
+COPY --from=extract /builder/extracted/dependencies/ ./
+COPY --from=extract /builder/extracted/spring-boot-loader/ ./
+COPY --from=extract /builder/extracted/snapshot-dependencies/ ./
+COPY --from=extract /builder/extracted/application/ ./
+
+RUN java \
+    -Xint \
+    -Xms128m \
+    -Xmx512m \
+    -XX:+UseZGC \
+    -XX:ArchiveClassesAtExit=/app/application.jsa \
+    -Dspring.context.exit=onRefresh \
+    -jar /app/application.jar \
+    --spring.main.web-application-type=none \
+    --spring.main.lazy-initialization=true \
+    --spring.flyway.enabled=false \
+    --spring.datasource.hikari.minimum-idle=0 \
+    --spring.datasource.hikari.initialization-fail-timeout=-1 \
+    --spring.jpa.hibernate.ddl-auto=none \
+    --spring.jpa.database-platform=org.hibernate.dialect.PostgreSQLDialect \
+    --spring.jpa.properties.hibernate.boot.allow_jdbc_metadata_access=false \
+    --management.endpoints.enabled-by-default=false \
+    --ods.kafka-events-enabled=false
+
+FROM eclipse-temurin:26-jre
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd --gid 10001 app \
+    && useradd --uid 10001 --gid app --create-home app
+
+WORKDIR /app
+COPY --from=cds --chown=app:app /app ./
+
+USER app
+EXPOSE 8000
+HEALTHCHECK --interval=15s --timeout=5s --start-period=30s --retries=5 \
+  CMD ["curl", "--fail", "http://127.0.0.1:8000/health"]
+
+ENTRYPOINT ["java", "-Xms128m", "-Xmx512m", "-XX:+UseZGC", "-XX:SharedArchiveFile=/app/application.jsa", "-jar", "/app/application.jar"]

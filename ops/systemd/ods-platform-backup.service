@@ -1,0 +1,10 @@
+[Unit]
+Description=ODS Platform database backup
+Requires=docker.service
+After=docker.service ods-platform.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/ods-platform
+Environment=ENV_FILE=/etc/ods-platform/production.env
+ExecStart=/opt/ods-platform/scripts/backup.sh

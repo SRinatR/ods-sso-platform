@@ -1,45 +1,54 @@
 # ODS SSO Platform — implementation status
 
-Last updated: 2026-06-19.
+Last updated: 2026-06-22.
 
-## MVP status
+## Migration status
 
 | Area | Status |
 |---|---|
-| Identity Core | Implemented |
-| Email verification and password reset | Implemented with SMTP and development outbox |
-| Sessions and login history | Implemented |
-| TOTP, backup codes and step-up | Implemented |
-| OAuth 2.0 / OpenID Connect | Implemented |
-| Refresh rotation and reuse detection | Implemented |
-| Consent and connected applications | Implemented |
-| Admin Console | Implemented |
-| Security headers, rate limits and audit | Implemented |
-| Alembic migration and OpenAPI | Implemented |
-| Backend lint, types and tests | Passing locally |
-| Frontend lint, types and production build | Passing locally |
-| Docker build | Defined in CI; local Docker is not installed on this workstation |
-| Staging deployment | Requires repository SSH secrets, server `.env` and DNS |
+| Python/FastAPI runtime | Removed |
+| Kotlin 2.4 / Java 26 runtime | Implemented |
+| Spring Boot 4.1 / Security 7.1 | Implemented |
+| Spring Authorization Server | Implemented |
+| PostgreSQL 18.4 / Flyway schema | Implemented |
+| UUIDv7 internal PK / prefixed public ID model | Implemented |
+| Redis rate-limit and MFA state | Implemented |
+| Kafka transactional outbox | Implemented |
+| Identity, sessions and TOTP MFA | Implemented |
+| OAuth/OIDC and consent | Implemented |
+| Tenant isolation foundation | Implemented |
+| Device/risk foundation | Implemented |
+| Tamper-evident audit chain | Implemented |
+| Actuator, Prometheus and OTLP | Implemented |
+| Admin Console API compatibility | Implemented |
+| Partner organization self-registration | Implemented |
+| Partner OIDC application provisioning | Implemented |
+| RFC 7807-compatible API Problem Details | Implemented |
+| SEC-BASE immutable CI regression checks | Implemented |
+| Production/staging TLS 1.3 minimum | Implemented |
+| LDAP, Entra ID and SAML adapters | Not implemented |
+| Passkey/WebAuthn ceremonies | Not implemented |
+| KMS/HSM/Vault adapters | Metadata only |
+| SCIM provisioning | Not implemented |
 
 ## Verified locally
 
-- `ruff check`: passed
-- strict `mypy`: passed
-- backend tests: 47 passed
-- overall backend coverage: at least 80%
-- Identity/MFA/OAuth/session service coverage: at least 90%
+- JDK 26.0.1: verified
+- Gradle wrapper 9.5.0: configured
+- clean Kotlin compilation: passed
+- backend tests: 51 passed locally; PostgreSQL 18.4 Testcontainers migration test is CI-gated
+- JaCoCo line coverage: 80.59% (80% gate passed)
+- Configuration Cache: stored and reused
+- executable Spring Boot JAR: built
+- ZGC-compatible CDS training archive: generated and loaded
 - frontend ESLint: passed
 - frontend TypeScript: passed
 - Next.js production build: passed
-- Alembic upgrade → downgrade → upgrade: passed on SQLite
 
-CI repeats database tests and migration validation against PostgreSQL 16 and Redis 7.
+The pilot topology keeps PostgreSQL, Redis, Kotlin backend, Next.js and Caddy in the default
+profile. Kafka and the observability stack remain available as optional Compose profiles so the
+initial 2 GB VPS is not overloaded.
 
-## Deployment prerequisites
-
-1. Configure GitHub SSH secrets described in `docs/GITHUB-CICD.md`.
-2. Copy `.env.staging.example` to `.env` on the server.
-3. Populate all required secrets without committing them.
-4. Configure `staging.api.ods.uz` and `staging.account.ods.uz`.
-5. Push to `main`; deploy starts only after the full CI workflow succeeds.
-
+GitHub Actions enforces the immutable security baseline, backend tests, the 80% coverage gate,
+frontend production checks, Docker 26+ and a CDS-trained production image. Production deployment
+remains an explicit operation through `scripts/deploy.sh`.

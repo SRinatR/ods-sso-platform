@@ -1,0 +1,178 @@
+{
+	email {$ACME_EMAIL}
+	on_demand_tls {
+		ask http://backend:8000/internal/caddy/allow-domain
+	}
+}
+
+(security_headers) {
+	header {
+		Strict-Transport-Security "max-age=63072000; includeSubDomains"
+		Content-Security-Policy "default-src 'self'; connect-src 'self' https://{$PUBLIC_DOMAIN}; img-src 'self' data:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self' https://{$PUBLIC_DOMAIN}"
+		X-Frame-Options "DENY"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		-Server
+	}
+}
+
+(tls13_only) {
+	tls {
+		protocols tls1.3
+	}
+}
+
+(application_backend) {
+	@backend path /api/* /authorize /token /userinfo /revoke /introspect /.well-known/* /webauthn/* /login/webauthn /health /ready /privacy /docs /docs/* /swagger-ui/* /webjars/* /openapi.json /actuator/* /error
+	handle @backend {
+		reverse_proxy backend:8000
+	}
+}
+
+{$ROOT_DOMAIN} {
+	import tls13_only
+	import security_headers
+
+	@public_frontend path / /privacy /_next/* /favicon.ico /robots.txt
+	handle @public_frontend {
+		reverse_proxy frontend:3000
+	}
+
+	@auth_pages path /login /register /forgot-password /reset-password /verify-email /consent
+	redir @auth_pages https://{$PUBLIC_DOMAIN}{uri} temporary
+
+	respond 404
+}
+
+{$WWW_DOMAIN} {
+	import tls13_only
+	redir https://{$ROOT_DOMAIN}{uri} permanent
+}
+
+{$PUBLIC_DOMAIN} {
+	import tls13_only
+	import security_headers
+	import application_backend
+
+	@auth_root path /
+	redir @auth_root /login temporary
+
+	handle {
+		reverse_proxy frontend:3000
+	}
+}
+
+{$ACCOUNT_DOMAIN} {
+	import tls13_only
+	import security_headers
+	import application_backend
+
+	@account_root path /
+	rewrite @account_root /dashboard
+
+	@auth_pages path /login /register /forgot-password /reset-password /verify-email
+	redir @auth_pages https://{$PUBLIC_DOMAIN}{uri} temporary
+
+	handle {
+		reverse_proxy frontend:3000
+	}
+}
+
+{$ADMIN_DOMAIN} {
+	import tls13_only
+	import security_headers
+	import application_backend
+
+	@admin_root path /
+	rewrite @admin_root /admin
+
+	@auth_pages path /login /register /forgot-password /reset-password /verify-email
+	redir @auth_pages https://{$PUBLIC_DOMAIN}{uri} temporary
+
+	handle {
+		reverse_proxy frontend:3000
+	}
+}
+
+{$API_DOMAIN} {
+	import tls13_only
+	import security_headers
+
+	@api_root path /
+	redir @api_root https://{$DOCS_DOMAIN}/ temporary
+
+	@api path /api/* /authorize /token /userinfo /revoke /introspect /.well-known/* /webauthn/* /login/webauthn /health /ready /openapi.json /docs /docs/* /swagger-ui/* /webjars/*
+	handle @api {
+		reverse_proxy backend:8000
+	}
+
+	respond 404
+}
+
+{$DOCS_DOMAIN} {
+	import tls13_only
+	import security_headers
+
+	@docs_root path /
+	rewrite @docs_root /docs
+
+	@docs path /docs /docs/* /openapi.json /swagger-ui/* /webjars/*
+	handle @docs {
+		reverse_proxy backend:8000
+	}
+
+	respond 404
+}
+
+{$STATUS_DOMAIN} {
+	import tls13_only
+	import security_headers
+
+	@status path / /health /ready
+	handle @status {
+		rewrite * /ready
+		reverse_proxy backend:8000
+	}
+
+	respond 404
+}
+
+{$SSO_DOMAIN} {
+	import tls13_only
+	import security_headers
+	redir https://{$PUBLIC_DOMAIN}{uri} permanent
+}
+
+{$SCIM_DOMAIN} {
+	import tls13_only
+	import security_headers
+	header Content-Type application/json
+	respond `{"service":"scim","status":"not_implemented","documentation":"https://{$DOCS_DOMAIN}/"}` 501
+}
+
+{$WEBHOOKS_DOMAIN} {
+	import tls13_only
+	import security_headers
+	header Content-Type application/json
+	respond `{"service":"webhooks","status":"not_implemented","documentation":"https://{$DOCS_DOMAIN}/"}` 501
+}
+
+https:// {
+	import security_headers
+	tls {
+		protocols tls1.3
+		on_demand
+	}
+	import application_backend
+
+	@tenant_root path /
+	rewrite @tenant_root /partner
+
+	@auth_pages path /login /register /forgot-password /reset-password /verify-email
+	redir @auth_pages https://{$PUBLIC_DOMAIN}{uri} temporary
+
+	handle {
+		reverse_proxy frontend:3000
+	}
+}

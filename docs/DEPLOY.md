@@ -1,40 +1,116 @@
-# Staging deployment
+# Pilot deployment
 
-## Server preparation
+## Runtime profile
 
-```bash
-mkdir -p /opt/ods-platform
-cp .env.staging.example /opt/ods-platform/.env
-chmod 600 /opt/ods-platform/.env
+The default pilot profile runs:
+
+- PostgreSQL
+- Redis
+- Kotlin/Spring backend
+- Next.js account and partner portal
+- Caddy with automatic TLS
+- MinIO-compatible object storage for backup artifacts
+
+Kafka is enabled with `docker compose --profile events ...`. Prometheus, Grafana and the
+OpenTelemetry Collector are enabled with `--profile observability`. They are disabled on the
+initial 2 GB VPS.
+
+## Required configuration
+
+Configure the GitHub Environment `production` as described in
+[`production-deployment.md`](production-deployment.md). GitHub Actions creates the restricted
+runtime file on the VPS; do not maintain a second hand-written production `.env`.
+
+- public domain and ACME email
+- PostgreSQL password
+- independent `SESSION_SECRET` and `TOKEN_PEPPER`
+- 32-byte URL-safe base64 `TOTP_ENCRYPTION_KEY`
+- RSA private/public signing key pair
+- bootstrap administrator credentials
+- wildcard tenant DNS (`*.ods.uz`)
+- Resend SMTP API key
+
+Production registration requires verified email. For Resend use `smtp.resend.com:587`, username
+`resend`, the Resend API key as `SMTP_PASSWORD`, and a verified ODS sender in `MAIL_FROM`.
+
+## DNS for ods.uz
+
+The production deployment keeps one canonical security origin and OIDC issuer:
+
+```text
+https://auth.ods.uz
 ```
 
-Generate independent secrets. Do not print, commit or send them through ordinary chat:
+Required records:
+
+| Type | Name | Value |
+|---|---|---|
+| A | `@` | `94.232.44.189` |
+| A or CNAME | `www` | `94.232.44.189` or `ods.uz` |
+| A | `auth` | `94.232.44.189` |
+| A | `accounts` | `94.232.44.189` |
+| A | `admin` | `94.232.44.189` |
+| A | `api` | `94.232.44.189` |
+| A | `docs` | `94.232.44.189` |
+| A | `status` | `94.232.44.189` |
+| A | `sso` | `94.232.44.189` |
+| A | `scim` | `94.232.44.189` |
+| A | `webhooks` | `94.232.44.189` |
+| A | `*` | `94.232.44.189` |
+
+`ods.uz` is the public product website. It does not redirect to the identity portal. The canonical
+OIDC issuer remains `auth.ods.uz`.
+
+The service domains expose only implemented behavior:
+
+- `auth.ods.uz` owns registration, login, consent, verification and password reset.
+- `accounts.ods.uz` serves the ordinary account dashboard.
+- `admin.ods.uz` serves the administration UI.
+- `docs.ods.uz` serves the OpenAPI UI.
+- `sso.ods.uz` redirects to the canonical issuer.
+- `api.ods.uz` redirects its root to `docs.ods.uz` and exposes REST, health and OpenAPI routes,
+  but not alternate OIDC issuer endpoints.
+- `status.ods.uz` exposes the real database-and-Redis readiness result.
+- `{slug}.ods.uz` serves the matching counterparty workspace. Caddy asks the backend whether the
+  slug belongs to an active organization before obtaining a certificate.
+- `scim.ods.uz` and `webhooks.ods.uz` terminate TLS and return an explicit HTTP 501 JSON status
+  until those capabilities are implemented. They must not claim successful service availability.
+
+## User entry points
+
+- A counterparty starts at `https://auth.ods.uz/register?kind=partner`. The first user verifies
+  email, signs in, registers the organization and becomes its owner. The application then opens
+  the organization portal such as `https://tatarlar.ods.uz`.
+- A platform administrator opens `https://admin.ods.uz`. The portal redirects to the canonical
+  login, verifies the `admin` or `security_admin` role, requires a strong passkey or TOTP-authenticated
+  session, and then asks for a fresh step-up before loading administrative data.
+- `https://accounts.ods.uz` opens the ordinary account dashboard.
+
+Caddy obtains and renews TLS certificates automatically and the production/staging listeners
+accept TLS 1.3 only. Do not install Certbot or a second ACME renewal mechanism on the same
+listener. Caddy may manage separate certificates per site, avoiding one shared private key across
+every subdomain.
+
+TCP ports 80 and 443 and UDP port 443 must be reachable from the Internet. UDP 443 enables HTTP/3.
+Before mandatory verification is enabled, Resend domain verification and MX/SPF/DKIM/DMARC records
+must be published and `SMTP_PASSWORD` must contain a live API key.
+
+## Deploy
 
 ```bash
-openssl rand -base64 48
-openssl rand -base64 32 | tr '+/' '-_' | tr -d '='
-openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:3072
+bash scripts/server-bootstrap.sh /opt/ods-platform
 ```
 
-Required configuration:
+Then run the reviewed GitHub `Deploy production` workflow. The deployment script builds the
+containers, confirms the newest Flyway migration and polls `/ready`. Before changing application
+containers it writes a compressed PostgreSQL dump to `BACKUP_DIR`
+(default `/var/backups/ods-platform`) and uploads it to MinIO. After Flyway it calls PostgreSQL `uuidv7()`
+and verifies that all 19 domain tables have native UUID internal identifiers. It validates the
+production Caddyfile and recreates the Caddy container. A failed backup, migration, proxy
+validation or schema assertion stops the deployment. Systemd recovery starts the complete stack
+after a VPS reboot, and a timer creates daily backups.
 
-- database password
-- `SESSION_SECRET`
-- `TOKEN_PEPPER`
-- `TOTP_ENCRYPTION_KEY`
-- RS256 key pair
-- SMTP settings
-- bootstrap admin only for the first controlled startup
-- OAuth client secrets
-
-Run:
-
-```bash
-cp Caddyfile.staging Caddyfile
-docker compose up -d --build
-docker compose exec -T backend alembic current
-curl --fail https://staging.api.ods.uz/ready
-```
-
-The backend image applies migrations before starting Uvicorn. A failed migration prevents service startup.
-
+The backend image is built in three stages. The middle stage starts the Spring context with lazy
+database initialization and writes a CDS archive using the same Java 26, heap and ZGC flags as the
+runtime stage. A missing or incompatible archive fails the image build instead of silently
+disabling CDS.

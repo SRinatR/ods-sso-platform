@@ -5,6 +5,8 @@ import { FormEvent, Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { AuthCard } from "@/components/Shell";
 import { api } from "@/lib/api";
+import { ACCOUNTS_URL, isTrustedReturnUrl, onAuth } from "@/lib/domains";
+import { authenticateWithPasskey, passkeysSupported } from "@/lib/passkeys";
 
 type LoginResult = {
   user_id?: string;
@@ -15,7 +17,7 @@ type LoginResult = {
 
 function LoginForm() {
   const params = useSearchParams();
-  const returnTo = params.get("return_to") || "/dashboard";
+  const returnTo = safeReturnTo(params.get("return_to"));
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [challenge, setChallenge] = useState("");
@@ -62,11 +64,33 @@ function LoginForm() {
     }
   }
 
+  async function submitPasskey() {
+    setError("");
+    setLoading(true);
+    try {
+      await authenticateWithPasskey();
+      window.location.href = returnTo;
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Не удалось войти по passkey");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <AuthCard title="Вход" subtitle="Безопасный доступ ко всем сервисам ODS">
       {error && <div className="alert error">{error}</div>}
       {!challenge ? (
-        <form onSubmit={submitCredentials} className="stack">
+        <div className="stack">
+          {passkeysSupported() && (
+            <>
+              <button className="button passkey-button" onClick={submitPasskey} disabled={loading}>
+                Войти по passkey
+              </button>
+              <div className="auth-divider"><span>или email и пароль</span></div>
+            </>
+          )}
+          <form onSubmit={submitCredentials} className="stack">
           <label>
             Email
             <input
@@ -90,7 +114,8 @@ function LoginForm() {
           <button className="button" disabled={loading}>
             {loading ? "Проверка…" : "Войти"}
           </button>
-        </form>
+          </form>
+        </div>
       ) : (
         <form onSubmit={submitMfa} className="stack">
           <div className="segmented">
@@ -109,22 +134,48 @@ function LoginForm() {
             {method === "totp" ? "Код из приложения" : "Резервный код"}
             <input
               autoComplete="one-time-code"
+              inputMode={method === "totp" ? "numeric" : "text"}
+              pattern={method === "totp" ? "\\d{6}" : undefined}
+              maxLength={method === "totp" ? 6 : 64}
+              autoFocus
               required
               value={code}
-              onChange={(event) => setCode(event.target.value)}
+              onChange={(event) =>
+                setCode(
+                  method === "totp"
+                    ? event.target.value.replace(/\D/g, "").slice(0, 6)
+                    : event.target.value.trim(),
+                )
+              }
             />
           </label>
           <button className="button" disabled={loading}>
             Подтвердить
           </button>
+          <button
+            className="button secondary"
+            type="button"
+            onClick={() => {
+              setChallenge("");
+              setCode("");
+              setError("");
+            }}
+          >
+            Начать вход заново
+          </button>
         </form>
       )}
       <div className="auth-links">
-        <Link href="/register">Создать аккаунт</Link>
-        <Link href="/forgot-password">Забыли пароль?</Link>
+        <Link href={onAuth("/register")}>Создать аккаунт</Link>
+        <Link href={onAuth("/forgot-password")}>Забыли пароль?</Link>
       </div>
     </AuthCard>
   );
+}
+
+function safeReturnTo(value: string | null): string {
+  if (!value) return `${ACCOUNTS_URL}/dashboard`;
+  return isTrustedReturnUrl(value) ? value : `${ACCOUNTS_URL}/dashboard`;
 }
 
 export default function LoginPage() {
@@ -134,4 +185,3 @@ export default function LoginPage() {
     </Suspense>
   );
 }
-

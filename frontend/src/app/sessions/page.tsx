@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Shell } from "@/components/Shell";
 import { api } from "@/lib/api";
+import { loginUrl } from "@/lib/domains";
 
 type User = { role: string };
 type Session = {
@@ -50,14 +51,14 @@ export default function SessionsPage() {
         setSessions(active);
         setHistory(logins);
       })
-      .catch(() => window.location.assign("/login"));
+      .catch(() => window.location.assign(loginUrl(window.location.href)));
   }, []);
 
   async function revoke(id: string) {
     await api(`/api/v1/account/sessions/${id}`, { method: "DELETE" });
     const current = sessions.find((item) => item.id === id)?.current;
     if (current) {
-      window.location.assign("/login");
+      window.location.assign(loginUrl(window.location.href));
     } else {
       await load();
     }

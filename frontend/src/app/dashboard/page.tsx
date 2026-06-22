@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Shell } from "@/components/Shell";
 import { api } from "@/lib/api";
+import { loginUrl } from "@/lib/domains";
 
 type User = {
   id: string;
@@ -23,7 +24,7 @@ export default function DashboardPage() {
       .then(setUser)
       .catch(() => {
         setError("Сессия недействительна");
-        window.location.href = "/login";
+        window.location.href = loginUrl(window.location.href);
       });
   }, []);
 
@@ -58,4 +59,3 @@ export default function DashboardPage() {
     </Shell>
   );
 }
-

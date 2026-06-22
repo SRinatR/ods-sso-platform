@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { ReactNode } from "react";
 import { api } from "@/lib/api";
+import { ACCOUNTS_URL, ADMIN_URL, ROOT_URL, onAuth } from "@/lib/domains";
 
 export function Shell({
   title,
@@ -17,21 +18,23 @@ export function Shell({
 }) {
   async function logout() {
     await api("/api/v1/auth/logout", { method: "POST" });
-    window.location.href = "/login";
+    window.location.href = onAuth("/login");
   }
 
   return (
     <div className="app-shell">
       <aside className="sidebar">
-        <Link href="/dashboard" className="brand">
+        <Link href={ROOT_URL} className="brand">
           ODS Identity
         </Link>
         <nav>
-          <Link href="/dashboard">Обзор</Link>
-          <Link href="/security">Безопасность и MFA</Link>
-          <Link href="/sessions">Сессии и входы</Link>
-          <Link href="/apps">Подключенные приложения</Link>
-          {admin && <Link href="/admin">Администрирование</Link>}
+          <Link href={`${ACCOUNTS_URL}/dashboard`}>Обзор</Link>
+          <Link href={`${ACCOUNTS_URL}/profile`}>Личный профиль</Link>
+          <Link href={`${ACCOUNTS_URL}/security`}>Безопасность и MFA</Link>
+          <Link href={`${ACCOUNTS_URL}/sessions`}>Сессии и входы</Link>
+          <Link href={`${ACCOUNTS_URL}/apps`}>Подключенные приложения</Link>
+          <Link href={onAuth("/partner")}>Кабинет контрагента</Link>
+          {admin && <Link href={`${ADMIN_URL}/admin`}>Администрирование</Link>}
         </nav>
         <button className="button secondary" onClick={logout}>
           Выйти
@@ -63,7 +66,9 @@ export function AuthCard({
   return (
     <main className="auth-page">
       <section className="auth-card">
-        <div className="brand">ODS Identity</div>
+        <Link href={ROOT_URL} className="brand">
+          ODS Identity
+        </Link>
         <h1>{title}</h1>
         <p className="muted">{subtitle}</p>
         {children}
@@ -71,4 +76,3 @@ export function AuthCard({
     </main>
   );
 }
-
