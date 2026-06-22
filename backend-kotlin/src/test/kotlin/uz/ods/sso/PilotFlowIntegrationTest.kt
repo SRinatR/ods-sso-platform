@@ -195,6 +195,7 @@ class PilotFlowIntegrationTest {
         mvc.perform(get("/api/v1/auth/me"))
             .andExpect(status().isUnauthorized)
             .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+            .andExpect { assertThat(it.response.characterEncoding).isEqualTo("UTF-8") }
             .andExpect(jsonPath("$.type").value("urn:ods:problem:not_authenticated"))
             .andExpect(jsonPath("$.status").value(401))
             .andExpect(jsonPath("$.detail").value("Authentication is required"))

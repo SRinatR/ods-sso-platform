@@ -302,6 +302,7 @@ class SecurityConfiguration(
 
     private fun writeUnauthorized(request: HttpServletRequest, response: HttpServletResponse) {
         response.status = HttpStatus.UNAUTHORIZED.value()
+        response.characterEncoding = StandardCharsets.UTF_8.name()
         response.contentType = MediaType.APPLICATION_PROBLEM_JSON_VALUE
         objectMapper.writeValue(
             response.writer,
