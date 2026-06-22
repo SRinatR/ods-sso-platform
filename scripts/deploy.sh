@@ -207,8 +207,21 @@ systemctl enable ods-platform.service ods-platform-backup.timer
 systemctl start ods-platform-backup.timer
 
 api_url="$(grep '^API_URL=' "${env_file}" | cut -d= -f2-)"
-for _ in $(seq 1 30); do
-  if curl --fail --silent "${api_url}/ready" >/dev/null; then
+api_host="${api_url#*://}"
+api_host="${api_host%%/*}"
+api_host="${api_host%%:*}"
+
+# A fresh host can need several minutes to issue the initial certificate set.
+# Verify the real Caddy TLS route locally so deploy health does not depend on
+# public-IP hairpin routing while still validating SNI and the certificate.
+for _ in $(seq 1 180); do
+  if curl \
+    --fail \
+    --silent \
+    --show-error \
+    --max-time 10 \
+    --resolve "${api_host}:443:127.0.0.1" \
+    "${api_url}/ready" >/dev/null; then
     echo "Deployment is ready at ${api_url}"
     exit 0
   fi
