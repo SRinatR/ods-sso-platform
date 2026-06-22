@@ -157,16 +157,20 @@ class SessionService(
     }
 
     fun clearCookie(response: HttpServletResponse) {
-        response.addCookie(
-            Cookie(COOKIE_NAME, "").apply {
-                isHttpOnly = true
-                secure = properties.productionLike
-                path = "/"
-                properties.sessionCookieDomain.trim().ifBlank { null }?.let { domain = it }
-                maxAge = 0
-                setAttribute("SameSite", "Lax")
-            },
-        )
+        val domain = properties.sessionCookieDomain.trim().ifBlank { null }
+        response.addCookie(expiredCookie(domain))
+        if (domain != null) {
+            response.addCookie(expiredCookie(null))
+        }
+    }
+
+    private fun expiredCookie(cookieDomain: String?) = Cookie(COOKIE_NAME, "").apply {
+        isHttpOnly = true
+        secure = properties.productionLike
+        path = "/"
+        cookieDomain?.let { domain = it }
+        maxAge = 0
+        setAttribute("SameSite", "Lax")
     }
 
     companion object {

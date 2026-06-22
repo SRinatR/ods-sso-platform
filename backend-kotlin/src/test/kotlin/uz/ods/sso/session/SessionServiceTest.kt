@@ -11,6 +11,7 @@ import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.eq
 import org.mockito.kotlin.isNull
 import org.mockito.kotlin.mock
+import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken
@@ -119,8 +120,8 @@ class SessionServiceTest {
         val response = mock<HttpServletResponse>()
         service.clearCookie(response)
         val cookie = argumentCaptor<Cookie>()
-        verify(response).addCookie(cookie.capture())
-        assertThat(cookie.firstValue.maxAge).isZero()
-        assertThat(cookie.firstValue.domain).isEqualTo("ods.uz")
+        verify(response, times(2)).addCookie(cookie.capture())
+        assertThat(cookie.allValues).allSatisfy { assertThat(it.maxAge).isZero() }
+        assertThat(cookie.allValues.map { it.domain }).containsExactly("ods.uz", null)
     }
 }
