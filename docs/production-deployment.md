@@ -41,7 +41,6 @@ for routing and deployment metadata.
 | `JWT_PRIVATE_KEY` | Base64-encoded PKCS#8 RSA private key |
 | `JWT_PUBLIC_KEY` | Base64-encoded X.509 RSA public key |
 | `BOOTSTRAP_ADMIN_PASSWORD` | Temporary recovery/bootstrap administrator password |
-| `TATARLAR_CLIENT_SECRET` | Recovery secret for an empty-database pilot bootstrap |
 | `RESEND_API_KEY` | Resend API key used as the SMTP password |
 | `MINIO_ROOT_USER` | MinIO root access key |
 | `MINIO_ROOT_PASSWORD` | Long random MinIO root secret |
