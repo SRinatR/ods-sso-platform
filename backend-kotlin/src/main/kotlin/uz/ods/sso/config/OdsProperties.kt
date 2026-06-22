@@ -32,7 +32,6 @@ data class OdsProperties(
     val bootstrapAdminEmail: String = "",
     val bootstrapAdminPassword: String = "",
     val bootstrapAdminReconcile: Boolean = false,
-    val tatarlarClientSecret: String = "",
     val kafkaEventsEnabled: Boolean = false,
     val defaultTenant: String = "default",
     val trustedProxyCount: Int = 0,

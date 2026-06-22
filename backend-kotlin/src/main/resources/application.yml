@@ -124,7 +124,6 @@ ods:
   bootstrap-admin-email: ${BOOTSTRAP_ADMIN_EMAIL:}
   bootstrap-admin-password: ${BOOTSTRAP_ADMIN_PASSWORD:}
   bootstrap-admin-reconcile: ${BOOTSTRAP_ADMIN_RECONCILE:false}
-  tatarlar-client-secret: ${TATARLAR_CLIENT_SECRET:}
   kafka-events-enabled: ${KAFKA_EVENTS_ENABLED:false}
   default-tenant: ${DEFAULT_TENANT:default}
   trusted-proxy-count: ${TRUSTED_PROXY_COUNT:0}
