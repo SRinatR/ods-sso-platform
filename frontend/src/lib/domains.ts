@@ -17,6 +17,10 @@ export function onAdmin(path: string): string {
   return new URL(path, `${ADMIN_URL}/`).toString();
 }
 
+export function loginUrl(returnTo: string): string {
+  return onAuth(`/login?return_to=${encodeURIComponent(returnTo)}`);
+}
+
 export function isTrustedReturnUrl(value: string): boolean {
   try {
     const candidate = new URL(value);

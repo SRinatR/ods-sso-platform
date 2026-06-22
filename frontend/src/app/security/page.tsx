@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Shell } from "@/components/Shell";
 import { api } from "@/lib/api";
+import { loginUrl } from "@/lib/domains";
 
 type User = { role: string; mfa_enabled: boolean };
 type Setup = { secret: string; provisioning_uri: string; expires_in: number };
@@ -16,7 +17,9 @@ export default function SecurityPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    api<User>("/api/v1/auth/me").then(setUser).catch(() => (window.location.href = "/login"));
+    api<User>("/api/v1/auth/me")
+      .then(setUser)
+      .catch(() => (window.location.href = loginUrl(window.location.href)));
   }, []);
 
   async function beginSetup() {
@@ -95,4 +98,3 @@ export default function SecurityPage() {
     </Shell>
   );
 }
-

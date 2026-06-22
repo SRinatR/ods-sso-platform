@@ -4,6 +4,7 @@ import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 import { Shell } from "@/components/Shell";
 import { api } from "@/lib/api";
+import { ADMIN_URL, loginUrl } from "@/lib/domains";
 
 type CurrentUser = {
   role: string;
@@ -74,7 +75,7 @@ export default function AdminPage() {
         setAccessChecked(true);
       })
       .catch(() => {
-        window.location.href = "/login?return_to=/admin";
+        window.location.href = loginUrl(`${ADMIN_URL}/admin`);
       });
   }, []);
 

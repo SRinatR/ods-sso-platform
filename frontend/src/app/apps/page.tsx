@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Shell } from "@/components/Shell";
 import { api } from "@/lib/api";
+import { loginUrl } from "@/lib/domains";
 
 type User = { role: string };
 type App = {
@@ -35,7 +36,7 @@ export default function AppsPage() {
         setUser(me);
         setApps(connected);
       })
-      .catch(() => window.location.assign("/login"));
+      .catch(() => window.location.assign(loginUrl(window.location.href)));
   }, []);
 
   async function revoke(id: string) {
