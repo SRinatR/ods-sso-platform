@@ -103,8 +103,10 @@ bash scripts/deploy.sh
 The deployment script builds the containers, confirms the newest Flyway migration and polls
 `/ready`. Before changing containers it writes a mode-0600-compatible compressed PostgreSQL dump
 to `BACKUP_DIR` (default `/var/backups/ods-platform`). After Flyway it calls PostgreSQL `uuidv7()`
-and verifies that all 19 domain tables have native UUID internal identifiers. A failed backup,
-migration or schema assertion stops the deployment.
+and verifies that all 19 domain tables have native UUID internal identifiers. It validates the
+new Caddyfile and recreates the Caddy container so bind-mounted configuration cannot remain pinned
+to an old inode. A failed backup, migration, proxy validation or schema assertion stops the
+deployment.
 
 The backend image is built in three stages. The middle stage starts the Spring context with lazy
 database initialization and writes a CDS archive using the same Java 26, heap and ZGC flags as the

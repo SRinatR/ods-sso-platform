@@ -149,6 +149,9 @@ if docker compose ps --status running --services | grep -qx postgres; then
 fi
 
 docker compose up -d --build --remove-orphans
+docker compose run --rm --no-deps --entrypoint caddy caddy \
+  validate --config /etc/caddy/Caddyfile --adapter caddyfile
+docker compose up -d --force-recreate --no-deps caddy
 ensure_docker_forwarding
 docker compose exec -T postgres sh -lc \
   'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "select version, description, success from flyway_schema_history order by installed_rank desc limit 1"'
