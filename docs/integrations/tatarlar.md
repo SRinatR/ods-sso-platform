@@ -5,7 +5,7 @@
 Use the environment Discovery URL:
 
 ```text
-https://staging.api.ods.uz/.well-known/openid-configuration
+https://auth.ods.uz/.well-known/openid-configuration
 ```
 
 Canonical endpoints are discovered dynamically. Do not hard-code signing keys; cache and refresh JWKS by `kid`.
@@ -37,4 +37,3 @@ Email is returned only when the `email` scope is approved. It must not be used a
 ## Revocation
 
 Users can revoke Tatarlar from Connected Applications. Revocation invalidates active access and refresh tokens for that user/client pair. The client must handle an inactive introspection response by ending its local session.
-

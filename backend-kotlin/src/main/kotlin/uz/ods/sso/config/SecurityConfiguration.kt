@@ -10,6 +10,7 @@ import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.core.annotation.Order
 import org.springframework.boot.web.servlet.FilterRegistrationBean
+import org.springframework.http.MediaType
 import org.springframework.http.HttpStatus
 import org.springframework.jdbc.core.JdbcOperations
 import org.springframework.security.config.Customizer.withDefaults
@@ -55,6 +56,8 @@ import uz.ods.sso.security.CryptoService
 import uz.ods.sso.audit.AuditService
 import uz.ods.sso.oauth.RotationTrackingAuthorizationService
 import uz.ods.sso.session.SessionCookieAuthenticationFilter
+import uz.ods.sso.shared.ApiErrorResponse
+import tools.jackson.databind.ObjectMapper
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 import java.security.KeyFactory
@@ -70,6 +73,7 @@ import java.util.function.Consumer
 @Configuration
 class SecurityConfiguration(
     private val properties: OdsProperties,
+    private val objectMapper: ObjectMapper,
 ) {
     @Bean
     @Order(1)
@@ -90,13 +94,26 @@ class SecurityConfiguration(
                         val missingNonce =
                             OidcScopes.OPENID in authentication.scopes &&
                                 authentication.additionalParameters["nonce"]?.toString().isNullOrBlank()
-                        if (missingState || missingNonce) {
-                            val parameter = if (missingState) "state" else "nonce"
+                        val missingCodeChallenge =
+                            authentication.additionalParameters["code_challenge"]?.toString().isNullOrBlank()
+                        val invalidCodeChallengeMethod =
+                            authentication.additionalParameters["code_challenge_method"]?.toString() != "S256"
+                        if (missingState || missingNonce || missingCodeChallenge || invalidCodeChallengeMethod) {
+                            val (description, documentationUri) = when {
+                                missingState -> "state is required" to
+                                    "https://datatracker.ietf.org/doc/html/rfc6749#section-10.12"
+                                missingNonce -> "nonce is required" to
+                                    "https://openid.net/specs/openid-connect-core-1_0.html"
+                                missingCodeChallenge -> "PKCE code_challenge is required" to
+                                    "https://datatracker.ietf.org/doc/html/rfc7636"
+                                else -> "Only PKCE S256 is supported" to
+                                    "https://datatracker.ietf.org/doc/html/rfc7636#section-4.3"
+                            }
                             throw OAuth2AuthorizationCodeRequestAuthenticationException(
                                 OAuth2Error(
                                     OAuth2ErrorCodes.INVALID_REQUEST,
-                                    "$parameter is required",
-                                    "https://openid.net/specs/openid-connect-core-1_0.html",
+                                    description,
+                                    documentationUri,
                                 ),
                                 authentication,
                             )
@@ -285,10 +302,15 @@ class SecurityConfiguration(
 
     private fun writeUnauthorized(request: HttpServletRequest, response: HttpServletResponse) {
         response.status = HttpStatus.UNAUTHORIZED.value()
-        response.contentType = "application/json"
-        val requestId = request.getAttribute(uz.ods.sso.shared.RequestContextFilter.REQUEST_ID)?.toString() ?: "unknown"
-        response.writer.write(
-            """{"error":"not_authenticated","message":"Authentication is required","details":[],"request_id":"$requestId"}""",
+        response.contentType = MediaType.APPLICATION_PROBLEM_JSON_VALUE
+        objectMapper.writeValue(
+            response.writer,
+            ApiErrorResponse.from(
+                request,
+                HttpStatus.UNAUTHORIZED,
+                "not_authenticated",
+                "Authentication is required",
+            ),
         )
     }
 

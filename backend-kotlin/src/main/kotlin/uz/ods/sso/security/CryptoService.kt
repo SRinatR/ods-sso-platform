@@ -22,8 +22,17 @@ class CryptoService(
     private val properties: OdsProperties,
 ) {
     private val random = SecureRandom()
-    private val passwordEncoder = Argon2PasswordEncoder.defaultsForSpringSecurity_v5_8()
+    private val passwordEncoder = Argon2PasswordEncoder(
+        16,
+        32,
+        4,
+        131_072,
+        4,
+    )
     private val urlEncoder = Base64.getUrlEncoder().withoutPadding()
+    private val dummyPasswordHash by lazy {
+        requireNotNull(passwordEncoder.encode("dummy-authentication-password-${randomUrl(16)}"))
+    }
 
     fun hashPassword(password: String): String {
         if (password.length !in 12..128) {
@@ -32,8 +41,12 @@ class CryptoService(
         return requireNotNull(passwordEncoder.encode(password))
     }
 
-    fun matchesPassword(password: String, encoded: String): Boolean =
-        password.length <= 128 && runCatching { passwordEncoder.matches(password, encoded) }.getOrDefault(false)
+    fun matchesPassword(password: String, encoded: String?): Boolean {
+        val candidateHash = encoded ?: dummyPasswordHash
+        val matches = password.length <= 128 &&
+            runCatching { passwordEncoder.matches(password, candidateHash) }.getOrDefault(false)
+        return encoded != null && matches
+    }
 
     fun hashSecret(secret: String): String {
         val mac = Mac.getInstance("HmacSHA256")

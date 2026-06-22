@@ -1,39 +1,85 @@
 package uz.ods.sso.shared
 
+import com.fasterxml.jackson.annotation.JsonProperty
+import jakarta.validation.ConstraintViolationException
 import jakarta.servlet.http.HttpServletRequest
+import org.slf4j.LoggerFactory
 import org.springframework.http.HttpHeaders
+import org.springframework.http.MediaType
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.MethodArgumentNotValidException
 import org.springframework.web.bind.MissingServletRequestParameterException
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException
+import org.springframework.http.converter.HttpMessageNotReadableException
+import uz.ods.sso.shared.exceptions.PlatformException
 
 class AppException(
-    val status: HttpStatus,
-    val code: String,
-    override val message: String,
-    val details: List<Map<String, Any?>> = emptyList(),
-    val responseHeaders: Map<String, String> = emptyMap(),
-) : RuntimeException(message)
+    status: HttpStatus,
+    code: String,
+    message: String,
+    details: List<Map<String, Any?>> = emptyList(),
+    responseHeaders: Map<String, String> = emptyMap(),
+) : PlatformException(status, code, message, details, responseHeaders)
 
 data class ApiErrorResponse(
+    val type: String,
+    val title: String,
+    val status: Int,
+    val detail: String,
+    val instance: String,
     val error: String,
     val message: String,
     val details: List<Map<String, Any?>>,
-    val request_id: String,
-)
+    @field:JsonProperty("request_id")
+    val requestId: String,
+) {
+    companion object {
+        fun from(
+            request: HttpServletRequest,
+            status: HttpStatus,
+            code: String,
+            message: String,
+            details: List<Map<String, Any?>> = emptyList(),
+        ) = ApiErrorResponse(
+            type = "urn:ods:problem:$code",
+            title = status.reasonPhrase,
+            status = status.value(),
+            detail = message,
+            instance = request.requestURI,
+            error = code,
+            message = message,
+            details = details,
+            requestId = request.getAttribute(RequestContextFilter.REQUEST_ID)?.toString() ?: "unknown",
+        )
+    }
+}
 
 @RestControllerAdvice
 class ApiExceptionHandler {
-    @ExceptionHandler(AppException::class)
-    fun appError(request: HttpServletRequest, exception: AppException): ResponseEntity<ApiErrorResponse> {
-        val headers = HttpHeaders()
-        exception.responseHeaders.forEach(headers::add)
-        return ResponseEntity(
-            payload(request, exception.code, exception.message, exception.details),
-            headers,
-            exception.status,
+    private val log = LoggerFactory.getLogger(javaClass)
+
+    @ExceptionHandler(PlatformException::class)
+    fun platformError(request: HttpServletRequest, exception: PlatformException): ResponseEntity<ApiErrorResponse> {
+        if (exception.status.is5xxServerError) {
+            log.error(
+                "platform_request_failure code={} status={} method={} path={} exception_type={}",
+                exception.code,
+                exception.status.value(),
+                request.method,
+                request.requestURI,
+                exception.javaClass.name,
+            )
+        }
+        return response(
+            request = request,
+            status = exception.status,
+            code = exception.code,
+            message = exception.message,
+            details = exception.details,
+            responseHeaders = exception.responseHeaders,
         )
     }
 
@@ -45,39 +91,98 @@ class ApiExceptionHandler {
         val details = exception.bindingResult.fieldErrors.map {
             mapOf("field" to it.field, "reason" to (it.defaultMessage ?: "invalid"))
         }
-        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_CONTENT)
-            .body(payload(request, "validation_error", "Request validation failed", details))
+        return response(
+            request,
+            HttpStatus.UNPROCESSABLE_CONTENT,
+            "validation_error",
+            "Request validation failed",
+            details,
+        )
     }
 
     @ExceptionHandler(MissingServletRequestParameterException::class)
     fun missingParameter(
         request: HttpServletRequest,
         exception: MissingServletRequestParameterException,
-    ): ResponseEntity<ApiErrorResponse> = ResponseEntity.badRequest().body(
-        payload(
-            request,
-            "invalid_request",
-            "Required request parameter is missing",
-            listOf(mapOf("field" to exception.parameterName)),
-        ),
+    ): ResponseEntity<ApiErrorResponse> = response(
+        request,
+        HttpStatus.BAD_REQUEST,
+        "invalid_request",
+        "Required request parameter is missing",
+        listOf(mapOf("field" to exception.parameterName)),
+    )
+
+    @ExceptionHandler(ConstraintViolationException::class)
+    fun constraintViolation(
+        request: HttpServletRequest,
+        exception: ConstraintViolationException,
+    ): ResponseEntity<ApiErrorResponse> = response(
+        request,
+        HttpStatus.UNPROCESSABLE_CONTENT,
+        "validation_error",
+        "Request validation failed",
+        exception.constraintViolations.map {
+            mapOf(
+                "field" to it.propertyPath.toString(),
+                "reason" to it.message,
+            )
+        },
+    )
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException::class)
+    fun typeMismatch(
+        request: HttpServletRequest,
+        exception: MethodArgumentTypeMismatchException,
+    ): ResponseEntity<ApiErrorResponse> = response(
+        request,
+        HttpStatus.BAD_REQUEST,
+        "invalid_request",
+        "Request parameter has an invalid value",
+        listOf(mapOf("field" to exception.name)),
+    )
+
+    @ExceptionHandler(HttpMessageNotReadableException::class)
+    fun unreadableMessage(
+        request: HttpServletRequest,
+        exception: HttpMessageNotReadableException,
+    ): ResponseEntity<ApiErrorResponse> = response(
+        request,
+        HttpStatus.BAD_REQUEST,
+        "invalid_request",
+        "Request body is malformed or unreadable",
     )
 
     @ExceptionHandler(Exception::class)
     fun unexpected(request: HttpServletRequest, exception: Exception): ResponseEntity<ApiErrorResponse> {
-        request.servletContext.log("Unhandled request failure", exception)
-        return ResponseEntity.internalServerError()
-            .body(payload(request, "internal_error", "An unexpected internal error occurred"))
+        log.error(
+            "unhandled_request_failure method={} path={} exception_type={}",
+            request.method,
+            request.requestURI,
+            exception.javaClass.name,
+        )
+        return response(
+            request,
+            HttpStatus.INTERNAL_SERVER_ERROR,
+            "internal_error",
+            "An unexpected internal error occurred",
+        )
     }
 
-    private fun payload(
+    private fun response(
         request: HttpServletRequest,
+        status: HttpStatus,
         code: String,
         message: String,
         details: List<Map<String, Any?>> = emptyList(),
-    ) = ApiErrorResponse(
-        error = code,
-        message = message,
-        details = details,
-        request_id = request.getAttribute(RequestContextFilter.REQUEST_ID)?.toString() ?: "unknown",
-    )
+        responseHeaders: Map<String, String> = emptyMap(),
+    ): ResponseEntity<ApiErrorResponse> {
+        val headers = HttpHeaders()
+        headers.contentType = MediaType.APPLICATION_PROBLEM_JSON
+        responseHeaders.forEach(headers::add)
+        return ResponseEntity(
+            ApiErrorResponse.from(request, status, code, message, details),
+            headers,
+            status,
+        )
+    }
 }

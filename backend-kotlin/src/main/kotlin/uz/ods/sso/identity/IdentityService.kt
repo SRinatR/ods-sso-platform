@@ -25,6 +25,7 @@ import uz.ods.sso.tenant.TenantService
 import java.time.Duration
 import java.time.Instant
 import java.time.temporal.ChronoUnit
+import java.util.concurrent.ThreadLocalRandom
 
 @Service
 class IdentityService(
@@ -51,14 +52,15 @@ class IdentityService(
         if (properties.requireEmailVerification) requireMailDelivery()
         val tenant = tenants.current()
         val email = body.email.trim().lowercase()
+        val passwordHash = crypto.hashPassword(body.password)
         if (users.findByTenantIdAndEmailIgnoreCase(tenant.id, email) != null) {
-            throw AppException(HttpStatus.CONFLICT, "email_already_registered", "Email is already registered")
+            return properties.requireEmailVerification
         }
         val user = users.save(
             UserEntity(
                 tenantId = tenant.id,
                 email = email,
-                passwordHash = crypto.hashPassword(body.password),
+                passwordHash = passwordHash,
                 name = body.name.trim(),
                 emailVerifiedAt = Instant.now().takeUnless { properties.requireEmailVerification },
             ),
@@ -126,7 +128,11 @@ class IdentityService(
     }
 
     @Transactional(noRollbackFor = [AppException::class])
-    fun login(body: LoginRequest, request: HttpServletRequest, response: HttpServletResponse): LoginResponse {
+    fun login(
+        body: LoginRequest,
+        request: HttpServletRequest,
+        response: HttpServletResponse,
+    ): LoginResponse = withAuthenticationTiming {
         rateLimiter.enforce(RateLimiter.LOGIN, clientIp(request, properties))
         val tenant = tenants.current()
         val email = body.email.lowercase()
@@ -137,7 +143,7 @@ class IdentityService(
             audit.write(tenant.id, request, "LOGIN_FAILED", user.id, user.id, details = mapOf("reason" to "account_locked"))
             throw AppException(HttpStatus.LOCKED, "account_locked", "Account is temporarily locked")
         }
-        if (user == null || !crypto.matchesPassword(body.password, user.passwordHash)) {
+        if (!crypto.matchesPassword(body.password, user?.passwordHash)) {
             if (user != null) {
                 user.failedLoginCount += 1
                 if (user.failedLoginCount >= 5) user.lockedUntil = now.plus(15, ChronoUnit.MINUTES)
@@ -146,28 +152,46 @@ class IdentityService(
             audit.write(tenant.id, request, "LOGIN_FAILED", user?.id, user?.id, details = mapOf("reason" to "invalid_credentials"))
             throw AppException(HttpStatus.UNAUTHORIZED, "invalid_credentials", "Email or password is incorrect")
         }
-        if (user.status != "active") throw AppException(HttpStatus.FORBIDDEN, "account_unavailable", "Account is not active")
-        if (!user.emailVerified) throw AppException(HttpStatus.FORBIDDEN, "email_not_verified", "Email verification is required")
+        val authenticatedUser = requireNotNull(user)
+        if (authenticatedUser.status != "active") {
+            throw AppException(HttpStatus.FORBIDDEN, "account_unavailable", "Account is not active")
+        }
+        if (!authenticatedUser.emailVerified) {
+            throw AppException(HttpStatus.FORBIDDEN, "email_not_verified", "Email verification is required")
+        }
 
-        user.failedLoginCount = 0
-        user.lockedUntil = null
-        val riskResult = risk.assess(user, clientIp(request, properties), request.getHeader("User-Agent"))
+        authenticatedUser.failedLoginCount = 0
+        authenticatedUser.lockedUntil = null
+        val riskResult = risk.assess(authenticatedUser, clientIp(request, properties), request.getHeader("User-Agent"))
         if (riskResult.decision == "deny") {
-            recordLogin(tenant.id, user, email, false, "risk_denied", riskResult.score, request)
-            audit.write(tenant.id, request, "RISK_LOGIN_DENIED", user.id, user.id, details = mapOf("score" to riskResult.score))
+            recordLogin(tenant.id, authenticatedUser, email, false, "risk_denied", riskResult.score, request)
+            audit.write(
+                tenant.id,
+                request,
+                "RISK_LOGIN_DENIED",
+                authenticatedUser.id,
+                authenticatedUser.id,
+                details = mapOf("score" to riskResult.score),
+            )
             throw AppException(HttpStatus.FORBIDDEN, "risk_denied", "Login was blocked by risk policy")
         }
-        if (user.mfaEnabled) {
+        if (authenticatedUser.mfaEnabled) {
             val challenge = crypto.randomUrl(32)
             ephemeral.set(
                 "mfa:challenge:$challenge",
-                listOf(user.id, riskResult.score, riskResult.fingerprint).joinToString("|"),
+                listOf(authenticatedUser.id, riskResult.score, riskResult.fingerprint).joinToString("|"),
                 Duration.ofSeconds(properties.preauthTokenTtl),
             )
-            audit.write(tenant.id, request, "MFA_CHALLENGE_ISSUED", user.id, user.id)
-            return LoginResponse(mfaRequired = true, challengeToken = challenge)
+            audit.write(
+                tenant.id,
+                request,
+                "MFA_CHALLENGE_ISSUED",
+                authenticatedUser.id,
+                authenticatedUser.id,
+            )
+            return@withAuthenticationTiming LoginResponse(mfaRequired = true, challengeToken = challenge)
         }
-        return completeLogin(user, request, response, false, riskResult.score, riskResult.fingerprint)
+        completeLogin(authenticatedUser, request, response, false, riskResult.score, riskResult.fingerprint)
     }
 
     @Transactional
@@ -257,6 +281,24 @@ class IdentityService(
                 "email_delivery_unavailable",
                 "Email delivery is temporarily unavailable",
             )
+        }
+    }
+
+    private fun <T> withAuthenticationTiming(block: () -> T): T {
+        val started = System.nanoTime()
+        val minimumDurationMillis = ThreadLocalRandom.current().nextLong(100, 201)
+        try {
+            return block()
+        } finally {
+            val elapsedMillis = (System.nanoTime() - started) / 1_000_000
+            val remainingMillis = minimumDurationMillis - elapsedMillis
+            if (remainingMillis > 0) {
+                try {
+                    Thread.sleep(remainingMillis)
+                } catch (_: InterruptedException) {
+                    Thread.currentThread().interrupt()
+                }
+            }
         }
     }
 }

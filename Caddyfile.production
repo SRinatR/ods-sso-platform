@@ -14,16 +14,25 @@
 	}
 }
 
+(tls13_only) {
+	tls {
+		protocols tls1.3
+	}
+}
+
 {$ROOT_DOMAIN}, {$WWW_DOMAIN} {
+	import tls13_only
 	redir https://{$PUBLIC_DOMAIN}{uri} permanent
 }
 
 {$SSO_DOMAIN} {
+	import tls13_only
 	import security_headers
 	redir https://{$PUBLIC_DOMAIN}{uri} permanent
 }
 
 {$ACCOUNT_DOMAIN} {
+	import tls13_only
 	import security_headers
 
 	@account_root path /
@@ -32,6 +41,7 @@
 }
 
 {$ADMIN_DOMAIN} {
+	import tls13_only
 	import security_headers
 
 	@admin_root path /
@@ -40,6 +50,7 @@
 }
 
 {$DOCS_DOMAIN} {
+	import tls13_only
 	import security_headers
 
 	@docs_root path /
@@ -48,6 +59,7 @@
 }
 
 {$API_DOMAIN} {
+	import tls13_only
 	import security_headers
 
 	@api path /api/* /health /ready /openapi.json /docs /docs/* /swagger-ui/* /webjars/*
@@ -59,6 +71,7 @@
 }
 
 {$STATUS_DOMAIN} {
+	import tls13_only
 	import security_headers
 
 	@status path / /health /ready
@@ -71,11 +84,13 @@
 }
 
 {$SCIM_DOMAIN}, {$WEBHOOKS_DOMAIN} {
+	import tls13_only
 	import security_headers
 	respond 404
 }
 
 {$PUBLIC_DOMAIN} {
+	import tls13_only
 	import security_headers
 
 	@backend path /api/* /authorize /token /userinfo /revoke /introspect /.well-known/* /health /ready /privacy /docs /docs/* /swagger-ui/* /webjars/* /openapi.json /actuator/* /error

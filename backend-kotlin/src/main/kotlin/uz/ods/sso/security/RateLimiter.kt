@@ -50,7 +50,7 @@ class RateLimiter(
 
     companion object {
         val REGISTRATION = RateLimitRule("registration", 3, Duration.ofHours(1))
-        val LOGIN = RateLimitRule("login", 5, Duration.ofMinutes(1))
+        val LOGIN = RateLimitRule("login", 5, Duration.ofMinutes(15))
         val MFA = RateLimitRule("mfa", 3, Duration.ofMinutes(1))
         val ADMIN = RateLimitRule("admin", 60, Duration.ofMinutes(1))
     }

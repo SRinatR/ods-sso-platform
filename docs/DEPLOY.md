@@ -67,9 +67,10 @@ The service domains expose only implemented behavior:
 - `scim.ods.uz` and `webhooks.ods.uz` terminate TLS and return HTTP 404 until those capabilities
   are implemented. They must not claim successful service availability.
 
-Caddy obtains and renews TLS certificates automatically. Do not install Certbot or a second ACME
-renewal mechanism on the same listener. Caddy may manage separate certificates per site, avoiding
-one shared private key across every subdomain.
+Caddy obtains and renews TLS certificates automatically and the production/staging listeners
+accept TLS 1.3 only. Do not install Certbot or a second ACME renewal mechanism on the same
+listener. Caddy may manage separate certificates per site, avoiding one shared private key across
+every subdomain.
 
 TCP ports 80 and 443 and UDP port 443 must be reachable from the Internet. UDP 443 enables HTTP/3.
 Mail delivery is a separate increment: when SMTP is connected, publish the MX/SPF/DKIM/DMARC

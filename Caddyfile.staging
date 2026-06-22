@@ -14,12 +14,20 @@
 	}
 }
 
+(tls13_only) {
+	tls {
+		protocols tls1.3
+	}
+}
+
 staging.api.ods.uz {
+	import tls13_only
 	import security_headers
 	reverse_proxy backend:8000
 }
 
 staging.account.ods.uz {
+	import tls13_only
 	import security_headers
 	reverse_proxy frontend:3000
 }

@@ -80,6 +80,12 @@ cd backend-kotlin
 ./gradlew clean check bootJar
 ```
 
+Security baseline:
+
+```powershell
+pwsh ./scripts/verify-security-baseline.ps1
+```
+
 Frontend:
 
 ```bash

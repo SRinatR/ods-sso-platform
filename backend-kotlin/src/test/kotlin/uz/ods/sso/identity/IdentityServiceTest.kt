@@ -67,16 +67,16 @@ class IdentityServiceTest {
     private val request = mock<HttpServletRequest>()
 
     @Test
-    fun `registration rejects missing terms and duplicate email`() {
+    fun `registration rejects missing terms and does not disclose duplicate email`() {
         whenever(tenants.current()).thenReturn(tenant)
         assertThatThrownBy {
             service.register(RegisterRequest("user@example.com", "long-enough-password", "User", false), request)
         }.isInstanceOf(AppException::class.java).hasMessage("Terms must be accepted")
 
         whenever(users.findByTenantIdAndEmailIgnoreCase("tnt_1", "user@example.com")).thenReturn(UserEntity())
-        assertThatThrownBy {
-            service.register(RegisterRequest("user@example.com", "long-enough-password", "User", true), request)
-        }.isInstanceOf(AppException::class.java).hasMessage("Email is already registered")
+        assertThat(
+            service.register(RegisterRequest("user@example.com", "long-enough-password", "User", true), request),
+        ).isFalse()
     }
 
     @Test

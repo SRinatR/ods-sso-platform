@@ -62,7 +62,7 @@ class PlatformSupportTest {
         assertThat(authentication).allMatch { it.status == HttpStatus.UNAUTHORIZED }
         assertThat(authorization).allMatch { it.status == HttpStatus.FORBIDDEN }
         assertThat(missing).allMatch { it.status == HttpStatus.NOT_FOUND }
-        assertThat(validation).allMatch { it.status == HttpStatus.UNPROCESSABLE_ENTITY }
+        assertThat(validation).allMatch { it.status == HttpStatus.UNPROCESSABLE_CONTENT }
 
         val enriched = PlatformException(HttpStatus.CONFLICT, "conflict", "Conflict")
             .withDetails(listOf(mapOf("field" to "email")))

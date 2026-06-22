@@ -21,9 +21,10 @@ class CryptoServiceTest {
     fun `hashes and verifies passwords with Argon2id`() {
         val hash = service.hashPassword("correct horse battery staple")
 
-        assertThat(hash).startsWith("\$argon2")
+        assertThat(hash).startsWith("\$argon2id\$v=19\$m=131072,t=4,p=4\$")
         assertThat(service.matchesPassword("correct horse battery staple", hash)).isTrue()
         assertThat(service.matchesPassword("wrong password", hash)).isFalse()
+        assertThat(service.matchesPassword("wrong password", null)).isFalse()
     }
 
     @Test

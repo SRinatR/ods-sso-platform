@@ -22,7 +22,7 @@ class ValidationException(
     details: List<Map<String, Any?>> = emptyList(),
     code: String = "validation_error",
 ) : PlatformException(
-    status = HttpStatus.UNPROCESSABLE_ENTITY,
+    status = HttpStatus.UNPROCESSABLE_CONTENT,
     code = code,
     message = message,
     details = details
