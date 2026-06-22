@@ -76,3 +76,16 @@ jobs:
           npm run lint
           npm run typecheck
           npm run build
+
+  deploy-production:
+    name: Deploy verified prod commit
+    if: github.event_name == 'push' && github.ref == 'refs/heads/prod'
+    needs:
+      - backend
+      - frontend
+    permissions:
+      contents: read
+    uses: ./.github/workflows/deploy-production.yml
+    with:
+      deploy_sha: ${{ github.sha }}
+    secrets: inherit
