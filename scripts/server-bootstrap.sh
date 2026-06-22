@@ -3,6 +3,11 @@ set -euo pipefail
 
 deploy_path="${1:-/opt/ods-platform}"
 
+if ! command -v curl >/dev/null 2>&1; then
+  apt-get update
+  apt-get install -y --reinstall --no-install-recommends ca-certificates curl
+fi
+
 if ! command -v docker >/dev/null 2>&1; then
   curl -fsSL https://get.docker.com | sh
   systemctl enable --now docker

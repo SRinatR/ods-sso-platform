@@ -3,6 +3,11 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
+if ! command -v curl >/dev/null 2>&1; then
+  echo "Deployment aborted: curl is missing; run scripts/server-bootstrap.sh first" >&2
+  exit 1
+fi
+
 if [ ! -f .env ]; then
   echo "Deployment aborted: .env is missing" >&2
   exit 1
