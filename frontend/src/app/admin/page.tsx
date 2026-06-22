@@ -1,9 +1,14 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import Link from "next/link";
+import { FormEvent, useEffect, useState } from "react";
 import { Shell } from "@/components/Shell";
 import { api } from "@/lib/api";
 
+type CurrentUser = {
+  role: string;
+  mfa_enabled: boolean;
+};
 type Dashboard = {
   users_total: number;
   users_active: number;
@@ -43,6 +48,8 @@ type Policy = {
 };
 
 export default function AdminPage() {
+  const [accessChecked, setAccessChecked] = useState(false);
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
   const [ready, setReady] = useState(false);
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
@@ -59,6 +66,17 @@ export default function AdminPage() {
     redirectUri: "",
     isPublic: false,
   });
+
+  useEffect(() => {
+    api<CurrentUser>("/api/v1/auth/me")
+      .then((user) => {
+        setCurrentUser(user);
+        setAccessChecked(true);
+      })
+      .catch(() => {
+        window.location.href = "/login?return_to=/admin";
+      });
+  }, []);
 
   async function load() {
     const [summary, userList, clientList, sessionList, auditList, policyList] =
@@ -116,6 +134,40 @@ export default function AdminPage() {
     setSecret(created.client_secret || "");
     setClientForm({ name: "", redirectUri: "", isPublic: false });
     await load();
+  }
+
+  if (!accessChecked) {
+    return (
+      <Shell title="Администрирование" subtitle="Проверяем права доступа">
+        <section className="panel narrow">Загрузка…</section>
+      </Shell>
+    );
+  }
+
+  if (!currentUser || !["admin", "security_admin"].includes(currentUser.role)) {
+    return (
+      <Shell title="Доступ запрещён" subtitle="Административная роль отсутствует">
+        <section className="panel narrow">
+          <p>Эта учётная запись не имеет доступа к административной консоли.</p>
+          <Link href="/dashboard" className="button">
+            Вернуться в личный кабинет
+          </Link>
+        </section>
+      </Shell>
+    );
+  }
+
+  if (!currentUser.mfa_enabled) {
+    return (
+      <Shell title="Настройте MFA" subtitle="Для админки обязательна двухфакторная защита" admin>
+        <section className="panel narrow">
+          <p>Сначала подключите TOTP в разделе безопасности, затем вернитесь в админку.</p>
+          <Link href="/security" className="button">
+            Настроить MFA
+          </Link>
+        </section>
+      </Shell>
+    );
   }
 
   if (!ready) {

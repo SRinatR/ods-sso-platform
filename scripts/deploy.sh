@@ -8,6 +8,28 @@ if ! command -v curl >/dev/null 2>&1; then
   exit 1
 fi
 
+ensure_docker_forwarding() {
+  if ! command -v iptables >/dev/null 2>&1; then
+    echo "Deployment aborted: iptables is required for Docker port forwarding" >&2
+    exit 1
+  fi
+  if iptables -C FORWARD -j DOCKER-FORWARD >/dev/null 2>&1; then
+    return
+  fi
+  echo "Docker forwarding rules are missing; restarting Docker to restore published ports"
+  systemctl restart docker
+  for _ in $(seq 1 30); do
+    if iptables -C FORWARD -j DOCKER-FORWARD >/dev/null 2>&1; then
+      return
+    fi
+    sleep 1
+  done
+  echo "Deployment aborted: Docker forwarding rules were not restored" >&2
+  exit 1
+}
+
+ensure_docker_forwarding
+
 if [ ! -f .env ]; then
   echo "Deployment aborted: .env is missing" >&2
   exit 1
@@ -104,6 +126,7 @@ if docker compose ps --status running --services | grep -qx postgres; then
 fi
 
 docker compose up -d --build --remove-orphans
+ensure_docker_forwarding
 docker compose exec -T postgres sh -lc \
   'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "select version, description, success from flyway_schema_history order by installed_rank desc limit 1"'
 docker compose exec -T postgres sh -lc \

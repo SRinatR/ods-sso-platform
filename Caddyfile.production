@@ -62,6 +62,9 @@
 	import tls13_only
 	import security_headers
 
+	@api_root path /
+	redir @api_root /docs temporary
+
 	@api path /api/* /health /ready /openapi.json /docs /docs/* /swagger-ui/* /webjars/*
 	handle @api {
 		reverse_proxy backend:8000
@@ -83,10 +86,18 @@
 	respond 404
 }
 
-{$SCIM_DOMAIN}, {$WEBHOOKS_DOMAIN} {
+{$SCIM_DOMAIN} {
 	import tls13_only
 	import security_headers
-	respond 404
+	header Content-Type application/json
+	respond `{"service":"scim","status":"not_implemented","documentation":"https://docs.ods.uz/"}` 501
+}
+
+{$WEBHOOKS_DOMAIN} {
+	import tls13_only
+	import security_headers
+	header Content-Type application/json
+	respond `{"service":"webhooks","status":"not_implemented","documentation":"https://docs.ods.uz/"}` 501
 }
 
 {$PUBLIC_DOMAIN} {

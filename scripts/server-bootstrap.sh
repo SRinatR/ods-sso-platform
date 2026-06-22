@@ -13,6 +13,11 @@ if ! command -v docker >/dev/null 2>&1; then
   systemctl enable --now docker
 fi
 
+if command -v iptables >/dev/null 2>&1 &&
+  ! iptables -C FORWARD -j DOCKER-FORWARD >/dev/null 2>&1; then
+  systemctl restart docker
+fi
+
 if ! command -v git >/dev/null 2>&1; then
   apt-get update
   apt-get install -y --no-install-recommends git

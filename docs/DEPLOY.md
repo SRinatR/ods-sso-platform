@@ -62,10 +62,20 @@ The service domains expose only implemented behavior:
 - `admin.ods.uz` redirects to the administration UI.
 - `docs.ods.uz` redirects to the OpenAPI UI.
 - `sso.ods.uz` redirects to the canonical issuer.
-- `api.ods.uz` exposes REST, health and OpenAPI routes, but not alternate OIDC issuer endpoints.
+- `api.ods.uz` redirects its root to the OpenAPI UI and exposes REST, health and OpenAPI routes,
+  but not alternate OIDC issuer endpoints.
 - `status.ods.uz` exposes the real database-and-Redis readiness result.
-- `scim.ods.uz` and `webhooks.ods.uz` terminate TLS and return HTTP 404 until those capabilities
-  are implemented. They must not claim successful service availability.
+- `scim.ods.uz` and `webhooks.ods.uz` terminate TLS and return an explicit HTTP 501 JSON status
+  until those capabilities are implemented. They must not claim successful service availability.
+
+## User entry points
+
+- A counterparty opens `https://auth.ods.uz/partner`. If there is no session, the portal redirects
+  to registration or login. The first user registers the organization and becomes its owner.
+- A platform administrator opens `https://admin.ods.uz`. The portal redirects to the canonical
+  login, verifies the `admin` or `security_admin` role, requires configured TOTP MFA, and then asks
+  for a fresh password + TOTP step-up before loading administrative data.
+- `https://accounts.ods.uz` opens the ordinary account dashboard.
 
 Caddy obtains and renews TLS certificates automatically and the production/staging listeners
 accept TLS 1.3 only. Do not install Certbot or a second ACME renewal mechanism on the same

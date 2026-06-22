@@ -8,6 +8,9 @@ export default function HomePage() {
           ODS Identity
         </Link>
         <div className="actions">
+          <Link href="/partner" className="button secondary">
+            Кабинет контрагента
+          </Link>
           <Link href="/login" className="button secondary">
             Войти
           </Link>
@@ -27,6 +30,9 @@ export default function HomePage() {
         <div className="actions">
           <Link href="/register" className="button">
             Зарегистрироваться
+          </Link>
+          <Link href="/partner" className="button secondary">
+            Войти как контрагент
           </Link>
           <Link href="/login" className="button secondary">
             Войти в аккаунт
