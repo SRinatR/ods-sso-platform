@@ -1,13 +1,12 @@
 name: Deploy production
 
 on:
-  workflow_run:
-    workflows:
-      - Quality Gate
-    types:
-      - completed
-    branches:
-      - prod
+  workflow_call:
+    inputs:
+      deploy_sha:
+        description: Exact verified prod commit to deploy
+        required: true
+        type: string
   workflow_dispatch:
 
 permissions:
@@ -20,14 +19,11 @@ concurrency:
 jobs:
   deploy:
     name: VPS production
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     environment: production
     env:
-      DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+      DEPLOY_SHA: ${{ inputs.deploy_sha || github.sha }}
       REPOSITORY_URL: https://github.com/${{ github.repository }}.git
       VPS_HOST: ${{ vars.VPS_HOST }}
       VPS_PORT: ${{ vars.VPS_PORT }}
