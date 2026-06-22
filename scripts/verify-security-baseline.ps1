@@ -96,6 +96,7 @@ Assert-Pattern "SEC-BASE-012" $rateLimiter "redis\.call\('TIME'\)" "distributed 
 Assert-Pattern "SEC-BASE-012" $rateLimiter '"Retry-After"' "rate-limit responses must include Retry-After"
 Assert-Pattern "SEC-BASE-012" $mfaController 'Duration\.ofMinutes\(30\)' "MFA overflow must impose a 30-minute account lock"
 Assert-Pattern "SEC-BASE-012" $mfaController 'loginChallengeRateLimitIdentity' "MFA limits must be isolated per challenged account"
+Assert-Pattern "SEC-BASE-012" $mfaController '"setup:\$\{principal\.user\.id\}"' "MFA enrollment limits must not consume login challenge attempts"
 Assert-Pattern "SEC-BASE-012" $mfaService 'user\.lockedUntil = now\.plus\(duration\)' "MFA account lock must be persisted"
 
 if ($violations.Count -gt 0) {

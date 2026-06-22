@@ -140,6 +140,7 @@ class ControllerCoverageTest {
         ).isEqualTo("usr_1")
         assertThat(mfaController.setup(request).secret).isEqualTo("secret")
         assertThat(mfaController.enable(TotpEnableRequest("123456"), request)).isEqualTo(BackupCodesResponse(listOf("backup")))
+        verify(limiter).enforce(RateLimiter.MFA, "setup:usr_1")
         assertThat(mfaController.regenerate(StepUpRequest("password", "123456"), request))
             .isEqualTo(BackupCodesResponse(listOf("backup2")))
 

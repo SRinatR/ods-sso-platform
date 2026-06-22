@@ -85,7 +85,7 @@ class MfaController(
         request: HttpServletRequest,
     ): BackupCodesResponse {
         val principal = sessions.current()
-        limiter.enforce(RateLimiter.MFA, principal.user.id)
+        limiter.enforce(RateLimiter.MFA, "setup:${principal.user.id}")
         val codes = mfa.enable(principal.user, body.code)
         sessions.markMfaCompleted(principal.session.id)
         audit.write(principal.user.tenantId, request, "MFA_ENABLED", principal.user.id, principal.user.id)
