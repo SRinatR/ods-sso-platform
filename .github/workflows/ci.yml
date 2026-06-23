@@ -51,7 +51,7 @@ jobs:
             exit 1
           fi
 
-      - name: Build CDS-trained production image
+      - name: Build production backend image
         run: docker build --tag ods-sso-backend:ci backend-kotlin
 
       - name: Build production MinIO image

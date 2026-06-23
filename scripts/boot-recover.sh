@@ -16,9 +16,17 @@ fi
 docker compose --env-file "${env_file}" up -d --remove-orphans
 
 api_url="$(grep -m1 '^API_URL=' "${env_file}" | cut -d= -f2-)"
-for _ in $(seq 1 60); do
-  if curl --fail --silent "${api_url}/ready" >/dev/null; then
-    docker compose --env-file "${env_file}" up -d --force-recreate --no-deps caddy
+api_host="${api_url#*://}"
+api_host="${api_host%%/*}"
+api_host="${api_host%%:*}"
+
+for _ in $(seq 1 180); do
+  if curl \
+    --fail \
+    --silent \
+    --max-time 10 \
+    --resolve "${api_host}:443:127.0.0.1" \
+    "${api_url}/ready" >/dev/null; then
     echo "ODS platform recovered at ${api_url}"
     exit 0
   fi

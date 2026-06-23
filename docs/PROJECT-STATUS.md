@@ -40,7 +40,7 @@ Last updated: 2026-06-22.
 - JaCoCo line coverage: 80.59% (80% gate passed)
 - Configuration Cache: stored and reused
 - executable Spring Boot JAR: built
-- ZGC-compatible CDS training archive: generated and loaded
+- layered Java 26 production image with G1GC: built
 - frontend ESLint: passed
 - frontend TypeScript: passed
 - Next.js production build: passed
@@ -50,5 +50,6 @@ profile. Kafka and the observability stack remain available as optional Compose 
 initial 2 GB VPS is not overloaded.
 
 GitHub Actions enforces the immutable security baseline, backend tests, the 80% coverage gate,
-frontend production checks, Docker 26+ and a CDS-trained production image. Production deployment
-remains an explicit operation through `scripts/deploy.sh`.
+frontend production checks, Docker 26+ and the production backend and MinIO images. A green
+`main` commit is promoted by pull request to protected `prod`; merging that pull request deploys
+the exact verified `prod` commit through `scripts/deploy.sh`.

@@ -218,10 +218,11 @@ for _ in $(seq 1 180); do
   if curl \
     --fail \
     --silent \
-    --show-error \
     --max-time 10 \
     --resolve "${api_host}:443:127.0.0.1" \
     "${api_url}/ready" >/dev/null; then
+    systemctl start ods-platform.service
+    systemctl is-active --quiet ods-platform.service
     echo "Deployment is ready at ${api_url}"
     exit 0
   fi
