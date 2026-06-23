@@ -197,5 +197,8 @@ jobs:
         shell: bash
         run: |
           curl --fail --silent --show-error https://status.ods.uz/ready
+          curl --fail --silent --show-error https://status.ods.uz/ >/dev/null
+          curl --fail --silent --show-error https://auth.ods.uz/api/v1/public/status >/dev/null
           curl --fail --silent --show-error https://auth.ods.uz/.well-known/openid-configuration >/dev/null
           curl --fail --silent --show-error https://ods.uz/ >/dev/null
+          curl --fail --silent --show-error https://ods.uz/privacy >/dev/null

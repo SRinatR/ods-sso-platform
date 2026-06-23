@@ -4,7 +4,7 @@ import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { Shell } from "@/components/Shell";
 import { api } from "@/lib/api";
-import { ADMIN_URL, loginUrl } from "@/lib/domains";
+import { ACCOUNTS_URL, ADMIN_URL, loginUrl } from "@/lib/domains";
 import { authenticateWithPasskey, passkeysSupported } from "@/lib/passkeys";
 
 type CurrentUser = {
@@ -194,11 +194,18 @@ export default function AdminPage() {
 
   if (!currentUser.mfa_enabled && !passkeySession) {
     return (
-      <Shell title="Настройте MFA" subtitle="Для админки обязательна двухфакторная защита" admin>
+      <Shell
+        title="Защитите административный доступ"
+        subtitle="Сессия активна, но для админки требуется passkey или одноразовые коды"
+        admin
+      >
         <section className="panel narrow">
-          <p>Сначала подключите TOTP в разделе безопасности, затем вернитесь в админку.</p>
-          <Link href="/security" className="button">
-            Настроить MFA
+          <p>
+            Добавьте passkey ноутбука или телефона — можно использовать Windows Hello,
+            биометрию или PIN устройства. Альтернативный вариант — TOTP из приложения.
+          </p>
+          <Link href={`${ACCOUNTS_URL}/security`} className="button">
+            Открыть настройки безопасности
           </Link>
         </section>
       </Shell>

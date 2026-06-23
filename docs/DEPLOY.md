@@ -80,7 +80,7 @@ The service domains expose only implemented behavior:
 
 - A counterparty starts at `https://auth.ods.uz/register?kind=partner`. The first user verifies
   email, signs in, registers the organization and becomes its owner. The application then opens
-  the organization portal such as `https://tatarlar.ods.uz`.
+  the organization portal such as `https://company.ods.uz`.
 - A platform administrator opens `https://admin.ods.uz`. The portal redirects to the canonical
   login, verifies the `admin` or `security_admin` role, requires a strong passkey or TOTP-authenticated
   session, and then asks for a fresh step-up before loading administrative data.

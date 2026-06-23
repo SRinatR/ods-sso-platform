@@ -8,6 +8,7 @@ import { api } from "@/lib/api";
 import { loginUrl } from "@/lib/domains";
 import {
   authenticateWithPasskey,
+  PasskeyAttachment,
   passkeysSupported,
   registerPasskey,
 } from "@/lib/passkeys";
@@ -42,13 +43,14 @@ export default function SecurityPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    Promise.all([
-      api<User>("/api/v1/auth/me"),
-      api<Passkey[]>("/api/v1/passkeys"),
-    ])
-      .then(([currentUser, currentPasskeys]) => {
+    api<User>("/api/v1/auth/me")
+      .then(async (currentUser) => {
         setUser(currentUser);
-        setPasskeys(currentPasskeys);
+        try {
+          setPasskeys(await api<Passkey[]>("/api/v1/passkeys"));
+        } catch (cause) {
+          setError(cause instanceof Error ? cause.message : "Не удалось загрузить passkey");
+        }
       })
       .catch(() => (window.location.href = loginUrl(window.location.href)));
   }, []);
@@ -89,14 +91,18 @@ export default function SecurityPage() {
     }
   }
 
-  async function addPasskey() {
+  async function addPasskey(attachment: PasskeyAttachment) {
     setBusy(true);
     setError("");
     setMessage("");
     try {
-      await registerPasskey(passkeyLabel.trim() || "Passkey");
+      const fallbackLabel =
+        attachment === "platform" ? "Это устройство" : "Телефон или ключ безопасности";
+      await registerPasskey(passkeyLabel.trim() || fallbackLabel, attachment);
       setPasskeys(await api<Passkey[]>("/api/v1/passkeys"));
-      setMessage("Passkey добавлен. Теперь по нему можно входить без пароля и OTP.");
+      setMessage(
+        "Passkey добавлен. Для входа можно использовать Windows Hello, Touch ID, Face ID, PIN устройства или подтверждение на телефоне.",
+      );
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Passkey не добавлен");
     } finally {
@@ -204,7 +210,7 @@ export default function SecurityPage() {
         <div className="row between">
           <div>
             <p className="eyebrow">Passkey</p>
-            <h2>Вход отпечатком, Face ID или PIN устройства</h2>
+            <h2>Вход паролем устройства, биометрией или телефоном</h2>
           </div>
           <span className={`badge ${passkeysSupported() ? "success" : "warning"}`}>
             {passkeysSupported() ? "Поддерживается" : "Браузер не поддерживает"}
@@ -212,6 +218,11 @@ export default function SecurityPage() {
         </div>
         {passkeysSupported() && (
           <div className="stack top-gap">
+            <p className="muted">
+              Passkey использует защиту вашего устройства: Windows Hello, пароль или PIN
+              ноутбука, Touch ID, Face ID либо подтверждение на другом телефоне. Отдельный
+              пароль ODS при таком входе не передаётся.
+            </p>
             <label>
               Название устройства
               <input
@@ -220,9 +231,22 @@ export default function SecurityPage() {
                 onChange={(event) => setPasskeyLabel(event.target.value)}
               />
             </label>
-            <button className="button" onClick={addPasskey} disabled={busy}>
-              {busy ? "Подтверждение на устройстве…" : "Добавить passkey"}
-            </button>
+            <div className="grid two">
+              <button
+                className="button"
+                onClick={() => addPasskey("platform")}
+                disabled={busy}
+              >
+                {busy ? "Ожидаем подтверждение…" : "Этот ноутбук или телефон"}
+              </button>
+              <button
+                className="button secondary"
+                onClick={() => addPasskey("cross-platform")}
+                disabled={busy}
+              >
+                Другой телефон или ключ
+              </button>
+            </div>
           </div>
         )}
         <div className="credential-list top-gap">

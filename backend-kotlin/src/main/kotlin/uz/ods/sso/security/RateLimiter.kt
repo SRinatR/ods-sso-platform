@@ -99,7 +99,10 @@ class RateLimiter(
             Long::class.javaObjectType,
         )
 
-        val REGISTRATION = RateLimitRule("registration", 3, Duration.ofHours(1))
+        val REGISTRATION_BURST = RateLimitRule("registration_burst", 10, Duration.ofMinutes(10))
+        val REGISTRATION_DAILY = RateLimitRule("registration_daily", 50, Duration.ofDays(1))
+        val EMAIL_ACTION = RateLimitRule("email_action", 5, Duration.ofMinutes(15))
+        val EMAIL_ACTION_DAILY = RateLimitRule("email_action_daily", 20, Duration.ofDays(1))
         val LOGIN = RateLimitRule("login", 5, Duration.ofMinutes(15))
         val MFA = RateLimitRule("mfa", 3, Duration.ofMinutes(1))
         val ADMIN = RateLimitRule("admin", 60, Duration.ofMinutes(1))

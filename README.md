@@ -38,6 +38,7 @@ The Python/FastAPI implementation has been removed. The only backend runtime is 
 - Dedicated public, authentication, account, administration and tenant portal domains
 - Database-authorized partner portals at `https://{organization}.ods.uz`
 - Resend-compatible SMTP delivery for verification, password reset and security notifications
+- Human-readable service status and privacy pages
 - Native UUIDv7 internal primary keys with stable prefixed public IDs
 - Explicit HTTP/3 client configuration for latency-sensitive integrations
 - Layered multi-stage Java 26 container with G1GC
@@ -74,7 +75,7 @@ For the first partner pilot, the standard flow is:
 1. Create a personal ODS account.
 2. Verify the email and sign in through `auth.ods.uz`.
 3. Open **Counterparty workspace** and register the organization. A website such as
-   `tatarlar.uz` proposes the portal `https://tatarlar.ods.uz`.
+   `company.uz` proposes the portal `https://company.ods.uz`.
 4. Create an OIDC application and enter its exact callback URL.
 5. Save the generated client secret immediately.
 6. Integrate through the published Discovery URL using Authorization Code + PKCE S256.

@@ -174,6 +174,7 @@ class SecurityConfiguration(
                         "/api/v1/auth/reset-password",
                         "/api/v1/auth/login",
                         "/api/v1/auth/mfa/verify",
+                        "/api/v1/public/status",
                         "/webauthn/authenticate/options",
                         "/login/webauthn",
                         "/api/v1/dev/mailbox",

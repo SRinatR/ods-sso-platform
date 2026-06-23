@@ -39,6 +39,9 @@ export function Shell({
         <button className="button secondary" onClick={logout}>
           Выйти
         </button>
+        <Link href={`${ROOT_URL}/privacy`} className="sidebar-legal">
+          Конфиденциальность
+        </Link>
       </aside>
       <main className="content">
         <header className="page-header">
@@ -72,6 +75,9 @@ export function AuthCard({
         <h1>{title}</h1>
         <p className="muted">{subtitle}</p>
         {children}
+        <div className="auth-footer">
+          <Link href={`${ROOT_URL}/privacy`}>Конфиденциальность и условия</Link>
+        </div>
       </section>
     </main>
   );

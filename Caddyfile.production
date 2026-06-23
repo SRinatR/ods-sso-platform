@@ -34,7 +34,7 @@
 	import tls13_only
 	import security_headers
 
-	@public_frontend path / /privacy /_next/* /favicon.ico /robots.txt
+	@public_frontend path / /privacy /_next/* /icon.svg /favicon.ico /robots.txt
 	handle @public_frontend {
 		reverse_proxy frontend:3000
 	}
@@ -129,10 +129,17 @@
 	import tls13_only
 	import security_headers
 
-	@status path / /health /ready
-	handle @status {
-		rewrite * /ready
+	@status_api path /health /ready /api/v1/public/status
+	handle @status_api {
 		reverse_proxy backend:8000
+	}
+
+	@status_root path /
+	rewrite @status_root /status
+
+	@status_frontend path /status /_next/* /icon.svg /favicon.ico
+	handle @status_frontend {
+		reverse_proxy frontend:3000
 	}
 
 	respond 404
