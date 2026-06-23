@@ -45,16 +45,39 @@ class OAuthClientProvisioningServiceTest {
             "Updated App",
             "Updated",
             listOf("http://localhost:3000/callback"),
+            listOf("http://localhost:3000/"),
+            listOf("openid", "email"),
             false,
         )
         assertThat(updated.clientName).isEqualTo("Updated App")
         assertThat(updated.redirectUris).containsExactly("http://localhost:3000/callback")
+        assertThat(updated.postLogoutRedirectUris).containsExactly("http://localhost:3000/")
+        assertThat(updated.scopes).containsExactlyInAnyOrder("openid", "email")
         assertThat(service.isEnabled(updated)).isFalse()
 
         val rotated = service.rotateSecret(updated)
         assertThat(rotated.rawSecret).isNotEqualTo(created.rawSecret)
         assertThat(rotated.client.clientSecret).isNotEqualTo(created.client.clientSecret)
         verify(clients, times(3)).save(any<RegisteredClient>())
+    }
+
+    @Test
+    fun `public clients have no secret and require PKCE`() {
+        val created = service.create(
+            tenantId = "tnt_1",
+            name = "Browser App",
+            description = null,
+            redirectUris = listOf("https://partner.example/callback"),
+            postLogoutRedirectUris = listOf("https://partner.example/"),
+            scopes = listOf("openid", "profile"),
+            clientType = "public",
+            tokenEndpointAuthMethod = "none",
+        )
+
+        assertThat(created.rawSecret).isNull()
+        assertThat(created.client.clientSecret).isNull()
+        assertThat(created.client.clientSettings.isRequireProofKey).isTrue()
+        assertThat(created.client.postLogoutRedirectUris).containsExactly("https://partner.example/")
     }
 
     @Test
@@ -73,6 +96,19 @@ class OAuthClientProvisioningServiceTest {
 
         assertThatThrownBy {
             service.createConfidential("tnt_1", "Valid", null, listOf("https://partner.example/callback#fragment"))
+        }.isInstanceOf(AppException::class.java)
+
+        assertThatThrownBy {
+            service.create(
+                "tnt_1",
+                "Valid",
+                null,
+                listOf("https://partner.example/callback"),
+                emptyList(),
+                listOf("profile"),
+                "public",
+                "none",
+            )
         }.isInstanceOf(AppException::class.java)
     }
 

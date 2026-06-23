@@ -171,7 +171,7 @@ export default function AdminPage() {
 
   if (!accessChecked || checkingAssurance) {
     return (
-      <Shell title="Администрирование" subtitle="Проверяем права доступа">
+      <Shell title="Администрирование" subtitle="Проверяем права доступа" product="admin">
         <section className="panel narrow">Загрузка…</section>
       </Shell>
     );
@@ -179,7 +179,7 @@ export default function AdminPage() {
 
   if (!currentUser || !["admin", "security_admin"].includes(currentUser.role)) {
     return (
-      <Shell title="Доступ запрещён" subtitle="Административная роль отсутствует">
+      <Shell title="Доступ запрещён" subtitle="Административная роль отсутствует" product="admin">
         <section className="panel narrow">
           <p>Эта учётная запись не имеет доступа к административной консоли.</p>
           <Link href="/dashboard" className="button">
@@ -197,7 +197,7 @@ export default function AdminPage() {
       <Shell
         title="Защитите административный доступ"
         subtitle="Сессия активна, но для админки требуется passkey или одноразовые коды"
-        admin
+        product="admin"
       >
         <section className="panel narrow">
           <p>
@@ -214,7 +214,7 @@ export default function AdminPage() {
 
   if (!ready) {
     return (
-      <Shell title="Администрирование" subtitle="Требуется свежая step-up проверка" admin>
+      <Shell title="Администрирование" subtitle="Требуется свежая step-up проверка" product="admin">
         <section className="panel narrow">
           {error && <div className="alert error">{error}</div>}
           {passkeysSupported() && (
@@ -275,9 +275,13 @@ export default function AdminPage() {
   }
 
   return (
-    <Shell title="Admin Console" subtitle="Users, clients, sessions, audit and policies" admin>
+    <Shell
+      title="Административная консоль"
+      subtitle="Пользователи, OAuth-клиенты, сессии, аудит и политики"
+      product="admin"
+    >
       {dashboard && (
-        <div className="metric-grid">
+        <div className="metric-grid" id="overview">
           {Object.entries(dashboard).map(([key, value]) => (
             <section className="metric" key={key}>
               <strong>{value}</strong>
@@ -287,8 +291,8 @@ export default function AdminPage() {
         </div>
       )}
 
-      <section className="panel">
-        <h2>Users</h2>
+      <section className="panel" id="users">
+        <h2>Пользователи</h2>
         <div className="table-wrap">
           <table>
             <thead>
@@ -334,8 +338,8 @@ export default function AdminPage() {
         </div>
       </section>
 
-      <section className="panel">
-        <h2>OAuth Clients</h2>
+      <section className="panel" id="oauth-clients">
+        <h2>OAuth-клиенты</h2>
         {secret && (
           <div className="alert warning">
             Сохраните client secret сейчас: <code>{secret}</code>
@@ -401,14 +405,14 @@ export default function AdminPage() {
         </div>
       </section>
 
-      <section className="panel">
-        <h2>Sessions</h2>
+      <section className="panel" id="sessions">
+        <h2>Сессии</h2>
         <p className="muted">{sessions.length} recent session records</p>
         <pre className="data-preview">{JSON.stringify(sessions.slice(0, 20), null, 2)}</pre>
       </section>
 
-      <section className="panel">
-        <h2>Audit Logs</h2>
+      <section className="panel" id="audit">
+        <h2>Журнал аудита</h2>
         <div className="table-wrap">
           <table>
             <thead>
@@ -435,8 +439,8 @@ export default function AdminPage() {
         </div>
       </section>
 
-      <section className="panel">
-        <h2>Security Policies</h2>
+      <section className="panel" id="policies">
+        <h2>Политики безопасности</h2>
         <div className="grid two">
           {policies.map((policy) => (
             <article className="policy" key={policy.key}>

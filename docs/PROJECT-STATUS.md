@@ -25,7 +25,8 @@ Last updated: 2026-06-23.
 | Actuator, Prometheus and OTLP | Implemented |
 | Admin Console API compatibility | Implemented |
 | Partner organization self-registration | Implemented |
-| Partner OIDC application provisioning | Implemented |
+| Partner self-service OIDC configuration and secret lifecycle | Implemented |
+| Isolated personal, counterparty and administration navigation | Implemented |
 | RFC 7807-compatible API Problem Details | Implemented |
 | SEC-BASE immutable CI regression checks | Implemented |
 | Production/staging TLS 1.3 minimum | Implemented |
@@ -39,8 +40,8 @@ Last updated: 2026-06-23.
 - JDK 26.0.1: verified
 - Gradle wrapper 9.5.0: configured
 - clean Kotlin compilation: passed
-- backend tests: 78 passed locally; PostgreSQL 18.4 Testcontainers migration test is CI-gated
-- JaCoCo line coverage: 80.36% (80% gate passed)
+- backend tests: 80 passed locally; PostgreSQL 18.4 Testcontainers migration test is CI-gated
+- JaCoCo line coverage: 80.70% (80% gate passed)
 - Configuration Cache: stored and reused
 - executable Spring Boot JAR: built
 - layered Java 26 production image with G1GC: built

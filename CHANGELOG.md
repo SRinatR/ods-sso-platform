@@ -13,6 +13,8 @@ All notable changes to the ODS SSO Platform are documented here.
 - Self-service TOTP disable and backup-code regeneration in the security cabinet.
 - Device-specific and cross-device passkey enrollment for laptops, phones and security keys.
 - Public human-readable service status and expanded privacy pages.
+- Isolated navigation for personal, counterparty and system-administration portals.
+- Counterparty self-service OIDC settings for client type, scopes, callback and logout URLs.
 
 ### Changed
 
@@ -28,4 +30,7 @@ All notable changes to the ODS SSO Platform are documented here.
 - Passkey sessions no longer advertise the password authentication factor.
 - Disabling TOTP revokes other sessions and safely downgrades the current password session.
 - Registration uses separate burst and daily anti-abuse limits instead of a three-attempt hourly lockout.
+- Repeated registration of an unverified account issues a fresh verification message.
+- Session and connected-application pages redirect only after an actual authentication failure.
+- Email screens distinguish provider acceptance from guaranteed mailbox delivery.
 - Administrative sessions explain the required passkey or TOTP setup instead of appearing logged out.

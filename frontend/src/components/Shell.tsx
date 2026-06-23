@@ -3,18 +3,20 @@
 import Link from "next/link";
 import { ReactNode } from "react";
 import { api } from "@/lib/api";
-import { ACCOUNTS_URL, ADMIN_URL, ROOT_URL, onAuth } from "@/lib/domains";
+import { ACCOUNTS_URL, ROOT_URL, onAuth } from "@/lib/domains";
+
+type Product = "account" | "partner" | "admin";
 
 export function Shell({
   title,
   subtitle,
   children,
-  admin = false,
+  product = "account",
 }: {
   title: string;
   subtitle?: string;
   children: ReactNode;
-  admin?: boolean;
+  product?: Product;
 }) {
   async function logout() {
     await api("/api/v1/auth/logout", { method: "POST" });
@@ -27,15 +29,8 @@ export function Shell({
         <Link href={ROOT_URL} className="brand">
           ODS Identity
         </Link>
-        <nav>
-          <Link href={`${ACCOUNTS_URL}/dashboard`}>Обзор</Link>
-          <Link href={`${ACCOUNTS_URL}/profile`}>Личный профиль</Link>
-          <Link href={`${ACCOUNTS_URL}/security`}>Безопасность и MFA</Link>
-          <Link href={`${ACCOUNTS_URL}/sessions`}>Сессии и входы</Link>
-          <Link href={`${ACCOUNTS_URL}/apps`}>Подключенные приложения</Link>
-          <Link href={onAuth("/partner")}>Кабинет контрагента</Link>
-          {admin && <Link href={`${ADMIN_URL}/admin`}>Администрирование</Link>}
-        </nav>
+        <p className="product-name">{productName(product)}</p>
+        <ProductNavigation product={product} />
         <button className="button secondary" onClick={logout}>
           Выйти
         </button>
@@ -46,7 +41,7 @@ export function Shell({
       <main className="content">
         <header className="page-header">
           <div>
-            <p className="eyebrow">Единая учетная запись</p>
+            <p className="eyebrow">{productName(product)}</p>
             <h1>{title}</h1>
             {subtitle && <p className="muted">{subtitle}</p>}
           </div>
@@ -55,6 +50,45 @@ export function Shell({
       </main>
     </div>
   );
+}
+
+function ProductNavigation({ product }: { product: Product }) {
+  if (product === "partner") {
+    return (
+      <nav>
+        <a href="#organization">Организация</a>
+        <a href="#applications">SSO-приложения</a>
+        <a href="#integration">Параметры OIDC</a>
+      </nav>
+    );
+  }
+  if (product === "admin") {
+    return (
+      <nav>
+        <a href="#overview">Обзор системы</a>
+        <a href="#users">Пользователи</a>
+        <a href="#oauth-clients">OAuth-клиенты</a>
+        <a href="#sessions">Сессии</a>
+        <a href="#audit">Аудит</a>
+        <a href="#policies">Политики</a>
+      </nav>
+    );
+  }
+  return (
+    <nav>
+      <Link href={`${ACCOUNTS_URL}/dashboard`}>Обзор</Link>
+      <Link href={`${ACCOUNTS_URL}/profile`}>Личный профиль</Link>
+      <Link href={`${ACCOUNTS_URL}/security`}>Безопасность</Link>
+      <Link href={`${ACCOUNTS_URL}/sessions`}>Сессии и устройства</Link>
+      <Link href={`${ACCOUNTS_URL}/apps`}>Подключенные приложения</Link>
+    </nav>
+  );
+}
+
+function productName(product: Product): string {
+  if (product === "partner") return "Кабинет контрагента";
+  if (product === "admin") return "Системное администрирование";
+  return "Личный кабинет";
 }
 
 export function AuthCard({

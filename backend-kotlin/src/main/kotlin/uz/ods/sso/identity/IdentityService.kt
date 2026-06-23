@@ -52,7 +52,11 @@ class IdentityService(
         val tenant = tenants.current()
         val email = body.email.trim().lowercase()
         val passwordHash = crypto.hashPassword(body.password)
-        if (users.findByTenantIdAndEmailIgnoreCase(tenant.id, email) != null) {
+        val existing = users.findByTenantIdAndEmailIgnoreCase(tenant.id, email)
+        if (existing != null) {
+            if (properties.requireEmailVerification && !existing.emailVerified) {
+                sendVerification(existing, request, "REGISTRATION_REPEATED")
+            }
             return properties.requireEmailVerification
         }
         val user = users.save(
@@ -78,9 +82,7 @@ class IdentityService(
             audit.write(tenant.id, request, "EMAIL_VERIFICATION_SKIPPED", user.id, user.id)
             return false
         }
-        val raw = createAccountToken(user.id, "email_verification", properties.verificationTokenTtl, "evt")
-        mail.sendVerification(email, raw)
-        audit.write(tenant.id, request, "EMAIL_VERIFICATION_SENT", user.id, user.id)
+        sendVerification(user, request, "REGISTRATION")
         return true
     }
 
@@ -103,9 +105,7 @@ class IdentityService(
         val tenant = tenants.current()
         val user = users.findByTenantIdAndEmailIgnoreCase(tenant.id, emailInput.lowercase())
         if (user != null && !user.emailVerified) {
-            val raw = createAccountToken(user.id, "email_verification", properties.verificationTokenTtl, "evt")
-            mail.sendVerification(user.email, raw)
-            audit.write(tenant.id, request, "EMAIL_VERIFICATION_SENT", user.id, user.id)
+            sendVerification(user, request, "RESEND")
         }
     }
 
@@ -294,6 +294,21 @@ class IdentityService(
         val identity = "$action:${clientIp(request, properties)}"
         rateLimiter.enforce(RateLimiter.EMAIL_ACTION, identity)
         rateLimiter.enforce(RateLimiter.EMAIL_ACTION_DAILY, identity)
+    }
+
+    private fun sendVerification(user: UserEntity, request: HttpServletRequest, reason: String) {
+        val now = Instant.now()
+        tokens.invalidate(user.id, "email_verification", now)
+        val raw = createAccountToken(user.id, "email_verification", properties.verificationTokenTtl, "evt")
+        mail.sendVerification(user.email, raw)
+        audit.write(
+            user.tenantId,
+            request,
+            "EMAIL_VERIFICATION_ACCEPTED",
+            user.id,
+            user.id,
+            details = mapOf("provider" to "smtp", "reason" to reason),
+        )
     }
 
     private fun createAccountToken(userId: String, type: String, ttlSeconds: Long, prefix: String): String {

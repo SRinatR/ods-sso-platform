@@ -21,7 +21,7 @@ import java.time.Instant
 
 data class ProvisionedOAuthClient(
     val client: RegisteredClient,
-    val rawSecret: String,
+    val rawSecret: String?,
 )
 
 @Service
@@ -35,23 +35,48 @@ class OAuthClientProvisioningService(
         name: String,
         description: String?,
         redirectUris: List<String>,
+    ): ProvisionedOAuthClient = create(
+        tenantId = tenantId,
+        name = name,
+        description = description,
+        redirectUris = redirectUris,
+        postLogoutRedirectUris = emptyList(),
+        scopes = DEFAULT_SCOPES,
+        clientType = "confidential",
+        tokenEndpointAuthMethod = "client_secret_basic",
+    )
+
+    fun create(
+        tenantId: String,
+        name: String,
+        description: String?,
+        redirectUris: List<String>,
+        postLogoutRedirectUris: List<String>,
+        scopes: List<String>,
+        clientType: String,
+        tokenEndpointAuthMethod: String,
     ): ProvisionedOAuthClient {
         validateName(name)
         validateRedirectUris(redirectUris)
-        val rawSecret = crypto.randomUrl(36)
-        val client = RegisteredClient.withId(newId("app"))
+        validateOptionalRedirectUris(postLogoutRedirectUris)
+        val normalizedScopes = validateScopes(scopes)
+        val publicClient = clientType == "public"
+        if (clientType !in setOf("public", "confidential")) {
+            throw validation("Client type must be public or confidential")
+        }
+        if (
+            (!publicClient && tokenEndpointAuthMethod !in CONFIDENTIAL_AUTH_METHODS) ||
+            (publicClient && tokenEndpointAuthMethod != "none")
+        ) {
+            throw validation("Token endpoint authentication method is not valid for this client type")
+        }
+        val rawSecret = crypto.randomUrl(36).takeUnless { publicClient }
+        val builder = RegisteredClient.withId(newId("app"))
             .clientId(newId("cli"))
             .clientIdIssuedAt(Instant.now())
-            .clientSecret("{argon2}${crypto.hashPassword(rawSecret)}")
             .clientName(name.trim())
-            .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
-            .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_POST)
             .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
             .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
-            .scope(OidcScopes.OPENID)
-            .scope(OidcScopes.PROFILE)
-            .scope(OidcScopes.EMAIL)
-            .scope("offline_access")
             .clientSettings(
                 ClientSettings.builder()
                     .requireProofKey(true)
@@ -62,8 +87,16 @@ class OAuthClientProvisioningService(
                     .build(),
             )
             .tokenSettings(defaultTokenSettings())
-            .apply { redirectUris.distinct().forEach(::redirectUri) }
-            .build()
+        redirectUris.distinct().forEach(builder::redirectUri)
+        postLogoutRedirectUris.distinct().forEach(builder::postLogoutRedirectUri)
+        normalizedScopes.forEach(builder::scope)
+        if (publicClient) {
+            builder.clientAuthenticationMethod(ClientAuthenticationMethod.NONE)
+        } else {
+            builder.clientSecret("{argon2}${crypto.hashPassword(requireNotNull(rawSecret))}")
+            builder.clientAuthenticationMethod(authenticationMethod(tokenEndpointAuthMethod))
+        }
+        val client = builder.build()
         clients.save(client)
         return ProvisionedOAuthClient(client, rawSecret)
     }
@@ -73,16 +106,32 @@ class OAuthClientProvisioningService(
         name: String?,
         description: String?,
         redirectUris: List<String>?,
+        postLogoutRedirectUris: List<String>?,
+        scopes: List<String>?,
         enabled: Boolean?,
     ): RegisteredClient {
         name?.let(::validateName)
         redirectUris?.let(::validateRedirectUris)
+        postLogoutRedirectUris?.let(::validateOptionalRedirectUris)
+        val normalizedScopes = scopes?.let(::validateScopes)
         val builder = RegisteredClient.from(existing)
         name?.let { builder.clientName(it.trim()) }
         redirectUris?.let { values ->
             builder.redirectUris { current ->
                 current.clear()
                 current.addAll(values.distinct())
+            }
+        }
+        postLogoutRedirectUris?.let { values ->
+            builder.postLogoutRedirectUris { current ->
+                current.clear()
+                current.addAll(values.distinct())
+            }
+        }
+        normalizedScopes?.let { values ->
+            builder.scopes { current ->
+                current.clear()
+                current.addAll(values)
             }
         }
         if (description != null || enabled != null) {
@@ -100,6 +149,13 @@ class OAuthClientProvisioningService(
     }
 
     fun rotateSecret(existing: RegisteredClient): ProvisionedOAuthClient {
+        if (existing.clientAuthenticationMethods.contains(ClientAuthenticationMethod.NONE)) {
+            throw AppException(
+                HttpStatus.UNPROCESSABLE_CONTENT,
+                "public_client_has_no_secret",
+                "Public clients do not use a client secret",
+            )
+        }
         val rawSecret = crypto.randomUrl(36)
         val updated = RegisteredClient.from(existing)
             .clientSecret("{argon2}${crypto.hashPassword(rawSecret)}")
@@ -134,23 +190,57 @@ class OAuthClientProvisioningService(
 
     private fun validateRedirectUris(values: List<String>) {
         if (values.isEmpty() || values.size > 10) {
-            throw AppException(
-                HttpStatus.UNPROCESSABLE_CONTENT,
-                "validation_error",
-                "One to ten redirect URIs are required",
-            )
+            throw validation("One to ten redirect URIs are required")
         }
+        validateUriValues(values, "Redirect URI")
+    }
+
+    private fun validateOptionalRedirectUris(values: List<String>) {
+        if (values.size > 10) {
+            throw validation("No more than ten post-logout redirect URIs are allowed")
+        }
+        validateUriValues(values, "Post-logout redirect URI")
+    }
+
+    private fun validateUriValues(values: List<String>, label: String) {
         values.forEach { value ->
             val uri = runCatching { URI(value) }.getOrNull()
             val local = uri?.scheme == "http" && uri.host in setOf("localhost", "127.0.0.1")
             val secure = uri?.scheme == "https" && !uri.host.isNullOrBlank()
             if (uri == null || uri.fragment != null || (!secure && !local)) {
-                throw AppException(
-                    HttpStatus.UNPROCESSABLE_CONTENT,
-                    "validation_error",
-                    "Redirect URI must use HTTPS; HTTP is allowed only for localhost",
-                )
+                throw validation("$label must use HTTPS; HTTP is allowed only for localhost")
             }
         }
+    }
+
+    private fun validateScopes(values: List<String>): List<String> {
+        val normalized = values.map(String::trim).filter(String::isNotEmpty).distinct()
+        if (OidcScopes.OPENID !in normalized) {
+            throw validation("The openid scope is required")
+        }
+        if (normalized.any { it !in ALLOWED_SCOPES }) {
+            throw validation("Unsupported scope requested")
+        }
+        return normalized
+    }
+
+    private fun authenticationMethod(value: String) = when (value) {
+        "client_secret_post" -> ClientAuthenticationMethod.CLIENT_SECRET_POST
+        else -> ClientAuthenticationMethod.CLIENT_SECRET_BASIC
+    }
+
+    private fun validation(message: String) =
+        AppException(HttpStatus.UNPROCESSABLE_CONTENT, "validation_error", message)
+
+    companion object {
+        val DEFAULT_SCOPES = listOf(OidcScopes.OPENID, OidcScopes.PROFILE, OidcScopes.EMAIL)
+        val ALLOWED_SCOPES = setOf(
+            OidcScopes.OPENID,
+            OidcScopes.PROFILE,
+            OidcScopes.EMAIL,
+            OidcScopes.PHONE,
+            "offline_access",
+        )
+        val CONFIDENTIAL_AUTH_METHODS = setOf("client_secret_basic", "client_secret_post")
     }
 }

@@ -1,11 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Shell } from "@/components/Shell";
-import { api } from "@/lib/api";
+import { api, ApiRequestError } from "@/lib/api";
 import { loginUrl } from "@/lib/domains";
 
-type User = { role: string };
 type Session = {
   id: string;
   ip_address?: string;
@@ -25,42 +24,67 @@ type Login = {
 };
 
 export default function SessionsPage() {
-  const [user, setUser] = useState<User | null>(null);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [history, setHistory] = useState<Login[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  async function load() {
-    const [me, active, logins] = await Promise.all([
-      api<User>("/api/v1/auth/me"),
+  const load = useCallback(async () => {
+    setError("");
+    try {
+      await api("/api/v1/auth/me");
+    } catch (cause) {
+      if (cause instanceof ApiRequestError && cause.status === 401) {
+        window.location.assign(loginUrl(window.location.href));
+        return;
+      }
+      setError(cause instanceof Error ? cause.message : "Не удалось проверить сессию");
+      setLoading(false);
+      return;
+    }
+
+    const [activeResult, historyResult] = await Promise.allSettled([
       api<Session[]>("/api/v1/account/sessions"),
       api<Login[]>("/api/v1/account/login-history"),
     ]);
-    setUser(me);
-    setSessions(active);
-    setHistory(logins);
-  }
-
-  useEffect(() => {
-    Promise.all([
-      api<User>("/api/v1/auth/me"),
-      api<Session[]>("/api/v1/account/sessions"),
-      api<Login[]>("/api/v1/account/login-history"),
-    ])
-      .then(([me, active, logins]) => {
-        setUser(me);
-        setSessions(active);
-        setHistory(logins);
-      })
-      .catch(() => window.location.assign(loginUrl(window.location.href)));
+    if (activeResult.status === "fulfilled") {
+      setSessions(activeResult.value);
+    }
+    if (historyResult.status === "fulfilled") {
+      setHistory(historyResult.value);
+    }
+    const failures = [activeResult, historyResult].filter(
+      (result) => result.status === "rejected",
+    );
+    if (failures.length > 0) {
+      setError(
+        "Сессия активна, но часть данных об устройствах временно не загрузилась. Повторите запрос.",
+      );
+    }
+    setLoading(false);
   }, []);
 
+  useEffect(() => {
+    const initial = window.setTimeout(load, 0);
+    return () => window.clearTimeout(initial);
+  }, [load]);
+
   async function revoke(id: string) {
-    await api(`/api/v1/account/sessions/${id}`, { method: "DELETE" });
-    const current = sessions.find((item) => item.id === id)?.current;
-    if (current) {
-      window.location.assign(loginUrl(window.location.href));
-    } else {
-      await load();
+    setError("");
+    try {
+      await api(`/api/v1/account/sessions/${id}`, { method: "DELETE" });
+      const current = sessions.find((item) => item.id === id)?.current;
+      if (current) {
+        window.location.assign(loginUrl(window.location.href));
+      } else {
+        await load();
+      }
+    } catch (cause) {
+      if (cause instanceof ApiRequestError && cause.status === 401) {
+        window.location.assign(loginUrl(window.location.href));
+        return;
+      }
+      setError(cause instanceof Error ? cause.message : "Не удалось завершить сессию");
     }
   }
 
@@ -68,8 +92,16 @@ export default function SessionsPage() {
     <Shell
       title="Сессии и история входов"
       subtitle="Устройства, IP-адреса и результаты входа"
-      admin={user?.role === "admin" || user?.role === "security_admin"}
     >
+      {error && (
+        <div className="alert error">
+          {error}
+          <button className="text-button" type="button" onClick={() => void load()}>
+            Повторить
+          </button>
+        </div>
+      )}
+      {loading && <section className="panel">Загрузка устройств и истории…</section>}
       <section className="panel">
         <h2>Активные сессии</h2>
         <div className="table-wrap">
@@ -92,11 +124,16 @@ export default function SessionsPage() {
                   <td>{item.mfa_completed ? "Да" : "Нет"}</td>
                   <td>
                     <button className="text-button danger" onClick={() => revoke(item.id)}>
-                      Завершить
+                      {item.current ? "Выйти здесь" : "Завершить"}
                     </button>
                   </td>
                 </tr>
               ))}
+              {!loading && sessions.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="muted">Активные сессии не найдены.</td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -126,6 +163,11 @@ export default function SessionsPage() {
                   <td>{item.user_agent || "—"}</td>
                 </tr>
               ))}
+              {!loading && history.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="muted">История входов пока пуста.</td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

@@ -41,6 +41,14 @@ data class PartnerApplicationCreate(
     val description: String? = null,
     @field:Size(min = 1, max = 10)
     val redirectUris: List<String>,
+    @field:Size(max = 10)
+    val postLogoutRedirectUris: List<String> = emptyList(),
+    @field:Size(min = 1, max = 5)
+    val scopes: List<String> = listOf("openid", "profile", "email"),
+    @field:Pattern(regexp = "^(public|confidential)$")
+    val clientType: String = "confidential",
+    @field:Pattern(regexp = "^(none|client_secret_basic|client_secret_post)$")
+    val tokenEndpointAuthMethod: String = "client_secret_basic",
 )
 
 data class PartnerApplicationUpdate(
@@ -50,6 +58,14 @@ data class PartnerApplicationUpdate(
     val description: String? = null,
     @field:Size(min = 1, max = 10)
     val redirectUris: List<String>? = null,
+    @field:Size(max = 10)
+    val postLogoutRedirectUris: List<String>? = null,
+    @field:Size(min = 1, max = 5)
+    val scopes: List<String>? = null,
+    @field:Pattern(regexp = "^(public|confidential)$")
+    val clientType: String? = null,
+    @field:Pattern(regexp = "^(none|client_secret_basic|client_secret_post)$")
+    val tokenEndpointAuthMethod: String? = null,
     val enabled: Boolean? = null,
 )
 
@@ -60,8 +76,11 @@ data class PartnerApplicationResponse(
     val name: String,
     val description: String?,
     val redirectUris: List<String>,
+    val postLogoutRedirectUris: List<String>,
     val scopes: List<String>,
-    val tokenEndpointAuthMethods: List<String>,
+    val clientType: String,
+    val tokenEndpointAuthMethod: String,
+    val requirePkce: Boolean,
     val enabled: Boolean,
     val createdAt: Instant,
 )
@@ -73,6 +92,10 @@ data class PartnerIntegrationMetadata(
     val tokenEndpoint: String,
     val userInfoEndpoint: String,
     val jwksUrl: String,
+    val endSessionEndpoint: String,
+    val supportedScopes: List<String>,
+    val supportedClientTypes: List<String>,
+    val supportedTokenEndpointAuthMethods: List<String>,
 )
 
 data class PartnerWorkspaceResponse(
