@@ -34,7 +34,7 @@ The Python/FastAPI implementation has been removed. The only backend runtime is 
 - Tamper-evident audit hash chain
 - Transactional domain-event outbox and Kafka publisher
 - Admin APIs for users, clients, sessions, audit and policies
-- Partner self-service: organization registration and OIDC application provisioning
+- Partner self-service: organization registration and complete OIDC application configuration
 - Dedicated public, authentication, account, administration and tenant portal domains
 - Database-authorized partner portals at `https://{organization}.ods.uz`
 - Resend-compatible SMTP delivery for verification, password reset and security notifications
@@ -76,7 +76,8 @@ For the first partner pilot, the standard flow is:
 2. Verify the email and sign in through `auth.ods.uz`.
 3. Open **Counterparty workspace** and register the organization. A website such as
    `company.uz` proposes the portal `https://company.ods.uz`.
-4. Create an OIDC application and enter its exact callback URL.
+4. Create an OIDC application and configure its exact callback URL, post-logout URL,
+   client type, token endpoint authentication and scopes.
 5. Save the generated client secret immediately.
 6. Integrate through the published Discovery URL using Authorization Code + PKCE S256.
 

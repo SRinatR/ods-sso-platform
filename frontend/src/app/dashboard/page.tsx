@@ -32,7 +32,6 @@ export default function DashboardPage() {
     <Shell
       title={user ? `Здравствуйте, ${user.name || user.email}` : "Загрузка…"}
       subtitle="Контролируйте безопасность аккаунта и доступ приложений"
-      admin={user?.role === "admin" || user?.role === "security_admin"}
     >
       {error && <div className="alert error">{error}</div>}
       {user && (

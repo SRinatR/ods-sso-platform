@@ -47,7 +47,6 @@ export default function ProfilePage() {
     <Shell
       title="Личный профиль"
       subtitle="Данные профиля заполняются после подтверждения email"
-      admin={user?.role === "admin" || user?.role === "security_admin"}
     >
       {error && <div className="alert error">{error}</div>}
       {message && <div className="alert success">{message}</div>}

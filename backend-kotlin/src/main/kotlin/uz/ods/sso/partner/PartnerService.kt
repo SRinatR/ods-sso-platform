@@ -2,6 +2,7 @@ package uz.ods.sso.partner
 
 import jakarta.servlet.http.HttpServletRequest
 import org.springframework.http.HttpStatus
+import org.springframework.security.oauth2.core.ClientAuthenticationMethod
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClient
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -104,11 +105,15 @@ class PartnerService(
         val principal = sessions.current()
         val (organization, membership) = requireOrganization(principal, request)
         requireManager(membership)
-        val provisioned = oauthClients.createConfidential(
+        val provisioned = oauthClients.create(
             tenantId = principal.user.tenantId,
             name = body.name,
             description = body.description,
             redirectUris = body.redirectUris,
+            postLogoutRedirectUris = body.postLogoutRedirectUris,
+            scopes = body.scopes,
+            clientType = body.clientType,
+            tokenEndpointAuthMethod = body.tokenEndpointAuthMethod,
         )
         val metadata = applications.save(
             PartnerApplicationEntity(
@@ -143,7 +148,32 @@ class PartnerService(
             ?: throw AppException(HttpStatus.NOT_FOUND, "partner_application_not_found", "Application was not found")
         val existing = oauthClients.findIncludingDisabledById(metadata.registeredClientId)
             ?: throw AppException(HttpStatus.NOT_FOUND, "partner_application_not_found", "Application was not found")
-        val updated = oauthClients.update(existing, body.name, body.description, body.redirectUris, body.enabled)
+        val existingType =
+            if (existing.clientAuthenticationMethods.contains(ClientAuthenticationMethod.NONE)) "public" else "confidential"
+        val existingAuthMethod = existing.clientAuthenticationMethods.firstOrNull()?.value ?: "none"
+        if (body.clientType != null && body.clientType != existingType) {
+            throw AppException(
+                HttpStatus.UNPROCESSABLE_CONTENT,
+                "client_type_immutable",
+                "Client type cannot be changed after registration",
+            )
+        }
+        if (body.tokenEndpointAuthMethod != null && body.tokenEndpointAuthMethod != existingAuthMethod) {
+            throw AppException(
+                HttpStatus.UNPROCESSABLE_CONTENT,
+                "client_auth_method_immutable",
+                "Token endpoint authentication method cannot be changed after registration",
+            )
+        }
+        val updated = oauthClients.update(
+            existing,
+            body.name,
+            body.description,
+            body.redirectUris,
+            body.postLogoutRedirectUris,
+            body.scopes,
+            body.enabled,
+        )
         metadata.updatedAt = Instant.now()
         audit.write(
             principal.user.tenantId,
@@ -219,8 +249,11 @@ class PartnerService(
         name = clientName,
         description = clientSettings.settings["description"]?.toString()?.ifBlank { null },
         redirectUris = redirectUris.sorted(),
+        postLogoutRedirectUris = postLogoutRedirectUris.sorted(),
         scopes = scopes.sorted(),
-        tokenEndpointAuthMethods = clientAuthenticationMethods.map { it.value }.sorted(),
+        clientType = if (clientAuthenticationMethods.contains(ClientAuthenticationMethod.NONE)) "public" else "confidential",
+        tokenEndpointAuthMethod = clientAuthenticationMethods.firstOrNull()?.value ?: "none",
+        requirePkce = clientSettings.isRequireProofKey,
         enabled = oauthClients.isEnabled(this),
         createdAt = metadata.createdAt,
     )
@@ -247,6 +280,10 @@ class PartnerService(
             tokenEndpoint = "$issuer/token",
             userInfoEndpoint = "$issuer/userinfo",
             jwksUrl = "$issuer/.well-known/jwks.json",
+            endSessionEndpoint = "$issuer/connect/logout",
+            supportedScopes = OAuthClientProvisioningService.ALLOWED_SCOPES.sorted(),
+            supportedClientTypes = listOf("confidential", "public"),
+            supportedTokenEndpointAuthMethods = listOf("client_secret_basic", "client_secret_post", "none"),
         )
     }
 

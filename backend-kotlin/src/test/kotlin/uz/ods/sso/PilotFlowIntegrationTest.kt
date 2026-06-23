@@ -165,6 +165,10 @@ class PilotFlowIntegrationTest {
                             "name" to "Pilot Application",
                             "description" to "Integration test",
                             "redirect_uris" to listOf("https://partner.example/sso/callback"),
+                            "post_logout_redirect_uris" to listOf("https://partner.example/"),
+                            "scopes" to listOf("openid", "profile", "email", "offline_access"),
+                            "client_type" to "confidential",
+                            "token_endpoint_auth_method" to "client_secret_basic",
                         ),
                     ),
                 ),
@@ -173,6 +177,10 @@ class PilotFlowIntegrationTest {
             .andExpect(jsonPath("$.id").value(org.hamcrest.Matchers.startsWith("appmeta_")))
             .andExpect(jsonPath("$.client_id").value(org.hamcrest.Matchers.startsWith("cli_")))
             .andExpect(jsonPath("$.client_secret").isNotEmpty)
+            .andExpect(jsonPath("$.post_logout_redirect_uris[0]").value("https://partner.example/"))
+            .andExpect(jsonPath("$.client_type").value("confidential"))
+            .andExpect(jsonPath("$.token_endpoint_auth_method").value("client_secret_basic"))
+            .andExpect(jsonPath("$.require_pkce").value(true))
 
         assertThat(applications.findAll()).hasSize(1)
 

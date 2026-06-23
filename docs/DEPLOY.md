@@ -64,15 +64,17 @@ OIDC issuer remains `auth.ods.uz`.
 The service domains expose only implemented behavior:
 
 - `auth.ods.uz` owns registration, login, consent, verification and password reset.
-- `accounts.ods.uz` serves the ordinary account dashboard.
-- `admin.ods.uz` serves the administration UI.
+- `accounts.ods.uz` serves only the ordinary personal account dashboard.
+- `admin.ods.uz` serves only the system administration UI.
 - `docs.ods.uz` serves the OpenAPI UI.
 - `sso.ods.uz` redirects to the canonical issuer.
 - `api.ods.uz` redirects its root to `docs.ods.uz` and exposes REST, health and OpenAPI routes,
   but not alternate OIDC issuer endpoints.
 - `status.ods.uz` exposes the real database-and-Redis readiness result.
 - `{slug}.ods.uz` serves the matching counterparty workspace. Caddy asks the backend whether the
-  slug belongs to an active organization before obtaining a certificate.
+  slug belongs to an active organization before obtaining a certificate. Organization owners
+  configure callback and post-logout URLs, client type, scopes, token endpoint authentication,
+  application status and secret rotation from this isolated workspace. PKCE S256 is mandatory.
 - `scim.ods.uz` and `webhooks.ods.uz` terminate TLS and return an explicit HTTP 501 JSON status
   until those capabilities are implemented. They must not claim successful service availability.
 

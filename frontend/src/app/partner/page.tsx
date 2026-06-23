@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { Shell } from "@/components/Shell";
 import { api, ApiRequestError } from "@/lib/api";
 import { AUTH_URL, onAuth } from "@/lib/domains";
@@ -24,8 +24,11 @@ type Application = {
   name: string;
   description?: string;
   redirect_uris: string[];
+  post_logout_redirect_uris: string[];
   scopes: string[];
-  token_endpoint_auth_methods: string[];
+  client_type: "public" | "confidential";
+  token_endpoint_auth_method: "none" | "client_secret_basic" | "client_secret_post";
+  require_pkce: boolean;
   enabled: boolean;
 };
 
@@ -36,6 +39,10 @@ type Integration = {
   token_endpoint: string;
   user_info_endpoint: string;
   jwks_url: string;
+  end_session_endpoint: string;
+  supported_scopes: string[];
+  supported_client_types: string[];
+  supported_token_endpoint_auth_methods: string[];
 };
 
 type Workspace = {
@@ -44,11 +51,42 @@ type Workspace = {
   integration: Integration;
 };
 
+type ApplicationForm = {
+  name: string;
+  description: string;
+  redirectUris: string;
+  postLogoutRedirectUris: string;
+  scopes: string[];
+  clientType: "public" | "confidential";
+  tokenEndpointAuthMethod: "none" | "client_secret_basic" | "client_secret_post";
+};
+
+const emptyApplication: ApplicationForm = {
+  name: "",
+  description: "",
+  redirectUris: "",
+  postLogoutRedirectUris: "",
+  scopes: ["openid", "profile", "email"],
+  clientType: "confidential",
+  tokenEndpointAuthMethod: "client_secret_basic",
+};
+
+const scopeLabels: Record<string, string> = {
+  openid: "Идентификатор пользователя",
+  profile: "Имя и профиль",
+  email: "Email и статус подтверждения",
+  phone: "Номер телефона",
+  offline_access: "Refresh token для долгой сессии",
+};
+
 export default function PartnerPage() {
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const [secret, setSecret] = useState("");
+  const [notice, setNotice] = useState("");
+  const [secret, setSecret] = useState<{ clientId: string; value: string } | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [organizationForm, setOrganizationForm] = useState({
     name: "",
     slug: "",
@@ -56,13 +94,11 @@ export default function PartnerPage() {
     websiteUrl: "",
     contactEmail: "",
   });
-  const [applicationForm, setApplicationForm] = useState({
-    name: "",
-    description: "",
-    redirectUris: "",
-  });
+  const [applicationForm, setApplicationForm] =
+    useState<ApplicationForm>(emptyApplication);
 
-  function load() {
+  const load = useCallback(() => {
+    setError("");
     api<Workspace>("/api/v1/partner/workspace")
       .then((loaded) => {
         if (
@@ -85,19 +121,23 @@ export default function PartnerPage() {
         setLoading(false);
         setError(cause instanceof Error ? cause.message : "Кабинет временно недоступен");
       });
-  }
+  }, []);
 
-  useEffect(load, []);
+  useEffect(() => {
+    const initial = window.setTimeout(load, 0);
+    return () => window.clearTimeout(initial);
+  }, [load]);
 
   async function createOrganization(event: FormEvent) {
     event.preventDefault();
     setError("");
+    setSaving(true);
     try {
       const created = await api<Workspace>("/api/v1/partner/organizations", {
         method: "POST",
         body: JSON.stringify({
           name: organizationForm.name,
-          slug: organizationForm.slug,
+          slug: organizationForm.slug || null,
           legal_name: organizationForm.legalName || null,
           website_url: organizationForm.websiteUrl || null,
           contact_email: organizationForm.contactEmail,
@@ -109,64 +149,148 @@ export default function PartnerPage() {
       }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Не удалось создать организацию");
+    } finally {
+      setSaving(false);
     }
   }
 
-  async function createApplication(event: FormEvent) {
+  async function saveApplication(event: FormEvent) {
     event.preventDefault();
     setError("");
-    setSecret("");
+    setNotice("");
+    setSecret(null);
+    setSaving(true);
+    const payload = applicationPayload(applicationForm);
     try {
-      const created = await api<Application>("/api/v1/partner/applications", {
-        method: "POST",
-        body: JSON.stringify({
-          name: applicationForm.name,
-          description: applicationForm.description || null,
-          redirect_uris: applicationForm.redirectUris
-            .split(/\r?\n/)
-            .map((value) => value.trim())
-            .filter(Boolean),
-        }),
-      });
-      setSecret(created.client_secret || "");
-      setWorkspace((current) =>
-        current ? { ...current, applications: [created, ...current.applications] } : current,
-      );
-      setApplicationForm({ name: "", description: "", redirectUris: "" });
+      if (editingId) {
+        const updated = await api<Application>(
+          `/api/v1/partner/applications/${editingId}`,
+          { method: "PATCH", body: JSON.stringify(payload) },
+        );
+        replaceApplication(updated);
+        setNotice(`Настройки «${updated.name}» сохранены.`);
+      } else {
+        const created = await api<Application>("/api/v1/partner/applications", {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+        setWorkspace((current) =>
+          current ? { ...current, applications: [created, ...current.applications] } : current,
+        );
+        if (created.client_secret) {
+          setSecret({ clientId: created.client_id, value: created.client_secret });
+        }
+        setNotice(`SSO-приложение «${created.name}» создано.`);
+      }
+      cancelEditing();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Не удалось создать приложение");
+      setError(cause instanceof Error ? cause.message : "Не удалось сохранить приложение");
+    } finally {
+      setSaving(false);
     }
   }
 
-  async function rotateSecret(applicationId: string) {
+  function editApplication(application: Application) {
+    setEditingId(application.id);
+    setApplicationForm({
+      name: application.name,
+      description: application.description || "",
+      redirectUris: application.redirect_uris.join("\n"),
+      postLogoutRedirectUris: application.post_logout_redirect_uris.join("\n"),
+      scopes: application.scopes,
+      clientType: application.client_type,
+      tokenEndpointAuthMethod: application.token_endpoint_auth_method,
+    });
+    setNotice("");
     setError("");
-    setSecret("");
+    document.getElementById("application-editor")?.scrollIntoView({ behavior: "smooth" });
+  }
+
+  function cancelEditing() {
+    setEditingId(null);
+    setApplicationForm(emptyApplication);
+  }
+
+  async function toggleApplication(application: Application) {
+    setError("");
     try {
       const updated = await api<Application>(
-        `/api/v1/partner/applications/${applicationId}/rotate-secret`,
+        `/api/v1/partner/applications/${application.id}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({ enabled: !application.enabled }),
+        },
+      );
+      replaceApplication(updated);
+      setNotice(updated.enabled ? "Приложение включено." : "Приложение отключено.");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Не удалось изменить статус");
+    }
+  }
+
+  async function rotateSecret(application: Application) {
+    setError("");
+    setSecret(null);
+    try {
+      const updated = await api<Application>(
+        `/api/v1/partner/applications/${application.id}/rotate-secret`,
         { method: "POST" },
       );
-      setSecret(updated.client_secret || "");
+      if (updated.client_secret) {
+        setSecret({ clientId: updated.client_id, value: updated.client_secret });
+      }
+      setNotice("Новый client secret создан. Старый secret больше не действует.");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Не удалось обновить secret");
     }
   }
 
+  function replaceApplication(updated: Application) {
+    setWorkspace((current) =>
+      current
+        ? {
+            ...current,
+            applications: current.applications.map((item) =>
+              item.id === updated.id ? updated : item,
+            ),
+          }
+        : current,
+    );
+  }
+
+  const authorizationExample = useMemo(() => {
+    const first = workspace?.applications[0];
+    if (!first || !workspace) return "";
+    const parameters = new URLSearchParams({
+      response_type: "code",
+      client_id: first.client_id,
+      redirect_uri: first.redirect_uris[0],
+      scope: first.scopes.join(" "),
+      state: "<random-state>",
+      nonce: "<random-nonce>",
+      code_challenge: "<pkce-s256-challenge>",
+      code_challenge_method: "S256",
+    });
+    return `${workspace.integration.authorization_endpoint}?${parameters}`;
+  }, [workspace]);
+
   return (
     <Shell
-      title={workspace?.organization ? workspace.organization.name : "Кабинет контрагента"}
-      subtitle="Подключение сервисов к единой авторизации ODS"
+      title={workspace?.organization ? workspace.organization.name : "Регистрация контрагента"}
+      subtitle="Самостоятельная настройка входа через ODS"
+      product="partner"
     >
       {error && <div className="alert error">{error}</div>}
-      {loading && <div className="panel">Загрузка…</div>}
+      {notice && <div className="alert success">{notice}</div>}
+      {loading && <div className="panel">Загрузка кабинета…</div>}
 
       {workspace && !workspace.organization && (
-        <section className="panel narrow">
-          <p className="eyebrow">Шаг 1</p>
-          <h2>Зарегистрируйте организацию</h2>
+        <section className="panel narrow" id="organization">
+          <p className="eyebrow">Организация</p>
+          <h2>Создайте отдельный кабинет контрагента</h2>
           <p className="muted">
-            Ваш личный аккаунт станет владельцем кабинета контрагента. Адрес кабинета
-            формируется автоматически из сайта организации: company.uz → company.ods.uz.
+            Личная учётная запись станет владельцем организации. Кабинет будет доступен
+            только на её поддомене: company.uz → company.ods.uz.
           </p>
           <form className="stack" onSubmit={createOrganization}>
             <label>
@@ -196,7 +320,7 @@ export default function PartnerPage() {
               <small className="muted">
                 {organizationForm.slug
                   ? `https://${organizationForm.slug}.ods.uz`
-                  : "Заполнится автоматически из адреса сайта"}
+                  : "Автоматически определяется из сайта"}
               </small>
             </label>
             <label>
@@ -217,11 +341,10 @@ export default function PartnerPage() {
                 value={organizationForm.websiteUrl}
                 onChange={(event) => {
                   const websiteUrl = event.target.value;
-                  const derived = deriveSlug(websiteUrl);
                   setOrganizationForm({
                     ...organizationForm,
                     websiteUrl,
-                    slug: organizationForm.slug || derived,
+                    slug: organizationForm.slug || deriveSlug(websiteUrl),
                   });
                 }}
               />
@@ -237,143 +360,326 @@ export default function PartnerPage() {
                 }
               />
             </label>
-            <button className="button">Создать кабинет</button>
+            <button className="button" disabled={saving}>
+              {saving ? "Создаём кабинет…" : "Создать кабинет"}
+            </button>
           </form>
         </section>
       )}
 
       {workspace?.organization && (
         <>
-          <div className="grid two">
+          <div className="grid two" id="organization">
             <section className="panel">
               <p className="eyebrow">Организация</p>
               <h2>{workspace.organization.name}</h2>
-              <p className="muted">
-                Код: <code>{workspace.organization.slug}</code>
-                <br />
-                Контакт: {workspace.organization.contact_email}
-              </p>
-              <a href={workspace.organization.portal_url}>{workspace.organization.portal_url}</a>
-              <span className="badge success">{workspace.organization.status}</span>
+              <dl className="detail-list">
+                <div><dt>Код</dt><dd><code>{workspace.organization.slug}</code></dd></div>
+                <div><dt>Роль</dt><dd>{workspace.organization.role}</dd></div>
+                <div><dt>Контакт</dt><dd>{workspace.organization.contact_email}</dd></div>
+                <div><dt>Статус</dt><dd><span className="badge success">{workspace.organization.status}</span></dd></div>
+              </dl>
             </section>
             <section className="panel">
-              <p className="eyebrow">OIDC Discovery</p>
-              <code className="secret">{workspace.integration.discovery_url}</code>
-              <p className="muted top-gap">
-                Используйте Discovery URL вместо ручного копирования endpoint-ов и ключей.
+              <p className="eyebrow">Кабинет</p>
+              <h2>{workspace.organization.portal_url}</h2>
+              <p className="muted">
+                Настройки этой организации изолированы от личного кабинета и системной
+                админки.
               </p>
             </section>
           </div>
 
           {secret && (
-            <div className="alert warning">
-              Сохраните client secret сейчас — повторно он не показывается.
-              <code className="secret">{secret}</code>
+            <div className="alert warning secret-delivery">
+              <strong>Сохраните secret сейчас. Повторно он не показывается.</strong>
+              <span>Client ID</span>
+              <code className="secret">{secret.clientId}</code>
+              <span>Client secret</span>
+              <code className="secret">{secret.value}</code>
+              <CopyButton value={secret.value} label="Копировать secret" />
             </div>
           )}
 
-          <section className="panel">
-            <p className="eyebrow">Шаг 2</p>
-            <h2>Добавьте приложение</h2>
-            <form className="stack" onSubmit={createApplication}>
-              <label>
-                Название приложения
-                <input
-                  required
-                  minLength={2}
-                  value={applicationForm.name}
-                  onChange={(event) =>
-                    setApplicationForm({ ...applicationForm, name: event.target.value })
-                  }
-                />
-              </label>
-              <label>
-                Описание для экрана согласия
-                <textarea
-                  rows={3}
-                  value={applicationForm.description}
-                  onChange={(event) =>
-                    setApplicationForm({ ...applicationForm, description: event.target.value })
-                  }
-                />
-              </label>
-              <label>
-                Callback URL — по одному в строке
-                <textarea
-                  required
-                  rows={4}
-                  placeholder={"https://service.example.uz/auth/ods/callback\nhttp://localhost:3000/auth/ods/callback"}
-                  value={applicationForm.redirectUris}
-                  onChange={(event) =>
-                    setApplicationForm({ ...applicationForm, redirectUris: event.target.value })
-                  }
-                />
-              </label>
-              <button className="button">Создать OIDC-приложение</button>
-            </form>
+          <section className="panel" id="application-editor">
+            <p className="eyebrow">{editingId ? "Редактирование" : "Новое приложение"}</p>
+            <h2>{editingId ? "Измените параметры SSO" : "Подключите сервис к ODS"}</h2>
+            <p className="muted">
+              Все параметры приложения настраиваются здесь. PKCE S256 обязателен для
+              каждого приложения и не может быть отключён.
+            </p>
+            <ApplicationEditor
+              form={applicationForm}
+              supportedScopes={workspace.integration.supported_scopes}
+              saving={saving}
+              editing={Boolean(editingId)}
+              onChange={setApplicationForm}
+              onSubmit={saveApplication}
+              onCancel={cancelEditing}
+            />
           </section>
 
-          <section className="panel">
-            <h2>Приложения</h2>
+          <section className="panel" id="applications">
+            <div className="row between">
+              <div>
+                <p className="eyebrow">SSO-приложения</p>
+                <h2>Зарегистрированные сервисы</h2>
+              </div>
+              <span className="badge">{workspace.applications.length}</span>
+            </div>
             {workspace.applications.length === 0 ? (
               <p className="muted">Приложений пока нет.</p>
             ) : (
-              <div className="table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Приложение</th>
-                      <th>Callback URL</th>
-                      <th>Scopes</th>
-                      <th>Статус</th>
-                      <th />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {workspace.applications.map((application) => (
-                      <tr key={application.id}>
-                        <td>
-                          <b>{application.name}</b>
-                          <br />
-                          <code>{application.client_id}</code>
-                        </td>
-                        <td>{application.redirect_uris.join(", ")}</td>
-                        <td>{application.scopes.join(" ")}</td>
-                        <td>{application.enabled ? "enabled" : "disabled"}</td>
-                        <td>
-                          <button
-                            className="text-button"
-                            onClick={() => rotateSecret(application.id)}
-                          >
-                            Новый secret
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="application-list">
+                {workspace.applications.map((application) => (
+                  <article className="application-card" key={application.id}>
+                    <div className="row between">
+                      <div>
+                        <h3>{application.name}</h3>
+                        <code>{application.client_id}</code>
+                      </div>
+                      <span className={`badge ${application.enabled ? "success" : "danger"}`}>
+                        {application.enabled ? "Включено" : "Отключено"}
+                      </span>
+                    </div>
+                    <div className="application-meta">
+                      <span>Тип</span>
+                      <strong>{application.client_type === "public" ? "Public + PKCE" : "Confidential + PKCE"}</strong>
+                      <span>Аутентификация token endpoint</span>
+                      <code>{application.token_endpoint_auth_method}</code>
+                      <span>Scopes</span>
+                      <code>{application.scopes.join(" ")}</code>
+                      <span>Callback URL</span>
+                      <div>{application.redirect_uris.map((uri) => <code key={uri}>{uri}</code>)}</div>
+                      <span>Post logout URL</span>
+                      <div>
+                        {application.post_logout_redirect_uris.length
+                          ? application.post_logout_redirect_uris.map((uri) => <code key={uri}>{uri}</code>)
+                          : "Не задан"}
+                      </div>
+                    </div>
+                    <div className="actions top-gap">
+                      <button className="text-button" onClick={() => editApplication(application)}>
+                        Изменить
+                      </button>
+                      <button className="text-button" onClick={() => toggleApplication(application)}>
+                        {application.enabled ? "Отключить" : "Включить"}
+                      </button>
+                      {application.client_type === "confidential" && (
+                        <button className="text-button danger" onClick={() => rotateSecret(application)}>
+                          Выпустить новый secret
+                        </button>
+                      )}
+                    </div>
+                  </article>
+                ))}
               </div>
             )}
           </section>
 
-          <section className="panel">
-            <h2>Параметры интеграции</h2>
+          <section className="panel" id="integration">
+            <p className="eyebrow">Интеграция</p>
+            <h2>Готовые параметры OpenID Connect</h2>
             <div className="integration-list">
-              <span>Issuer</span>
-              <code>{workspace.integration.issuer}</code>
-              <span>Authorize</span>
-              <code>{workspace.integration.authorization_endpoint}</code>
-              <span>Token</span>
-              <code>{workspace.integration.token_endpoint}</code>
-              <span>UserInfo</span>
-              <code>{workspace.integration.user_info_endpoint}</code>
-              <span>JWKS</span>
-              <code>{workspace.integration.jwks_url}</code>
+              <span>Issuer</span><CopyableCode value={workspace.integration.issuer} />
+              <span>Discovery</span><CopyableCode value={workspace.integration.discovery_url} />
+              <span>Authorize</span><CopyableCode value={workspace.integration.authorization_endpoint} />
+              <span>Token</span><CopyableCode value={workspace.integration.token_endpoint} />
+              <span>UserInfo</span><CopyableCode value={workspace.integration.user_info_endpoint} />
+              <span>JWKS</span><CopyableCode value={workspace.integration.jwks_url} />
+              <span>Logout</span><CopyableCode value={workspace.integration.end_session_endpoint} />
             </div>
+            {authorizationExample && (
+              <div className="top-gap">
+                <h3>Шаблон запроса Authorization Code + PKCE</h3>
+                <code className="secret">{authorizationExample}</code>
+                <CopyButton value={authorizationExample} label="Копировать шаблон" />
+              </div>
+            )}
           </section>
         </>
       )}
     </Shell>
+  );
+}
+
+function ApplicationEditor({
+  form,
+  supportedScopes,
+  saving,
+  editing,
+  onChange,
+  onSubmit,
+  onCancel,
+}: {
+  form: ApplicationForm;
+  supportedScopes: string[];
+  saving: boolean;
+  editing: boolean;
+  onChange: (value: ApplicationForm) => void;
+  onSubmit: (event: FormEvent) => void;
+  onCancel: () => void;
+}) {
+  return (
+    <form className="stack" onSubmit={onSubmit}>
+      <div className="grid two">
+        <label>
+          Название приложения
+          <input
+            required
+            minLength={2}
+            value={form.name}
+            onChange={(event) => onChange({ ...form, name: event.target.value })}
+          />
+        </label>
+        <label>
+          Тип клиента
+          <select
+            value={form.clientType}
+            disabled={editing}
+            onChange={(event) => {
+              const clientType = event.target.value as ApplicationForm["clientType"];
+              onChange({
+                ...form,
+                clientType,
+                tokenEndpointAuthMethod:
+                  clientType === "public" ? "none" : "client_secret_basic",
+              });
+            }}
+          >
+            <option value="confidential">Confidential — сервер хранит secret</option>
+            <option value="public">Public — SPA/mobile, только PKCE</option>
+          </select>
+          {editing && <small className="muted">Тип клиента нельзя менять после создания.</small>}
+        </label>
+      </div>
+      <label>
+        Описание для экрана согласия
+        <textarea
+          rows={3}
+          value={form.description}
+          onChange={(event) => onChange({ ...form, description: event.target.value })}
+        />
+      </label>
+      {form.clientType === "confidential" && (
+        <label>
+          Аутентификация token endpoint
+          <select
+            value={form.tokenEndpointAuthMethod}
+            disabled={editing}
+            onChange={(event) =>
+              onChange({
+                ...form,
+                tokenEndpointAuthMethod:
+                  event.target.value as ApplicationForm["tokenEndpointAuthMethod"],
+              })
+            }
+          >
+            <option value="client_secret_basic">client_secret_basic — рекомендуется</option>
+            <option value="client_secret_post">client_secret_post</option>
+          </select>
+          {editing && (
+            <small className="muted">Метод аутентификации нельзя менять после создания.</small>
+          )}
+        </label>
+      )}
+      <div className="grid two">
+        <label>
+          Callback URL — по одному в строке
+          <textarea
+            required
+            rows={5}
+            placeholder={"https://service.example.uz/auth/ods/callback\nhttp://localhost:3000/auth/ods/callback"}
+            value={form.redirectUris}
+            onChange={(event) => onChange({ ...form, redirectUris: event.target.value })}
+          />
+        </label>
+        <label>
+          URL после выхода — по одному в строке
+          <textarea
+            rows={5}
+            placeholder={"https://service.example.uz/\nhttp://localhost:3000/"}
+            value={form.postLogoutRedirectUris}
+            onChange={(event) =>
+              onChange({ ...form, postLogoutRedirectUris: event.target.value })
+            }
+          />
+        </label>
+      </div>
+      <fieldset className="scope-picker">
+        <legend>Доступ к данным пользователя</legend>
+        {supportedScopes.map((scope) => (
+          <label className="checkbox" key={scope}>
+            <input
+              type="checkbox"
+              checked={form.scopes.includes(scope)}
+              disabled={scope === "openid"}
+              onChange={(event) =>
+                onChange({
+                  ...form,
+                  scopes: event.target.checked
+                    ? [...form.scopes, scope]
+                    : form.scopes.filter((item) => item !== scope),
+                })
+              }
+            />
+            <span><code>{scope}</code> — {scopeLabels[scope] || scope}</span>
+          </label>
+        ))}
+      </fieldset>
+      <div className="actions">
+        <button className="button" disabled={saving}>
+          {saving ? "Сохраняем…" : editing ? "Сохранить изменения" : "Создать приложение"}
+        </button>
+        {editing && (
+          <button className="button secondary" type="button" onClick={onCancel}>
+            Отмена
+          </button>
+        )}
+      </div>
+    </form>
+  );
+}
+
+function applicationPayload(form: ApplicationForm) {
+  return {
+    name: form.name,
+    description: form.description || null,
+    redirect_uris: splitLines(form.redirectUris),
+    post_logout_redirect_uris: splitLines(form.postLogoutRedirectUris),
+    scopes: form.scopes,
+    client_type: form.clientType,
+    token_endpoint_auth_method: form.tokenEndpointAuthMethod,
+  };
+}
+
+function splitLines(value: string): string[] {
+  return value.split(/\r?\n/).map((item) => item.trim()).filter(Boolean);
+}
+
+function CopyableCode({ value }: { value: string }) {
+  return (
+    <div className="copyable-code">
+      <code>{value}</code>
+      <CopyButton value={value} label="Копировать" />
+    </div>
+  );
+}
+
+function CopyButton({ value, label }: { value: string; label: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      className="text-button"
+      type="button"
+      onClick={async () => {
+        await navigator.clipboard.writeText(value);
+        setCopied(true);
+        window.setTimeout(() => setCopied(false), 1500);
+      }}
+    >
+      {copied ? "Скопировано" : label}
+    </button>
   );
 }
 
