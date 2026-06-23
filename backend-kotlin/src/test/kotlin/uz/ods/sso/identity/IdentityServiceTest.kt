@@ -90,6 +90,42 @@ class IdentityServiceTest {
     }
 
     @Test
+    fun `repeated registration sends a fresh verification message for an unverified account`() {
+        val verifiedProperties = properties.copy(requireEmailVerification = true)
+        val verifiedService = IdentityService(
+            tenants,
+            users,
+            tokens,
+            history,
+            crypto,
+            mail,
+            audit,
+            events,
+            rateLimiter,
+            risk,
+            ephemeral,
+            sessions,
+            verifiedProperties,
+        )
+        val user = UserEntity(
+            tenantId = "tnt_1",
+            email = "user@example.com",
+            passwordHash = crypto.hashPassword("existing-password-value"),
+        ).apply { publicId = "usr_1" }
+        whenever(mail.available).thenReturn(true)
+        whenever(tenants.current()).thenReturn(tenant)
+        whenever(users.findByTenantIdAndEmailIgnoreCase("tnt_1", "user@example.com")).thenReturn(user)
+        whenever(tokens.save(any<AccountTokenEntity>())).thenAnswer { it.arguments[0] }
+
+        assertThat(
+            verifiedService.register(RegisterRequest("user@example.com", "long-enough-password"), request),
+        ).isTrue()
+
+        verify(tokens).invalidate(eq("usr_1"), eq("email_verification"), any())
+        verify(mail).sendVerification(eq("user@example.com"), any())
+    }
+
+    @Test
     fun `email verification and password reset consume valid opaque tokens`() {
         val user = UserEntity(
             tenantId = "tnt_1",

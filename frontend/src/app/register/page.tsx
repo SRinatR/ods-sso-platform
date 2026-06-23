@@ -18,6 +18,7 @@ function RegisterForm() {
   const [message, setMessage] = useState("");
   const [verificationRequired, setVerificationRequired] = useState(false);
   const [error, setError] = useState("");
+  const [resending, setResending] = useState(false);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -30,7 +31,7 @@ function RegisterForm() {
       setVerificationRequired(result.verification_required);
       setMessage(
         result.verification_required
-          ? "Аккаунт создан. Откройте письмо и подтвердите email."
+          ? "Запрос принят. Если email ожидает подтверждения, Resend принял новое письмо для доставки. Проверьте «Входящие» и «Спам»."
           : "Аккаунт создан. Теперь можно войти.",
       );
     } catch (cause) {
@@ -53,17 +54,33 @@ function RegisterForm() {
           {verificationRequired && (
             <button
               className="button secondary link-button"
+              disabled={resending}
               onClick={async () => {
-                await api("/api/v1/auth/resend-verification", {
-                  method: "POST",
-                  body: JSON.stringify({ email: form.email }),
-                });
-                setMessage("Письмо отправлено повторно. Проверьте также папку «Спам».");
+                setError("");
+                setResending(true);
+                try {
+                  await api("/api/v1/auth/resend-verification", {
+                    method: "POST",
+                    body: JSON.stringify({ email: form.email }),
+                  });
+                  setMessage(
+                    "Запрос повторной отправки принят. Если аккаунт существует и email ещё не подтверждён, Resend принял новое письмо для доставки.",
+                  );
+                } catch (cause) {
+                  setError(
+                    cause instanceof Error
+                      ? cause.message
+                      : "Почтовый сервис не принял письмо. Повторите позже.",
+                  );
+                } finally {
+                  setResending(false);
+                }
               }}
             >
-              Отправить письмо ещё раз
+              {resending ? "Передаём в Resend…" : "Отправить письмо ещё раз"}
             </button>
           )}
+          {error && <div className="alert error">{error}</div>}
         </>
       ) : (
         <form onSubmit={submit} className="stack">

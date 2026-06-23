@@ -337,6 +337,14 @@ code {
   margin-bottom: auto;
 }
 
+.product-name {
+  margin: 0.45rem 0 1.4rem;
+  color: var(--muted);
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 .sidebar nav a {
   padding: 0.72rem 0.8rem;
   border-radius: 9px;
@@ -608,6 +616,100 @@ th {
   overflow-wrap: anywhere;
 }
 
+.detail-list {
+  display: grid;
+  gap: 0.75rem;
+  margin: 1rem 0 0;
+}
+
+.detail-list div {
+  display: grid;
+  grid-template-columns: 90px 1fr;
+  gap: 1rem;
+}
+
+.detail-list dt {
+  color: var(--muted);
+}
+
+.detail-list dd {
+  margin: 0;
+}
+
+.scope-picker {
+  display: grid;
+  gap: 0.7rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.scope-picker legend {
+  padding: 0 0.4rem;
+  font-weight: 700;
+}
+
+.scope-picker .checkbox {
+  display: flex;
+  gap: 0.7rem;
+  align-items: center;
+}
+
+.application-list {
+  display: grid;
+  gap: 1rem;
+}
+
+.application-card {
+  padding: 1.1rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #0b1626;
+}
+
+.application-card h3 {
+  margin: 0 0 0.35rem;
+}
+
+.application-meta {
+  display: grid;
+  grid-template-columns: minmax(150px, 0.35fr) 1fr;
+  gap: 0.7rem 1rem;
+  margin-top: 1.2rem;
+}
+
+.application-meta > span {
+  color: var(--muted);
+}
+
+.application-meta > div {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.copyable-code {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.copyable-code code {
+  min-width: 0;
+}
+
+.secret-delivery {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.secret-delivery > span {
+  margin-top: 0.45rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
 .legal-page {
   max-width: 760px;
   margin: 5rem auto;
@@ -784,6 +886,15 @@ th {
 
   .integration-list {
     grid-template-columns: 1fr;
+  }
+
+  .application-meta,
+  .detail-list div {
+    grid-template-columns: 1fr;
+  }
+
+  .copyable-code {
+    display: grid;
   }
 
   .qr-setup {

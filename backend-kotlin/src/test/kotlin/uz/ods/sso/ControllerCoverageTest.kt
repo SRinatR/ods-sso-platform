@@ -163,7 +163,18 @@ class ControllerCoverageTest {
         verify(mfa).lockLoginChallenge("limited", MfaController.MFA_LOCK_DURATION)
 
         val partner = mock<PartnerService>()
-        val integration = PartnerIntegrationMetadata("issuer", "discovery", "authorize", "token", "userinfo", "jwks")
+        val integration = PartnerIntegrationMetadata(
+            "issuer",
+            "discovery",
+            "authorize",
+            "token",
+            "userinfo",
+            "jwks",
+            "logout",
+            listOf("openid"),
+            listOf("confidential", "public"),
+            listOf("client_secret_basic", "none"),
+        )
         val workspace = PartnerWorkspaceResponse(null, emptyList(), integration)
         val application = PartnerApplicationResponse(
             "appmeta_1",
@@ -172,8 +183,11 @@ class ControllerCoverageTest {
             "App",
             null,
             listOf("https://example.com/callback"),
+            listOf("https://example.com/"),
             listOf("openid"),
-            listOf("client_secret_basic"),
+            "confidential",
+            "client_secret_basic",
+            true,
             true,
             Instant.now(),
         )

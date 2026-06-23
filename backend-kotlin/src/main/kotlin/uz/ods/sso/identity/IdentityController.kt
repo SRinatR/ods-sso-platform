@@ -52,7 +52,9 @@ class IdentityController(
         request: HttpServletRequest,
     ): MessageResponse {
         identity.resendVerification(body.email, request)
-        return MessageResponse(message = "If the account exists and is unverified, a verification email was sent.")
+        return MessageResponse(
+            message = "If the account exists and is unverified, the email provider accepted a verification message.",
+        )
     }
 
     @PostMapping("/forgot-password")
@@ -61,7 +63,9 @@ class IdentityController(
         request: HttpServletRequest,
     ): MessageResponse {
         identity.forgotPassword(body.email, request)
-        return MessageResponse(message = "If the account exists, a password reset email was sent.")
+        return MessageResponse(
+            message = "If the account exists, the email provider accepted a password reset message.",
+        )
     }
 
     @PostMapping("/reset-password")

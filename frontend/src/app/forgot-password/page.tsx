@@ -19,7 +19,9 @@ export default function ForgotPasswordPage() {
         method: "POST",
         body: JSON.stringify({ email }),
       });
-      setMessage("Если аккаунт существует, письмо уже отправлено.");
+      setMessage(
+        "Запрос принят. Если аккаунт существует, Resend принял письмо со ссылкой для доставки. Проверьте «Входящие» и «Спам».",
+      );
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Не удалось отправить письмо");
     }
