@@ -57,6 +57,9 @@ import uz.ods.sso.persistence.UserConsentRepository
 import uz.ods.sso.persistence.TenantRepository
 import uz.ods.sso.persistence.UsedRefreshTokenRepository
 import uz.ods.sso.persistence.UserSessionRepository
+import uz.ods.sso.persistence.PartnerApplicationRepository
+import uz.ods.sso.persistence.PartnerMembershipRepository
+import uz.ods.sso.persistence.PartnerOrganizationRepository
 import uz.ods.sso.consent.MirroringAuthorizationConsentService
 import uz.ods.sso.tenant.TenantAwareRegisteredClientRepository
 import uz.ods.sso.security.CryptoService
@@ -301,7 +304,12 @@ class SecurityConfiguration(
         OAuth2AuthorizationServerConfiguration.jwtDecoder(jwkSource)
 
     @Bean
-    fun tokenCustomizer(users: UserRepository): OAuth2TokenCustomizer<JwtEncodingContext> =
+    fun tokenCustomizer(
+        users: UserRepository,
+        partnerApplications: PartnerApplicationRepository,
+        partnerMemberships: PartnerMembershipRepository,
+        partnerOrganizations: PartnerOrganizationRepository,
+    ): OAuth2TokenCustomizer<JwtEncodingContext> =
         OAuth2TokenCustomizer { context ->
             if (context.tokenType == OAuth2TokenType.ACCESS_TOKEN || context.tokenType.value == "id_token") {
                 val principal = context.getPrincipal<Authentication>()
@@ -314,6 +322,21 @@ class SecurityConfiguration(
                 if (OidcScopes.EMAIL in scopes) context.claims.claim("email", user.email)
                 val name = user.name
                 if (OidcScopes.PROFILE in scopes && name != null) context.claims.claim("name", name)
+                val partnerApplication = partnerApplications.findByRegisteredClientId(context.registeredClient.id)
+                if (partnerApplication != null) {
+                    val organization = partnerOrganizations.findByPublicId(partnerApplication.organizationId)
+                    val membership = partnerMemberships.findByOrganizationIdAndUserId(
+                        partnerApplication.organizationId,
+                        user.id,
+                    )?.takeIf { it.status == "active" }
+                    if (organization != null && organization.status == "active" && membership != null) {
+                        context.claims.claim("organization_id", organization.id)
+                        context.claims.claim("organization_slug", organization.slug)
+                        context.claims.claim("organization_role", membership.role)
+                        context.claims.claim("roles", listOf(membership.role))
+                        context.claims.claim("permissions", partnerPermissionsForRole(membership.role))
+                    }
+                }
                 val authorities = principal?.authorities.orEmpty().map { it.authority }.toSet()
                 val amr = when {
                     "AMR_WEBAUTHN" in authorities -> listOf("webauthn")
@@ -398,4 +421,18 @@ class SecurityConfiguration(
             .replace("-----END $type-----", "")
             .replace(Regex("\\s"), ""),
     )
+}
+
+internal fun partnerPermissionsForRole(role: String): List<String> = when (role) {
+    "owner" -> listOf(
+        "organization:manage",
+        "members:manage",
+        "applications:manage",
+        "content:read",
+        "content:write",
+    )
+    "admin" -> listOf("members:manage", "applications:manage", "content:read", "content:write")
+    "editor" -> listOf("content:read", "content:write")
+    "user" -> listOf("content:read", "content:use")
+    else -> listOf("content:read")
 }

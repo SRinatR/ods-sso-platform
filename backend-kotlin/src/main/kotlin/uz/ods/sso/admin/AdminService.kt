@@ -171,7 +171,14 @@ class AdminService(
 
     fun listUsers(request: HttpServletRequest, query: String?, offset: Int, limit: Int): List<UserResponse> {
         val principal = guard.require(request)
-        return users.search(principal.user.tenantId, query, PageRequest.of(offset / limit, limit)).map { it.toResponse() }
+        val pageable = PageRequest.of(offset / limit, limit)
+        val normalizedQuery = query?.trim()?.ifBlank { null }
+        val result = if (normalizedQuery == null) {
+            users.findByTenantIdOrderByCreatedAtDesc(principal.user.tenantId, pageable)
+        } else {
+            users.searchByText(principal.user.tenantId, normalizedQuery, pageable)
+        }
+        return result.map { it.toResponse() }
     }
 
     @Transactional

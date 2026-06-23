@@ -89,7 +89,8 @@ class AdminServiceTest {
         whenever(loginHistory.countByTenantIdAndSuccessFalseAndCreatedAtAfter(eq("tnt_1"), any())).thenReturn(3)
         whenever(auditLogs.countByTenantIdAndCreatedAtAfter(eq("tnt_1"), any())).thenReturn(12)
         val user = UserEntity(tenantId = "tnt_1", email = "user@example.com").apply { publicId = "usr_1" }
-        whenever(users.search(eq("tnt_1"), eq("user"), any<Pageable>())).thenReturn(listOf(user))
+        whenever(users.searchByText(eq("tnt_1"), eq("user"), any<Pageable>())).thenReturn(listOf(user))
+        whenever(users.findByTenantIdOrderByCreatedAtDesc(eq("tnt_1"), any<Pageable>())).thenReturn(listOf(user))
         val session = UserSessionEntity(tenantId = "tnt_1", userId = "usr_1").apply { publicId = "ses_1" }
         whenever(sessions.findForAdmin(eq("tnt_1"), eq("usr_1"), any<Pageable>())).thenReturn(listOf(session))
         whenever(auditLogs.search(eq("tnt_1"), eq("LOGIN"), eq("usr_1"), any<Pageable>())).thenReturn(
@@ -110,6 +111,7 @@ class AdminServiceTest {
 
         assertThat(service.dashboard(request)).isEqualTo(AdminDashboardResponse(10, 8, 4, 2, 3, 12))
         assertThat(service.listUsers(request, "user", 0, 20).single().id).isEqualTo("usr_1")
+        assertThat(service.listUsers(request, null, 0, 20).single().id).isEqualTo("usr_1")
         assertThat(service.listSessions(request, "usr_1").single()["id"]).isEqualTo("ses_1")
         assertThat(service.audit(request, "LOGIN", "usr_1", 20).single().id).isEqualTo("aud_1")
         assertThat(service.policies(request).single().key).isEqualTo("password")

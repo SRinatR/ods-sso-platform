@@ -42,4 +42,17 @@ class PartnerController(
         @PathVariable applicationId: String,
         request: HttpServletRequest,
     ): PartnerApplicationResponse = service.rotateSecret(applicationId, request)
+
+    @PostMapping("/members")
+    fun createMember(
+        @Valid @RequestBody body: PartnerMemberCreate,
+        request: HttpServletRequest,
+    ): PartnerMemberResponse = service.createMember(body, request)
+
+    @PatchMapping("/members/{membershipId}")
+    fun updateMember(
+        @PathVariable membershipId: String,
+        @Valid @RequestBody body: PartnerMemberUpdate,
+        request: HttpServletRequest,
+    ): PartnerMemberResponse = service.updateMember(membershipId, body, request)
 }

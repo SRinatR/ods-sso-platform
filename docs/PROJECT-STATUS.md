@@ -25,6 +25,8 @@ Last updated: 2026-06-23.
 | Actuator, Prometheus and OTLP | Implemented |
 | Admin Console API compatibility | Implemented |
 | Partner organization self-registration | Implemented |
+| Multiple organizations per account and subdomain-scoped selection | Implemented |
+| Partner member roles in OIDC claims | Implemented |
 | Partner self-service OIDC configuration and secret lifecycle | Implemented |
 | Isolated personal, counterparty and administration navigation | Implemented |
 | RFC 7807-compatible API Problem Details | Implemented |
@@ -34,6 +36,8 @@ Last updated: 2026-06-23.
 | LDAP, Entra ID and SAML adapters | Not implemented |
 | KMS/HSM/Vault adapters | Metadata only |
 | SCIM provisioning | Not implemented |
+| Partner analytics dashboard | Planned |
+| Cross-device QR login | Planned; protocol documented |
 
 ## Verified locally
 

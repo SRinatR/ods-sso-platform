@@ -85,6 +85,30 @@ data class PartnerApplicationResponse(
     val createdAt: Instant,
 )
 
+data class PartnerMemberCreate(
+    @field:Email
+    val email: String,
+    @field:Pattern(regexp = "^(editor|user|viewer)$")
+    val role: String,
+)
+
+data class PartnerMemberUpdate(
+    @field:Pattern(regexp = "^(editor|user|viewer)$")
+    val role: String? = null,
+    @field:Pattern(regexp = "^(active|disabled)$")
+    val status: String? = null,
+)
+
+data class PartnerMemberResponse(
+    val id: String,
+    val userId: String,
+    val email: String,
+    val name: String?,
+    val role: String,
+    val status: String,
+    val createdAt: Instant,
+)
+
 data class PartnerIntegrationMetadata(
     val issuer: String,
     val discoveryUrl: String,
@@ -102,4 +126,6 @@ data class PartnerWorkspaceResponse(
     val organization: PartnerOrganizationResponse?,
     val applications: List<PartnerApplicationResponse>,
     val integration: PartnerIntegrationMetadata,
+    val organizations: List<PartnerOrganizationResponse> = emptyList(),
+    val members: List<PartnerMemberResponse> = emptyList(),
 )

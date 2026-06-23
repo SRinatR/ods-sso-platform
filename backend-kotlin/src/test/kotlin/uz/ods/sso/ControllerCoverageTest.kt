@@ -43,6 +43,9 @@ import uz.ods.sso.partner.PartnerApplicationResponse
 import uz.ods.sso.partner.PartnerApplicationUpdate
 import uz.ods.sso.partner.PartnerController
 import uz.ods.sso.partner.PartnerIntegrationMetadata
+import uz.ods.sso.partner.PartnerMemberCreate
+import uz.ods.sso.partner.PartnerMemberResponse
+import uz.ods.sso.partner.PartnerMemberUpdate
 import uz.ods.sso.partner.PartnerOrganizationCreate
 import uz.ods.sso.partner.PartnerService
 import uz.ods.sso.partner.PartnerWorkspaceResponse
@@ -191,11 +194,22 @@ class ControllerCoverageTest {
             true,
             Instant.now(),
         )
+        val member = PartnerMemberResponse(
+            "mem_1",
+            "usr_2",
+            "member@example.com",
+            "Member",
+            "editor",
+            "active",
+            Instant.now(),
+        )
         whenever(partner.workspace(any())).thenReturn(workspace)
         whenever(partner.createOrganization(any(), any())).thenReturn(workspace)
         whenever(partner.createApplication(any(), any())).thenReturn(application)
         whenever(partner.updateApplication(any(), any(), any())).thenReturn(application)
         whenever(partner.rotateSecret(any(), any())).thenReturn(application)
+        whenever(partner.createMember(any(), any())).thenReturn(member)
+        whenever(partner.updateMember(any(), any(), any())).thenReturn(member)
         val partnerController = PartnerController(partner)
         val organizationCreate = PartnerOrganizationCreate("Org", "org-code", null, null, "owner@example.com")
         val applicationCreate = PartnerApplicationCreate("App", null, listOf("https://example.com/callback"))
@@ -206,6 +220,10 @@ class ControllerCoverageTest {
         assertThat(partnerController.updateApplication("appmeta_1", PartnerApplicationUpdate(enabled = false), request))
             .isSameAs(application)
         assertThat(partnerController.rotateSecret("appmeta_1", request)).isSameAs(application)
+        assertThat(partnerController.createMember(PartnerMemberCreate("member@example.com", "editor"), request))
+            .isSameAs(member)
+        assertThat(partnerController.updateMember("mem_1", PartnerMemberUpdate(status = "disabled"), request))
+            .isSameAs(member)
     }
 
     @Test
