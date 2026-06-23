@@ -8,20 +8,21 @@ branches.
 - immutable SEC-BASE regression validation;
 - Kotlin tests and the 80% JaCoCo line-coverage gate;
 - executable Spring Boot JAR build;
-- Docker 26+ availability and production image build with CDS training;
+- Docker 26+ availability and production backend and MinIO image builds;
 - frontend ESLint, TypeScript and Next.js production build.
 
 ## Release procedure
 
-Production deployment remains controlled and explicit:
+Production deployment is controlled by the protected `prod` branch:
 
-1. Merge or select the exact reviewed commit.
-2. Confirm the GitHub Actions quality gate is green.
-3. Open **Actions → Deploy production → Run workflow** for the reviewed commit.
-4. GitHub installs the restricted runtime environment and runs `scripts/deploy.sh` over SSH.
-5. Verify backup creation, the latest Flyway migration, UUIDv7 schema assertions, `/ready`,
+1. Merge the reviewed change into `main`.
+2. Wait for the `main` quality gate to pass.
+3. Review and merge the automatically created `main` to `prod` promotion pull request.
+4. The `prod` quality gate rebuilds and verifies the exact merge commit.
+5. GitHub installs the restricted runtime environment and runs `scripts/deploy.sh` over SSH.
+6. Verify backup creation, the latest Flyway migration, UUIDv7 schema assertions, `/ready`,
    OIDC Discovery, JWKS and the public UI.
-6. Execute the complete Authorization Code + PKCE OIDC end-to-end flow.
+7. Execute the complete Authorization Code + PKCE OIDC end-to-end flow.
 
 The repository `.env`, private keys, passwords and client secrets are never committed. GitHub
 Environment `production` is the source of truth. The generated VPS file
