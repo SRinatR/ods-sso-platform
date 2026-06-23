@@ -58,7 +58,12 @@ export function passkeysSupported(): boolean {
   return typeof window !== "undefined" && "PublicKeyCredential" in window;
 }
 
-export async function registerPasskey(label: string): Promise<void> {
+export type PasskeyAttachment = "platform" | "cross-platform";
+
+export async function registerPasskey(
+  label: string,
+  attachment: PasskeyAttachment = "platform",
+): Promise<void> {
   if (!passkeysSupported()) throw new Error("Этот браузер не поддерживает passkey");
   const optionsJson = await requireJson<RegistrationOptionsJson>(
     await post("/webauthn/register/options"),
@@ -72,6 +77,13 @@ export async function registerPasskey(label: string): Promise<void> {
       ...credential,
       id: decodeBase64Url(credential.id),
     })),
+    authenticatorSelection: {
+      ...optionsJson.authenticatorSelection,
+      authenticatorAttachment: attachment,
+      residentKey: "required",
+      requireResidentKey: true,
+      userVerification: "required",
+    },
   };
   const credential = (await navigator.credentials.create({ publicKey })) as PublicKeyCredential | null;
   if (!credential) throw new Error("Создание passkey отменено");

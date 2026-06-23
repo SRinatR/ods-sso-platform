@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { Shell } from "@/components/Shell";
-import { api } from "@/lib/api";
+import { api, ApiRequestError } from "@/lib/api";
 import { AUTH_URL, onAuth } from "@/lib/domains";
 
 type Organization = {
@@ -46,6 +46,7 @@ type Workspace = {
 
 export default function PartnerPage() {
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [secret, setSecret] = useState("");
   const [organizationForm, setOrganizationForm] = useState({
@@ -72,11 +73,17 @@ export default function PartnerPage() {
           return;
         }
         setWorkspace(loaded);
+        setLoading(false);
       })
-      .catch(() => {
-        window.location.href = onAuth(
-          `/login?return_to=${encodeURIComponent(window.location.href)}`,
-        );
+      .catch((cause) => {
+        if (cause instanceof ApiRequestError && cause.status === 401) {
+          window.location.href = onAuth(
+            `/login?return_to=${encodeURIComponent(window.location.href)}`,
+          );
+          return;
+        }
+        setLoading(false);
+        setError(cause instanceof Error ? cause.message : "Кабинет временно недоступен");
       });
   }
 
@@ -151,15 +158,15 @@ export default function PartnerPage() {
       subtitle="Подключение сервисов к единой авторизации ODS"
     >
       {error && <div className="alert error">{error}</div>}
-      {!workspace && <div className="panel">Загрузка…</div>}
+      {loading && <div className="panel">Загрузка…</div>}
 
       {workspace && !workspace.organization && (
         <section className="panel narrow">
           <p className="eyebrow">Шаг 1</p>
           <h2>Зарегистрируйте организацию</h2>
           <p className="muted">
-            Ваш личный аккаунт станет владельцем кабинета контрагента. Для сайта tatarlar.uz
-            будет предложен адрес tatarlar.ods.uz.
+            Ваш личный аккаунт станет владельцем кабинета контрагента. Адрес кабинета
+            формируется автоматически из сайта организации: company.uz → company.ods.uz.
           </p>
           <form className="stack" onSubmit={createOrganization}>
             <label>
@@ -177,7 +184,7 @@ export default function PartnerPage() {
               Адрес кабинета
               <input
                 pattern="[a-z0-9][a-z0-9-]{2,62}"
-                placeholder="tatarlar"
+                placeholder="company"
                 value={organizationForm.slug}
                 onChange={(event) =>
                   setOrganizationForm({
@@ -206,7 +213,7 @@ export default function PartnerPage() {
               <input
                 type="text"
                 inputMode="url"
-                placeholder="tatarlar.uz"
+                placeholder="company.uz"
                 value={organizationForm.websiteUrl}
                 onChange={(event) => {
                   const websiteUrl = event.target.value;

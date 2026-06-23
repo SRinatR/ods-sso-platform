@@ -85,7 +85,7 @@ function LoginForm() {
           {passkeysSupported() && (
             <>
               <button className="button passkey-button" onClick={submitPasskey} disabled={loading}>
-                Войти по passkey
+                Войти с помощью устройства или телефона
               </button>
               <div className="auth-divider"><span>или email и пароль</span></div>
             </>

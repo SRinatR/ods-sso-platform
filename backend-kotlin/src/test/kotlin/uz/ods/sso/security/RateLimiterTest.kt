@@ -65,6 +65,14 @@ class RateLimiterTest {
         )
     }
 
+    @Test
+    fun `public account limits allow normal retries without hour-long lockout`() {
+        assertThat(RateLimiter.REGISTRATION_BURST.requests).isEqualTo(10)
+        assertThat(RateLimiter.REGISTRATION_BURST.window).isEqualTo(Duration.ofMinutes(10))
+        assertThat(RateLimiter.REGISTRATION_DAILY.requests).isEqualTo(50)
+        assertThat(RateLimiter.EMAIL_ACTION.window).isEqualTo(Duration.ofMinutes(15))
+    }
+
     private fun properties(environment: String) = OdsProperties(
         environment = environment,
         sessionSecret = "session-secret-that-is-longer-than-32-characters",

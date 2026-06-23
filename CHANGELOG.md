@@ -11,6 +11,8 @@ All notable changes to the ODS SSO Platform are documented here.
 - Immutable SEC-BASE verification script and repository security policy.
 - Passkey-backed fresh step-up for administrative and MFA-management operations.
 - Self-service TOTP disable and backup-code regeneration in the security cabinet.
+- Device-specific and cross-device passkey enrollment for laptops, phones and security keys.
+- Public human-readable service status and expanded privacy pages.
 
 ### Changed
 
@@ -25,3 +27,5 @@ All notable changes to the ODS SSO Platform are documented here.
 - Passkey reauthentication upgrades the current session instead of creating duplicate sessions.
 - Passkey sessions no longer advertise the password authentication factor.
 - Disabling TOTP revokes other sessions and safely downgrades the current password session.
+- Registration uses separate burst and daily anti-abuse limits instead of a three-attempt hourly lockout.
+- Administrative sessions explain the required passkey or TOTP setup instead of appearing logged out.
