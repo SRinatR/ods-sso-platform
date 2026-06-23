@@ -32,5 +32,6 @@ All notable changes to the ODS SSO Platform are documented here.
 - Registration uses separate burst and daily anti-abuse limits instead of a three-attempt hourly lockout.
 - Repeated registration of an unverified account issues a fresh verification message.
 - Session and connected-application pages redirect only after an actual authentication failure.
+- Session activity uses an atomic throttled touch, avoiding optimistic-lock races between parallel account requests.
 - Email screens distinguish provider acceptance from guaranteed mailbox delivery.
 - Administrative sessions explain the required passkey or TOTP setup instead of appearing logged out.
