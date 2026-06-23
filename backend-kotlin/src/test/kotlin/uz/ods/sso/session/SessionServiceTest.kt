@@ -57,6 +57,7 @@ class SessionServiceTest {
         assertThat(entity.internalId.version()).isEqualTo(7)
         assertThat(entity.id).startsWith("ses_")
         assertThat(entity.mfaCompletedAt).isNotNull()
+        assertThat(entity.stepUpAt).isNull()
         val cookie = argumentCaptor<Cookie>()
         verify(response, times(2)).addCookie(cookie.capture())
         assertThat(cookie.firstValue.maxAge).isZero()
@@ -90,6 +91,31 @@ class SessionServiceTest {
         assertThat(principal.authenticationMethod).isEqualTo("password_totp")
         assertThat(service.authorities(principal).map { it.authority })
             .contains("ROLE_USER", "TENANT_tnt_1", "FACTOR_PASSWORD", "AMR_OTP")
+    }
+
+    @Test
+    fun `passkey session is immediately stepped up without password authority`() {
+        val request = mock<HttpServletRequest>()
+        val response = mock<HttpServletResponse>()
+        whenever(request.remoteAddr).thenReturn("127.0.0.1")
+        whenever(sessions.save(any<UserSessionEntity>())).thenAnswer { it.arguments[0] }
+
+        val entity = service.create(request, response, user, true, 25, null, "passkey")
+        val principal = OdsPrincipal(
+            userId = user.id,
+            tenantId = user.tenantId,
+            sessionId = entity.id,
+            email = user.email,
+            role = user.role,
+            mfaCompleted = true,
+            authenticationMethod = "passkey",
+            authenticatedAt = entity.createdAt,
+        )
+
+        assertThat(entity.stepUpAt).isNotNull()
+        assertThat(service.authorities(principal).map { it.authority })
+            .contains("ROLE_USER", "TENANT_tnt_1", "AMR_WEBAUTHN")
+            .doesNotContain("FACTOR_PASSWORD")
     }
 
     @Test
@@ -127,5 +153,39 @@ class SessionServiceTest {
         verify(response, times(2)).addCookie(cookie.capture())
         assertThat(cookie.allValues).allSatisfy { assertThat(it.maxAge).isZero() }
         assertThat(cookie.allValues.map { it.domain }).containsExactly("ods.uz", null)
+    }
+
+    @Test
+    fun `passkey reauthentication upgrades current session and MFA disable downgrades password sessions`() {
+        val passkeySession = UserSessionEntity(
+            tenantId = "tnt_1",
+            userId = "usr_1",
+            authenticationMethod = "password",
+        ).apply { publicId = "ses_passkey" }
+        whenever(sessions.findByPublicId("ses_passkey")).thenReturn(passkeySession)
+
+        service.markPasskeyAuthenticated("ses_passkey", 25, "device")
+
+        assertThat(passkeySession.authenticationMethod).isEqualTo("passkey")
+        assertThat(passkeySession.mfaCompletedAt).isNotNull()
+        assertThat(passkeySession.stepUpAt).isNotNull()
+        assertThat(passkeySession.riskScore).isEqualTo(25)
+        assertThat(passkeySession.deviceId).isEqualTo("device")
+
+        val passwordSession = UserSessionEntity(
+            tenantId = "tnt_1",
+            userId = "usr_1",
+            authenticationMethod = "password_totp",
+            mfaCompletedAt = Instant.now(),
+            stepUpAt = Instant.now(),
+        ).apply { publicId = "ses_password" }
+        whenever(sessions.findByPublicIdAndUserId("ses_password", "usr_1")).thenReturn(passwordSession)
+
+        service.downgradeAfterMfaDisable("usr_1", "ses_password")
+
+        verify(sessions).revokeAll(eq("usr_1"), any(), eq("ses_password"))
+        assertThat(passwordSession.authenticationMethod).isEqualTo("password")
+        assertThat(passwordSession.mfaCompletedAt).isNull()
+        assertThat(passwordSession.stepUpAt).isNull()
     }
 }

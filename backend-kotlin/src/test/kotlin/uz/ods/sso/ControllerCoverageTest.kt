@@ -53,6 +53,7 @@ import uz.ods.sso.persistence.UserSessionEntity
 import uz.ods.sso.persistence.UserSessionRepository
 import uz.ods.sso.security.CryptoService
 import uz.ods.sso.security.RateLimiter
+import uz.ods.sso.security.StepUpService
 import uz.ods.sso.session.AccountController
 import uz.ods.sso.session.CurrentPrincipal
 import uz.ods.sso.session.LoginHistoryResponse
@@ -89,16 +90,14 @@ class ControllerCoverageTest {
     fun `identity controller delegates account operations`() {
         val identity = mock<IdentityService>()
         val sessions = mock<SessionService>()
-        val mfa = mock<MfaService>()
-        val crypto = mock<CryptoService>()
+        val stepUp = mock<StepUpService>()
         val audit = mock<AuditService>()
         val properties = properties()
-        val controller = IdentityController(identity, sessions, mfa, crypto, audit, properties)
+        val controller = IdentityController(identity, sessions, stepUp, audit)
         whenever(identity.register(any(), any())).thenReturn(false)
         whenever(identity.login(any(), any(), any())).thenReturn(LoginResponse(userId = "usr_1"))
         whenever(sessions.current()).thenReturn(principal)
         whenever(sessions.revokeAll("usr_1")).thenReturn(2)
-        whenever(crypto.matchesPassword("password", "hash")).thenReturn(true)
 
         assertThat(controller.register(RegisterRequest("user@example.com", "password-value"), request).statusCode.value())
             .isEqualTo(201)
@@ -111,8 +110,7 @@ class ControllerCoverageTest {
         assertThat(controller.logout(request, response).ok).isTrue()
         assertThat(controller.logoutAll(request, response).ok).isTrue()
         assertThat(controller.stepUp(StepUpRequest("password", "123456"), request).ok).isTrue()
-        verify(mfa).verifyStepUp(user, "123456")
-        verify(sessions).markStepUp("ses_1")
+        verify(stepUp).verifyAndMark(principal, "password", "123456")
     }
 
     @Test
@@ -120,7 +118,7 @@ class ControllerCoverageTest {
         val mfa = mock<MfaService>()
         val identity = mock<IdentityService>()
         val sessions = mock<SessionService>()
-        val crypto = mock<CryptoService>()
+        val stepUp = mock<StepUpService>()
         val audit = mock<AuditService>()
         val limiter = mock<RateLimiter>()
         val properties = properties()
@@ -132,9 +130,8 @@ class ControllerCoverageTest {
         whenever(sessions.current()).thenReturn(principal)
         whenever(mfa.setup(user)).thenReturn("secret" to "otpauth://totp/test")
         whenever(mfa.enable(user, "123456")).thenReturn(listOf("backup"))
-        whenever(crypto.matchesPassword("password", "hash")).thenReturn(true)
         whenever(mfa.regenerateBackupCodes("usr_1")).thenReturn(listOf("backup2"))
-        val mfaController = MfaController(mfa, identity, sessions, crypto, audit, limiter)
+        val mfaController = MfaController(mfa, identity, sessions, stepUp, audit, limiter)
 
         assertThat(
             mfaController.verify(MfaChallengeRequest("challenge", "123456", "totp"), request, response).userId,
@@ -144,6 +141,10 @@ class ControllerCoverageTest {
         verify(limiter).enforce(RateLimiter.MFA, "setup:usr_1")
         assertThat(mfaController.regenerate(StepUpRequest("password", "123456"), request))
             .isEqualTo(BackupCodesResponse(listOf("backup2")))
+        assertThat(mfaController.disable(StepUpRequest("password", "123456"), request).ok).isTrue()
+        verify(stepUp, org.mockito.kotlin.times(2)).verifyAndMark(principal, "password", "123456")
+        verify(mfa).reset(user)
+        verify(sessions).downgradeAfterMfaDisable("usr_1", "ses_1")
 
         user.lockedUntil = Instant.now().plusSeconds(MfaController.MFA_LOCK_DURATION.seconds)
         whenever(mfa.loginChallengeRateLimitIdentity("limited")).thenReturn("usr_1")

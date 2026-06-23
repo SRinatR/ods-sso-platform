@@ -249,6 +249,23 @@ class IdentityService(
             throw AppException(HttpStatus.FORBIDDEN, "risk_denied", "Login was blocked by risk policy")
         }
         risk.trust(user.id, riskResult.fingerprint)
+        val existing = sessions.fromRequest(request)
+        if (existing?.userId == user.id) {
+            sessions.markPasskeyAuthenticated(existing.sessionId, riskResult.score, riskResult.fingerprint)
+            user.lastLoginAt = Instant.now()
+            audit.write(
+                user.tenantId,
+                request,
+                "PASSKEY_REAUTHENTICATED",
+                user.id,
+                user.id,
+                details = mapOf("session_id" to existing.sessionId, "risk_score" to riskResult.score),
+            )
+            return LoginResponse(userId = user.id, email = user.email)
+        }
+        if (existing != null) {
+            sessions.revoke(existing.userId, existing.sessionId)
+        }
         return completeLogin(
             user,
             request,

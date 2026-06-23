@@ -6,9 +6,17 @@ import { FormEvent, useEffect, useState } from "react";
 import { Shell } from "@/components/Shell";
 import { api } from "@/lib/api";
 import { loginUrl } from "@/lib/domains";
-import { passkeysSupported, registerPasskey } from "@/lib/passkeys";
+import {
+  authenticateWithPasskey,
+  passkeysSupported,
+  registerPasskey,
+} from "@/lib/passkeys";
 
-type User = { role: string; mfa_enabled: boolean };
+type User = {
+  role: string;
+  mfa_enabled: boolean;
+  authentication_method?: string;
+};
 type Setup = { secret: string; provisioning_uri: string; expires_in: number };
 type Passkey = {
   id: string;
@@ -27,6 +35,8 @@ export default function SecurityPage() {
   const [backupCodes, setBackupCodes] = useState<string[]>([]);
   const [passkeys, setPasskeys] = useState<Passkey[]>([]);
   const [passkeyLabel, setPasskeyLabel] = useState("Основное устройство");
+  const [password, setPassword] = useState("");
+  const [stepUpCode, setStepUpCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -102,6 +112,68 @@ export default function SecurityPage() {
       setMessage("Passkey удалён");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Passkey не удалён");
+    }
+  }
+
+  async function sensitiveRequest<T>(path: string): Promise<T> {
+    let body: { password?: string; code?: string } = { password, code: stepUpCode };
+    if (user?.authentication_method === "passkey" && passkeysSupported()) {
+      await authenticateWithPasskey();
+      body = {};
+      setUser(await api<User>("/api/v1/auth/me"));
+    } else if (!password || !/^\d{6}$/.test(stepUpCode)) {
+      throw new Error("Введите пароль и текущий шестизначный TOTP-код");
+    }
+    return api<T>(path, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  }
+
+  async function regenerateBackupCodes() {
+    setBusy(true);
+    setError("");
+    setMessage("");
+    try {
+      const result = await sensitiveRequest<{ backup_codes: string[] }>(
+        "/api/v1/auth/mfa/backup/regenerate",
+      );
+      setBackupCodes(result.backup_codes);
+      setPassword("");
+      setStepUpCode("");
+      setMessage("Новые резервные коды созданы. Старые коды больше не действуют.");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Коды не обновлены");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function disableOtp() {
+    if (!window.confirm("Отключить OTP и отозвать остальные активные сессии?")) return;
+    setBusy(true);
+    setError("");
+    setMessage("");
+    try {
+      await sensitiveRequest("/api/v1/auth/mfa/totp/disable");
+      setUser((current) =>
+        current
+          ? {
+              ...current,
+              mfa_enabled: false,
+              authentication_method:
+                current.authentication_method === "passkey" ? "passkey" : "password",
+            }
+          : current,
+      );
+      setBackupCodes([]);
+      setPassword("");
+      setStepUpCode("");
+      setMessage("OTP отключён. Остальные активные сессии отозваны.");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "OTP не отключён");
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -250,6 +322,58 @@ export default function SecurityPage() {
               {backupCodes.map((item) => (
                 <code key={item}>{item}</code>
               ))}
+            </div>
+          </div>
+        )}
+        {user?.mfa_enabled && (
+          <div className="stack top-gap">
+            <p className="muted">
+              Для изменения OTP подтвердите личность. В passkey-сессии откроется системное
+              подтверждение устройства; в обычной сессии нужны пароль и текущий TOTP-код.
+            </p>
+            {(user.authentication_method !== "passkey" || !passkeysSupported()) && (
+              <div className="grid two">
+                <label>
+                  Пароль
+                  <input
+                    type="password"
+                    autoComplete="current-password"
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                  />
+                </label>
+                <label>
+                  Текущий TOTP-код
+                  <input
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    pattern="\d{6}"
+                    maxLength={6}
+                    value={stepUpCode}
+                    onChange={(event) =>
+                      setStepUpCode(event.target.value.replace(/\D/g, "").slice(0, 6))
+                    }
+                  />
+                </label>
+              </div>
+            )}
+            <div className="actions">
+              <button
+                className="button secondary"
+                type="button"
+                onClick={regenerateBackupCodes}
+                disabled={busy}
+              >
+                Обновить резервные коды
+              </button>
+              <button
+                className="button danger"
+                type="button"
+                onClick={disableOtp}
+                disabled={busy}
+              >
+                Отключить OTP
+              </button>
             </div>
           </div>
         )}
