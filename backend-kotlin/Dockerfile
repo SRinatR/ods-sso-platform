@@ -32,7 +32,7 @@ RUN java \
     -Xint \
     -Xms128m \
     -Xmx512m \
-    -XX:+UseZGC \
+    -XX:+UseG1GC \
     -XX:ArchiveClassesAtExit=/app/application.jsa \
     -Dspring.context.exit=onRefresh \
     -jar /app/application.jar \
@@ -67,4 +67,4 @@ EXPOSE 8000
 HEALTHCHECK --interval=15s --timeout=5s --start-period=30s --retries=5 \
   CMD ["curl", "--fail", "http://127.0.0.1:8000/health"]
 
-ENTRYPOINT ["java", "-Xms128m", "-Xmx512m", "-XX:+UseZGC", "-XX:SharedArchiveFile=/app/application.jsa", "-jar", "/app/application.jar"]
+ENTRYPOINT ["java", "-Xms128m", "-Xmx512m", "-XX:+UseG1GC", "-XX:SharedArchiveFile=/app/application.jsa", "-jar", "/app/application.jar"]
