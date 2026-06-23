@@ -12,10 +12,7 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 import uz.ods.sso.audit.AuditService
-import uz.ods.sso.config.OdsProperties
-import uz.ods.sso.mfa.MfaService
-import uz.ods.sso.security.CryptoService
-import uz.ods.sso.security.RateLimiter
+import uz.ods.sso.security.StepUpService
 import uz.ods.sso.session.SessionService
 import uz.ods.sso.shared.AppException
 import java.time.Instant
@@ -25,10 +22,8 @@ import java.time.Instant
 class IdentityController(
     private val identity: IdentityService,
     private val sessions: SessionService,
-    private val mfa: MfaService,
-    private val crypto: CryptoService,
+    private val stepUp: StepUpService,
     private val audit: AuditService,
-    private val properties: OdsProperties,
 ) {
     @PostMapping("/register")
     fun register(
@@ -122,14 +117,12 @@ class IdentityController(
         request: HttpServletRequest,
     ): MessageResponse {
         val principal = sessions.current()
-        if (!crypto.matchesPassword(body.password, principal.user.passwordHash)) {
+        try {
+            stepUp.verifyAndMark(principal, body.password, body.code)
+        } catch (exception: AppException) {
             audit.write(principal.user.tenantId, request, "STEP_UP_FAILED", principal.user.id, principal.user.id)
-            throw AppException(HttpStatus.UNAUTHORIZED, "invalid_credentials", "Step-up authentication failed")
+            throw exception
         }
-        if (principal.session.authenticationMethod != "passkey") {
-            mfa.verifyStepUp(principal.user, body.code)
-        }
-        sessions.markStepUp(principal.session.id)
         audit.write(principal.user.tenantId, request, "STEP_UP_COMPLETED", principal.user.id, principal.user.id)
         return MessageResponse(message = "Step-up authentication completed")
     }

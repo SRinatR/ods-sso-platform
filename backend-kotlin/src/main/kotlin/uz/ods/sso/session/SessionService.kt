@@ -71,6 +71,7 @@ class SessionService(
                 expiresAt = now.plus(properties.sessionTtl, ChronoUnit.SECONDS),
                 mfaCompletedAt = now.takeIf { mfaCompleted },
                 authenticationMethod = authenticationMethod,
+                stepUpAt = now.takeIf { authenticationMethod == "passkey" },
                 riskScore = riskScore,
             ).apply { publicId = id },
         )
@@ -136,14 +137,18 @@ class SessionService(
     fun authorities(principal: OdsPrincipal) = listOf(
         SimpleGrantedAuthority("ROLE_${principal.role.uppercase()}"),
         SimpleGrantedAuthority("TENANT_${principal.tenantId}"),
-        FactorGrantedAuthority.withAuthority(FactorGrantedAuthority.PASSWORD_AUTHORITY)
-            .issuedAt(principal.authenticatedAt)
-            .build(),
     ) + when (principal.authenticationMethod) {
         "passkey" -> listOf(SimpleGrantedAuthority("AMR_WEBAUTHN"))
-        "password_totp" -> listOf(SimpleGrantedAuthority("AMR_OTP"))
-        else -> emptyList()
+        "password_totp" -> listOf(passwordAuthority(principal), SimpleGrantedAuthority("AMR_OTP"))
+        else -> listOf(passwordAuthority(principal))
     }
+
+    fun fromRequest(request: HttpServletRequest): OdsPrincipal? =
+        request.cookies.orEmpty()
+            .asSequence()
+            .filter { it.name == COOKIE_NAME }
+            .mapNotNull { authenticate(it.value) }
+            .firstOrNull()
 
     @Transactional
     fun revoke(userId: String, sessionId: String): Boolean {
@@ -170,6 +175,31 @@ class SessionService(
         session.mfaCompletedAt = Instant.now()
     }
 
+    @Transactional
+    fun markPasskeyAuthenticated(sessionId: String, riskScore: Int, deviceId: String?) {
+        val session = sessions.findByPublicId(sessionId) ?: throw
+            AppException(HttpStatus.UNAUTHORIZED, "not_authenticated", "Authentication is required")
+        val now = Instant.now()
+        session.authenticationMethod = "passkey"
+        session.mfaCompletedAt = now
+        session.stepUpAt = now
+        session.lastSeenAt = now
+        session.riskScore = riskScore
+        session.deviceId = deviceId
+    }
+
+    @Transactional
+    fun downgradeAfterMfaDisable(userId: String, currentSessionId: String) {
+        sessions.revokeAll(userId, Instant.now(), currentSessionId)
+        val current = sessions.findByPublicIdAndUserId(currentSessionId, userId) ?: throw
+            AppException(HttpStatus.UNAUTHORIZED, "not_authenticated", "Authentication is required")
+        if (current.authenticationMethod != "passkey") {
+            current.authenticationMethod = "password"
+            current.mfaCompletedAt = null
+            current.stepUpAt = null
+        }
+    }
+
     fun clearCookie(response: HttpServletResponse) {
         val domain = properties.sessionCookieDomain.trim().ifBlank { null }
         response.addCookie(expiredCookie(domain))
@@ -186,6 +216,11 @@ class SessionService(
         maxAge = 0
         setAttribute("SameSite", "Lax")
     }
+
+    private fun passwordAuthority(principal: OdsPrincipal) =
+        FactorGrantedAuthority.withAuthority(FactorGrantedAuthority.PASSWORD_AUTHORITY)
+            .issuedAt(principal.authenticatedAt)
+            .build()
 
     companion object {
         const val COOKIE_NAME = "ods_session"

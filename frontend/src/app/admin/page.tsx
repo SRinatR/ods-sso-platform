@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 import { Shell } from "@/components/Shell";
 import { api } from "@/lib/api";
 import { ADMIN_URL, loginUrl } from "@/lib/domains";
+import { authenticateWithPasskey, passkeysSupported } from "@/lib/passkeys";
 
 type CurrentUser = {
   role: string;
@@ -53,6 +54,8 @@ export default function AdminPage() {
   const [accessChecked, setAccessChecked] = useState(false);
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
   const [ready, setReady] = useState(false);
+  const [checkingAssurance, setCheckingAssurance] = useState(true);
+  const [authenticating, setAuthenticating] = useState(false);
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
@@ -69,18 +72,7 @@ export default function AdminPage() {
     isPublic: false,
   });
 
-  useEffect(() => {
-    api<CurrentUser>("/api/v1/auth/me")
-      .then((user) => {
-        setCurrentUser(user);
-        setAccessChecked(true);
-      })
-      .catch(() => {
-        window.location.href = loginUrl(`${ADMIN_URL}/admin`);
-      });
-  }, []);
-
-  async function load() {
+  const load = useCallback(async () => {
     const [summary, userList, clientList, sessionList, auditList, policyList] =
       await Promise.all([
         api<Dashboard>("/api/v1/admin/dashboard"),
@@ -96,7 +88,30 @@ export default function AdminPage() {
     setSessions(sessionList);
     setAudit(auditList);
     setPolicies(policyList);
-  }
+  }, []);
+
+  useEffect(() => {
+    api<CurrentUser>("/api/v1/auth/me")
+      .then(async (user) => {
+        setCurrentUser(user);
+        if (
+          ["admin", "security_admin"].includes(user.role) &&
+          (user.mfa_enabled || user.authentication_method === "passkey")
+        ) {
+          try {
+            await load();
+            setReady(true);
+          } catch {
+            setReady(false);
+          }
+        }
+        setAccessChecked(true);
+        setCheckingAssurance(false);
+      })
+      .catch(() => {
+        window.location.href = loginUrl(`${ADMIN_URL}/admin`);
+      });
+  }, [load]);
 
   async function stepUp(event: FormEvent) {
     event.preventDefault();
@@ -110,6 +125,22 @@ export default function AdminPage() {
       setReady(true);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Проверка не выполнена");
+    }
+  }
+
+  async function confirmPasskey() {
+    setError("");
+    setAuthenticating(true);
+    try {
+      await authenticateWithPasskey();
+      const user = await api<CurrentUser>("/api/v1/auth/me");
+      setCurrentUser(user);
+      await load();
+      setReady(true);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Passkey не принят");
+    } finally {
+      setAuthenticating(false);
     }
   }
 
@@ -138,7 +169,7 @@ export default function AdminPage() {
     await load();
   }
 
-  if (!accessChecked) {
+  if (!accessChecked || checkingAssurance) {
     return (
       <Shell title="Администрирование" subtitle="Проверяем права доступа">
         <section className="panel narrow">Загрузка…</section>
@@ -179,21 +210,42 @@ export default function AdminPage() {
       <Shell title="Администрирование" subtitle="Требуется свежая step-up проверка" admin>
         <section className="panel narrow">
           {error && <div className="alert error">{error}</div>}
-          <form className="stack" onSubmit={stepUp}>
-            <label>
-              Пароль
-              <input
-                type="password"
-                required
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-              />
-            </label>
-            {!passkeySession && (
+          {passkeysSupported() && (
+            <div className="stack">
+              <p className="muted">
+                Подтвердите действие отпечатком, Face ID или PIN устройства. Текущая
+                сессия будет усилена без создания дубликата.
+              </p>
+              <button
+                className="button passkey-button"
+                type="button"
+                onClick={confirmPasskey}
+                disabled={authenticating}
+              >
+                {authenticating ? "Проверка passkey…" : "Подтвердить passkey"}
+              </button>
+              {currentUser.mfa_enabled && (
+                <div className="auth-divider"><span>или пароль и TOTP</span></div>
+              )}
+            </div>
+          )}
+          {currentUser.mfa_enabled && (
+            <form className="stack" onSubmit={stepUp}>
+              <label>
+                Пароль
+                <input
+                  type="password"
+                  autoComplete="current-password"
+                  required
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                />
+              </label>
               <label>
                 TOTP-код
                 <input
                   inputMode="numeric"
+                  autoComplete="one-time-code"
                   pattern="\d{6}"
                   maxLength={6}
                   required
@@ -201,9 +253,15 @@ export default function AdminPage() {
                   onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
                 />
               </label>
-            )}
-            <button className="button">Подтвердить доступ</button>
-          </form>
+              <button className="button">Подтвердить доступ</button>
+            </form>
+          )}
+          {!currentUser.mfa_enabled && !passkeysSupported() && (
+            <p className="muted">
+              Этот браузер не поддерживает passkey. Войдите с устройства с WebAuthn или
+              предварительно подключите TOTP.
+            </p>
+          )}
         </section>
       </Shell>
     );

@@ -3,6 +3,7 @@ package uz.ods.sso.mfa
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
 import jakarta.validation.Valid
+import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
@@ -11,12 +12,13 @@ import uz.ods.sso.audit.AuditService
 import uz.ods.sso.identity.BackupCodesResponse
 import uz.ods.sso.identity.IdentityService
 import uz.ods.sso.identity.LoginResponse
+import uz.ods.sso.identity.MessageResponse
 import uz.ods.sso.identity.MfaChallengeRequest
 import uz.ods.sso.identity.StepUpRequest
 import uz.ods.sso.identity.TotpEnableRequest
 import uz.ods.sso.identity.TotpSetupResponse
-import uz.ods.sso.security.CryptoService
 import uz.ods.sso.security.RateLimiter
+import uz.ods.sso.security.StepUpService
 import uz.ods.sso.session.SessionService
 import java.time.Duration
 
@@ -26,7 +28,7 @@ class MfaController(
     private val mfa: MfaService,
     private val identity: IdentityService,
     private val sessions: SessionService,
-    private val crypto: CryptoService,
+    private val stepUp: StepUpService,
     private val audit: AuditService,
     private val limiter: RateLimiter,
 ) {
@@ -98,17 +100,24 @@ class MfaController(
         request: HttpServletRequest,
     ): BackupCodesResponse {
         val principal = sessions.current()
-        if (!crypto.matchesPassword(body.password, principal.user.passwordHash)) {
-            throw uz.ods.sso.shared.AppException(
-                org.springframework.http.HttpStatus.UNAUTHORIZED,
-                "invalid_credentials",
-                "Step-up authentication failed",
-            )
-        }
-        mfa.verifyStepUp(principal.user, body.code)
+        stepUp.verifyAndMark(principal, body.password, body.code)
         val codes = mfa.regenerateBackupCodes(principal.user.id)
         audit.write(principal.user.tenantId, request, "BACKUP_CODES_REGENERATED", principal.user.id, principal.user.id)
         return BackupCodesResponse(codes)
+    }
+
+    @PostMapping("/totp/disable")
+    @Transactional
+    fun disable(
+        @Valid @RequestBody body: StepUpRequest,
+        request: HttpServletRequest,
+    ): MessageResponse {
+        val principal = sessions.current()
+        stepUp.verifyAndMark(principal, body.password, body.code)
+        mfa.reset(principal.user)
+        sessions.downgradeAfterMfaDisable(principal.user.id, principal.session.id)
+        audit.write(principal.user.tenantId, request, "MFA_DISABLED", principal.user.id, principal.user.id)
+        return MessageResponse(message = "MFA disabled")
     }
 
     companion object {
