@@ -186,8 +186,7 @@ jobs:
              fi
              cd '$VPS_APP_DIR'
              git fetch --prune origin
-             git restore --worktree Caddyfile 2>/dev/null || true
-             git checkout --detach '$DEPLOY_SHA'
+             git checkout --force --detach '$DEPLOY_SHA'
              bash scripts/server-bootstrap.sh '$VPS_APP_DIR'
              install -d -m 700 /etc/ods-platform
              install -m 600 /tmp/ods-production.env /etc/ods-platform/production.env
