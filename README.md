@@ -39,7 +39,7 @@ The Python/FastAPI implementation has been removed. The only backend runtime is 
 - Resend-compatible SMTP delivery for verification, password reset and security notifications
 - Native UUIDv7 internal primary keys with stable prefixed public IDs
 - Explicit HTTP/3 client configuration for latency-sensitive integrations
-- Multi-stage Java 26 container with ZGC-compatible CDS training
+- Layered multi-stage Java 26 container with G1GC
 - Flyway schema, OpenAPI UI, Actuator, Prometheus and OTLP tracing
 - Migration-before-readiness deployment checks
 

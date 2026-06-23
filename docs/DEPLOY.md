@@ -110,7 +110,8 @@ production Caddyfile and recreates the Caddy container. A failed backup, migrati
 validation or schema assertion stops the deployment. Systemd recovery starts the complete stack
 after a VPS reboot, and a timer creates daily backups.
 
-The backend image is built in three stages. The middle stage starts the Spring context with lazy
-database initialization and writes a CDS archive using the same Java 26, heap and ZGC flags as the
-runtime stage. A missing or incompatible archive fails the image build instead of silently
-disabling CDS.
+The backend image is built as a layered multi-stage Java 26 image and runs with G1GC. Dynamic CDS
+training is intentionally disabled because Temurin 26.0.1 can crash in
+`LambdaProxyClassDictionary` while writing an archive for this Spring application. The standard
+JRE class-data archive remains available without making production builds depend on that unstable
+training path.
