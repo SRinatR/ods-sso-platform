@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test
 import org.mockito.kotlin.any
 import org.mockito.kotlin.eq
 import org.mockito.kotlin.mock
+import org.mockito.kotlin.never
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import uz.ods.sso.audit.AuditService
@@ -26,6 +27,7 @@ import uz.ods.sso.security.CryptoService
 import uz.ods.sso.security.EphemeralStore
 import uz.ods.sso.security.RateLimiter
 import uz.ods.sso.session.SessionService
+import uz.ods.sso.session.OdsPrincipal
 import uz.ods.sso.shared.AppException
 import uz.ods.sso.tenant.TenantService
 import java.time.Instant
@@ -177,5 +179,38 @@ class IdentityServiceTest {
         assertThat(result.userId).isEqualTo("usr_1")
         verify(risk).trust("usr_1", "fingerprint")
         verify(sessions).create(request, response, user, true, 25, "fingerprint", "passkey")
+    }
+
+    @Test
+    fun `passkey reauthentication upgrades the existing session instead of creating a duplicate`() {
+        val response = mock<HttpServletResponse>()
+        val user = UserEntity(
+            tenantId = "tnt_1",
+            email = "user@example.com",
+            emailVerifiedAt = Instant.now(),
+        ).apply { publicId = "usr_1" }
+        whenever(users.findByPublicId("usr_1")).thenReturn(user)
+        whenever(request.remoteAddr).thenReturn("127.0.0.1")
+        whenever(request.getHeader("User-Agent")).thenReturn("test")
+        whenever(risk.assess(user, "127.0.0.1", "test"))
+            .thenReturn(RiskResult(0, "allow", emptyList(), "fingerprint"))
+        whenever(sessions.fromRequest(request)).thenReturn(
+            OdsPrincipal(
+                userId = "usr_1",
+                tenantId = "tnt_1",
+                sessionId = "ses_existing",
+                email = user.email,
+                role = "admin",
+                mfaCompleted = false,
+                authenticationMethod = "password",
+                authenticatedAt = Instant.now(),
+            ),
+        )
+
+        val result = service.loginWithPasskey("usr_1", request, response)
+
+        assertThat(result.userId).isEqualTo("usr_1")
+        verify(sessions).markPasskeyAuthenticated("ses_existing", 0, "fingerprint")
+        verify(sessions, never()).create(any(), any(), any(), any(), any(), any(), any())
     }
 }

@@ -22,7 +22,8 @@ The Python/FastAPI implementation has been removed. The only backend runtime is 
 
 - Registration, email verification, password reset, login and logout
 - Durable opaque-cookie sessions and login history
-- TOTP MFA, one-time backup codes and admin step-up authentication
+- TOTP MFA, one-time backup codes, lifecycle management and admin step-up authentication
+- Passkey/WebAuthn registration, passwordless login and fresh passkey step-up
 - OAuth 2.1 Authorization Code flow with mandatory PKCE S256
 - OpenID Connect Discovery, UserInfo, JWKS and RS256 ID tokens
 - Refresh-token rotation, HMAC reuse ledger, session revocation and Spring Authorization Server persistence
@@ -44,7 +45,7 @@ The Python/FastAPI implementation has been removed. The only backend runtime is 
 - Migration-before-readiness deployment checks
 
 Federation provider configuration and key-management metadata are modeled. LDAP, Entra ID,
-SAML, SCIM, passkey ceremonies, HSM/KMS adapters and multi-region deployment remain separate
+SAML, SCIM, HSM/KMS adapters and multi-region deployment remain separate
 delivery increments; they are not represented as completed features.
 
 ## Local start

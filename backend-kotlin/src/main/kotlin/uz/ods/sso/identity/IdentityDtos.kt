@@ -39,7 +39,7 @@ data class ResetPasswordRequest(
 )
 
 data class StepUpRequest(
-    @field:Size(min = 1, max = 128) val password: String,
+    @field:Size(min = 1, max = 128) val password: String? = null,
     val code: String? = null,
 )
 
