@@ -17,6 +17,7 @@ Last updated: 2026-06-23.
 | Identity, sessions and TOTP MFA | Implemented |
 | Passkey/WebAuthn registration, login and step-up | Implemented |
 | OTP disable and backup-code regeneration | Implemented |
+| Device and cross-device passkey enrollment | Implemented |
 | OAuth/OIDC and consent | Implemented |
 | Tenant isolation foundation | Implemented |
 | Device/risk foundation | Implemented |
@@ -28,6 +29,7 @@ Last updated: 2026-06-23.
 | RFC 7807-compatible API Problem Details | Implemented |
 | SEC-BASE immutable CI regression checks | Implemented |
 | Production/staging TLS 1.3 minimum | Implemented |
+| Human-readable public status and privacy pages | Implemented |
 | LDAP, Entra ID and SAML adapters | Not implemented |
 | KMS/HSM/Vault adapters | Metadata only |
 | SCIM provisioning | Not implemented |
@@ -37,8 +39,8 @@ Last updated: 2026-06-23.
 - JDK 26.0.1: verified
 - Gradle wrapper 9.5.0: configured
 - clean Kotlin compilation: passed
-- backend tests: 77 passed locally; PostgreSQL 18.4 Testcontainers migration test is CI-gated
-- JaCoCo line coverage: 80.31% (80% gate passed)
+- backend tests: 78 passed locally; PostgreSQL 18.4 Testcontainers migration test is CI-gated
+- JaCoCo line coverage: 80.36% (80% gate passed)
 - Configuration Cache: stored and reused
 - executable Spring Boot JAR: built
 - layered Java 26 production image with G1GC: built

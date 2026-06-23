@@ -80,6 +80,11 @@ export default function HomePage() {
           <code>https://company.ods.uz</code>
         </div>
       </section>
+      <footer className="landing-footer">
+        <span>ODS Identity</span>
+        <Link href="/privacy">Конфиденциальность и условия</Link>
+        <Link href="https://status.ods.uz">Состояние сервисов</Link>
+      </footer>
     </main>
   );
 }

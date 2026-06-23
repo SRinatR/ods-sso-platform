@@ -76,6 +76,8 @@ class IdentityServiceTest {
         whenever(users.save(any<UserEntity>())).thenAnswer { it.arguments[0] }
 
         assertThat(service.register(RegisterRequest("user@example.com", "long-enough-password"), request)).isFalse()
+        verify(rateLimiter).enforce(RateLimiter.REGISTRATION_BURST, "unknown")
+        verify(rateLimiter).enforce(RateLimiter.REGISTRATION_DAILY, "unknown")
         val created = org.mockito.kotlin.argumentCaptor<UserEntity>()
         verify(users).save(created.capture())
         assertThat(created.firstValue.name).isNull()

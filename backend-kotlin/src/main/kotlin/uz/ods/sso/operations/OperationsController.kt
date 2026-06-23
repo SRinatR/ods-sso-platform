@@ -10,6 +10,13 @@ import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 import uz.ods.sso.config.OdsProperties
 import uz.ods.sso.identity.MailService
+import java.time.Instant
+
+data class PublicStatusResponse(
+    val status: String,
+    val checkedAt: Instant,
+    val components: Map<String, String>,
+)
 
 @RestController
 class OperationsController(
@@ -22,13 +29,14 @@ class OperationsController(
     fun health() = mapOf("status" to "ok", "environment" to properties.environment)
 
     @GetMapping("/ready")
-    fun ready(): ResponseEntity<Map<String, String>> = runCatching {
-        check(jdbc.queryForObject("select 1", Int::class.java) == 1) { "Database is not ready" }
-        redis.opsForValue().set("health:ready", "ok", java.time.Duration.ofSeconds(10))
-        ResponseEntity.ok(mapOf("status" to "ready"))
-    }.getOrElse {
-        ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(mapOf("status" to "not_ready"))
+    fun ready(): ResponseEntity<Map<String, String>> {
+        val status = componentStatus()
+        return ResponseEntity.status(status.statusCode)
+            .body(mapOf("status" to if (status.body?.status == "operational") "ready" else "not_ready"))
     }
+
+    @GetMapping("/api/v1/public/status")
+    fun publicStatus(): ResponseEntity<PublicStatusResponse> = componentStatus()
 
     @GetMapping("/privacy")
     fun privacy() = mapOf(
@@ -43,5 +51,29 @@ class OperationsController(
         return mail.outbox.filter { it.recipient.equals(email, ignoreCase = true) }.map {
             mapOf("recipient" to it.recipient, "subject" to it.subject, "text" to it.text)
         }
+    }
+
+    private fun componentStatus(): ResponseEntity<PublicStatusResponse> {
+        val database = runCatching {
+            check(jdbc.queryForObject("select 1", Int::class.java) == 1)
+            "operational"
+        }.getOrElse { "unavailable" }
+        val cache = runCatching {
+            redis.opsForValue().set("health:ready", "ok", java.time.Duration.ofSeconds(10))
+            "operational"
+        }.getOrElse { "unavailable" }
+        val operational = database == "operational" && cache == "operational"
+        return ResponseEntity.status(if (operational) HttpStatus.OK else HttpStatus.SERVICE_UNAVAILABLE)
+            .body(
+                PublicStatusResponse(
+                    status = if (operational) "operational" else "degraded",
+                    checkedAt = Instant.now(),
+                    components = mapOf(
+                        "identity" to if (operational) "operational" else "unavailable",
+                        "database" to database,
+                        "sessions" to cache,
+                    ),
+                ),
+            )
     }
 }

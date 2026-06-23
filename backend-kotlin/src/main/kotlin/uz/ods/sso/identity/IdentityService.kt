@@ -45,7 +45,9 @@ class IdentityService(
 ) {
     @Transactional
     fun register(body: RegisterRequest, request: HttpServletRequest): Boolean {
-        rateLimiter.enforce(RateLimiter.REGISTRATION, clientIp(request, properties))
+        val ipAddress = clientIp(request, properties)
+        rateLimiter.enforce(RateLimiter.REGISTRATION_BURST, ipAddress)
+        rateLimiter.enforce(RateLimiter.REGISTRATION_DAILY, ipAddress)
         if (properties.requireEmailVerification) requireMailDelivery()
         val tenant = tenants.current()
         val email = body.email.trim().lowercase()
@@ -97,7 +99,7 @@ class IdentityService(
     @Transactional
     fun resendVerification(emailInput: String, request: HttpServletRequest) {
         requireMailDelivery()
-        rateLimiter.enforce(RateLimiter.REGISTRATION, "resend:${clientIp(request, properties)}")
+        enforceEmailAction("resend", request)
         val tenant = tenants.current()
         val user = users.findByTenantIdAndEmailIgnoreCase(tenant.id, emailInput.lowercase())
         if (user != null && !user.emailVerified) {
@@ -110,7 +112,7 @@ class IdentityService(
     @Transactional
     fun forgotPassword(emailInput: String, request: HttpServletRequest) {
         requireMailDelivery()
-        rateLimiter.enforce(RateLimiter.REGISTRATION, "reset:${clientIp(request, properties)}")
+        enforceEmailAction("reset", request)
         val tenant = tenants.current()
         val user = users.findByTenantIdAndEmailIgnoreCase(tenant.id, emailInput.lowercase()) ?: return
         val raw = createAccountToken(user.id, "password_reset", properties.passwordResetTokenTtl, "prt")
@@ -287,6 +289,12 @@ class IdentityService(
     }
 
     fun consumeChallenge(challengeToken: String) = ephemeral.delete("mfa:challenge:$challengeToken")
+
+    private fun enforceEmailAction(action: String, request: HttpServletRequest) {
+        val identity = "$action:${clientIp(request, properties)}"
+        rateLimiter.enforce(RateLimiter.EMAIL_ACTION, identity)
+        rateLimiter.enforce(RateLimiter.EMAIL_ACTION_DAILY, identity)
+    }
 
     private fun createAccountToken(userId: String, type: String, ttlSeconds: Long, prefix: String): String {
         val (id, secret, raw) = crypto.opaqueToken(prefix)

@@ -23,23 +23,23 @@ class PartnerDomainServiceTest {
 
     @Test
     fun `tenant domain is accepted only for an active organization`() {
-        val organization = PartnerOrganizationEntity(slug = "tatarlar", status = "active")
-        whenever(organizations.findBySlugAndStatus("tatarlar", "active")).thenReturn(organization)
+        val organization = PartnerOrganizationEntity(slug = "company", status = "active")
+        whenever(organizations.findBySlugAndStatus("company", "active")).thenReturn(organization)
         val request = mock<HttpServletRequest>()
-        whenever(request.serverName).thenReturn("tatarlar.ods.uz")
+        whenever(request.serverName).thenReturn("company.ods.uz")
 
-        assertThat(service.requestedSlug(request)).isEqualTo("tatarlar")
-        assertThat(service.domainAllowed("tatarlar.ods.uz")).isTrue()
+        assertThat(service.requestedSlug(request)).isEqualTo("company")
+        assertThat(service.domainAllowed("company.ods.uz")).isTrue()
         assertThat(service.domainAllowed("unknown.ods.uz")).isFalse()
         assertThat(service.domainAllowed("admin.ods.uz")).isFalse()
-        assertThat(service.domainAllowed("nested.tatarlar.ods.uz")).isFalse()
+        assertThat(service.domainAllowed("nested.company.ods.uz")).isFalse()
     }
 
     @Test
     fun `website is normalized and supplies a default slug`() {
-        assertThat(service.normalizeWebsite("www.tatarlar.uz")).isEqualTo("https://www.tatarlar.uz")
-        assertThat(service.deriveSlug("https://www.tatarlar.uz")).isEqualTo("tatarlar")
-        assertThat(service.portalUrl("tatarlar")).isEqualTo("https://tatarlar.ods.uz")
+        assertThat(service.normalizeWebsite("www.company.uz")).isEqualTo("https://www.company.uz")
+        assertThat(service.deriveSlug("https://www.company.uz")).isEqualTo("company")
+        assertThat(service.portalUrl("company")).isEqualTo("https://company.ods.uz")
     }
 
     @Test
@@ -48,8 +48,8 @@ class PartnerDomainServiceTest {
             .isInstanceOf(AppException::class.java)
             .hasMessage("This organization code is reserved")
 
-        whenever(organizations.findBySlug("tatarlar")).thenReturn(PartnerOrganizationEntity(slug = "tatarlar"))
-        assertThatThrownBy { service.requireAvailableSlug("tatarlar") }
+        whenever(organizations.findBySlug("company")).thenReturn(PartnerOrganizationEntity(slug = "company"))
+        assertThatThrownBy { service.requireAvailableSlug("company") }
             .isInstanceOf(AppException::class.java)
             .hasMessage("This organization code is already in use")
     }
