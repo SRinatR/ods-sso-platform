@@ -10,6 +10,7 @@ import org.springframework.http.MediaType
 import org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.content
@@ -150,6 +151,30 @@ class PilotFlowIntegrationTest {
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.organization.slug").value(organizationSlug))
 
+        val secondOrganizationSlug = "second-${System.nanoTime()}"
+        mvc.perform(
+            post("/api/v1/partner/organizations")
+                .cookie(sessionCookie)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    objectMapper.writeValueAsString(
+                        mapOf(
+                            "name" to "Second Partner",
+                            "slug" to secondOrganizationSlug,
+                            "contact_email" to email,
+                        ),
+                    ),
+                ),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.organization.slug").value(secondOrganizationSlug))
+            .andExpect(jsonPath("$.organizations.length()").value(2))
+
+        mvc.perform(get("/api/v1/partner/workspace").cookie(sessionCookie))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.organization").doesNotExist())
+            .andExpect(jsonPath("$.organizations.length()").value(2))
+
         mvc.perform(get("/internal/caddy/allow-domain").param("domain", "$organizationSlug.localhost"))
             .andExpect(status().isNoContent)
         mvc.perform(get("/internal/caddy/allow-domain").param("domain", "unknown.localhost"))
@@ -158,6 +183,7 @@ class PilotFlowIntegrationTest {
         mvc.perform(
             post("/api/v1/partner/applications")
                 .cookie(sessionCookie)
+                .with { it.serverName = "$organizationSlug.localhost"; it }
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     objectMapper.writeValueAsString(
@@ -183,6 +209,45 @@ class PilotFlowIntegrationTest {
             .andExpect(jsonPath("$.require_pkce").value(true))
 
         assertThat(applications.findAll()).hasSize(1)
+
+        val memberEmail = "member-${System.nanoTime()}@example.com"
+        mvc.perform(
+            post("/api/v1/auth/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    objectMapper.writeValueAsString(
+                        mapOf(
+                            "email" to memberEmail,
+                            "password" to password,
+                            "accept_terms" to true,
+                        ),
+                    ),
+                ),
+        ).andExpect(status().isCreated)
+
+        val createdMember = mvc.perform(
+            post("/api/v1/partner/members")
+                .cookie(sessionCookie)
+                .with { it.serverName = "$organizationSlug.localhost"; it }
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(mapOf("email" to memberEmail, "role" to "editor"))),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.email").value(memberEmail))
+            .andExpect(jsonPath("$.role").value("editor"))
+            .andReturn()
+
+        val membershipId = objectMapper.readTree(createdMember.response.contentAsString)["id"].asText()
+        mvc.perform(
+            patch("/api/v1/partner/members/$membershipId")
+                .cookie(sessionCookie)
+                .with { it.serverName = "$organizationSlug.localhost"; it }
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(mapOf("role" to "viewer", "status" to "disabled"))),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.role").value("viewer"))
+            .andExpect(jsonPath("$.status").value("disabled"))
 
         mvc.perform(get("/api/v1/account/sessions").cookie(sessionCookie))
             .andExpect(status().isOk)

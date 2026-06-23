@@ -20,28 +20,38 @@ interface PartnerOrganizationRepository : JpaRepository<PartnerOrganizationEntit
 }
 
 interface PartnerMembershipRepository : JpaRepository<PartnerMembershipEntity, UUID> {
-    fun findFirstByUserIdAndStatusOrderByCreatedAtAsc(userId: String, status: String): PartnerMembershipEntity?
+    fun findByUserIdAndStatusOrderByCreatedAtAsc(userId: String, status: String): List<PartnerMembershipEntity>
+    fun findByOrganizationIdAndStatusOrderByCreatedAtAsc(
+        organizationId: String,
+        status: String,
+    ): List<PartnerMembershipEntity>
+    fun findByOrganizationIdOrderByCreatedAtAsc(organizationId: String): List<PartnerMembershipEntity>
+    fun findByOrganizationIdAndUserId(organizationId: String, userId: String): PartnerMembershipEntity?
+    fun findByPublicIdAndOrganizationId(publicId: String, organizationId: String): PartnerMembershipEntity?
 }
 
 interface PartnerApplicationRepository : JpaRepository<PartnerApplicationEntity, UUID> {
     fun findByOrganizationIdOrderByCreatedAtDesc(organizationId: String): List<PartnerApplicationEntity>
     fun findByPublicIdAndOrganizationId(publicId: String, organizationId: String): PartnerApplicationEntity?
+    fun findByRegisteredClientId(registeredClientId: String): PartnerApplicationEntity?
 }
 
 interface UserRepository : JpaRepository<UserEntity, UUID> {
     fun findByPublicId(publicId: String): UserEntity?
     fun findByTenantIdAndEmailIgnoreCase(tenantId: String, email: String): UserEntity?
 
+    fun findByTenantIdOrderByCreatedAtDesc(tenantId: String, pageable: Pageable): List<UserEntity>
+
     @Query(
         """
         select u from UserEntity u
         where u.tenantId = :tenantId
-          and (:query is null or lower(u.email) like lower(concat('%', :query, '%'))
+          and (lower(u.email) like lower(concat('%', :query, '%'))
                or lower(coalesce(u.name, '')) like lower(concat('%', :query, '%')))
         order by u.createdAt desc
         """,
     )
-    fun search(tenantId: String, query: String?, pageable: Pageable): List<UserEntity>
+    fun searchByText(tenantId: String, query: String, pageable: Pageable): List<UserEntity>
 
     fun countByTenantId(tenantId: String): Long
     fun countByTenantIdAndStatus(tenantId: String, status: String): Long
