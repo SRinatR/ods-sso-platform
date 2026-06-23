@@ -91,6 +91,12 @@ class SessionServiceTest {
         assertThat(principal.authenticationMethod).isEqualTo("password_totp")
         assertThat(service.authorities(principal).map { it.authority })
             .contains("ROLE_USER", "TENANT_tnt_1", "FACTOR_PASSWORD", "AMR_OTP")
+        val now = argumentCaptor<Instant>()
+        val cutoff = argumentCaptor<Instant>()
+        verify(sessions).touch(eq(id), now.capture(), cutoff.capture())
+        assertThat(now.firstValue.epochSecond - cutoff.firstValue.epochSecond)
+            .isEqualTo(SessionService.LAST_SEEN_TOUCH_INTERVAL_SECONDS)
+        assertThat(entity.lastSeenAt).isBefore(now.firstValue)
     }
 
     @Test

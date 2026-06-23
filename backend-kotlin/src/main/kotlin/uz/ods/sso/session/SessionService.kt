@@ -106,7 +106,7 @@ class SessionService(
         ) return null
         val user = users.findByPublicId(session.userId) ?: return null
         if (user.status != "active") return null
-        session.lastSeenAt = now
+        sessions.touch(session.id, now, now.minusSeconds(LAST_SEEN_TOUCH_INTERVAL_SECONDS))
         return OdsPrincipal(
             user.id,
             user.tenantId,
@@ -224,5 +224,6 @@ class SessionService(
 
     companion object {
         const val COOKIE_NAME = "ods_session"
+        const val LAST_SEEN_TOUCH_INTERVAL_SECONDS = 60L
     }
 }
