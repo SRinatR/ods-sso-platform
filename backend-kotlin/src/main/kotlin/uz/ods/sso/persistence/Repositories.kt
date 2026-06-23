@@ -64,6 +64,12 @@ interface UserSessionRepository : JpaRepository<UserSessionEntity, UUID> {
     fun countByTenantIdAndRevokedAtIsNullAndExpiresAtAfter(tenantId: String, now: Instant): Long
 
     @Modifying
+    @Query(
+        "update UserSessionEntity s set s.lastSeenAt = :now where s.publicId = :sessionId and s.lastSeenAt < :cutoff",
+    )
+    fun touch(sessionId: String, now: Instant, cutoff: Instant): Int
+
+    @Modifying
     @Query("update UserSessionEntity s set s.revokedAt = :now where s.userId = :userId and s.revokedAt is null and (:exceptId is null or s.publicId <> :exceptId)")
     fun revokeAll(userId: String, now: Instant, exceptId: String? = null): Int
 }
