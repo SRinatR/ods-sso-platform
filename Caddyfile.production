@@ -26,7 +26,10 @@
 (application_backend) {
 	@backend path /api/* /authorize /token /userinfo /revoke /introspect /.well-known/* /webauthn/* /login/webauthn /health /ready /privacy /docs /docs/* /swagger-ui/* /webjars/* /openapi.json /actuator/* /error
 	handle @backend {
-		reverse_proxy backend:8000
+		reverse_proxy backend:8000 {
+			header_up Host {host}
+			header_up X-Forwarded-Host {host}
+		}
 	}
 }
 
@@ -104,7 +107,10 @@
 
 	@api path /api/* /authorize /token /userinfo /revoke /introspect /.well-known/* /webauthn/* /login/webauthn /health /ready /openapi.json /docs /docs/* /swagger-ui/* /webjars/*
 	handle @api {
-		reverse_proxy backend:8000
+		reverse_proxy backend:8000 {
+			header_up Host {host}
+			header_up X-Forwarded-Host {host}
+		}
 	}
 
 	respond 404
@@ -119,7 +125,10 @@
 
 	@docs path /docs /docs/* /openapi.json /swagger-ui/* /webjars/*
 	handle @docs {
-		reverse_proxy backend:8000
+		reverse_proxy backend:8000 {
+			header_up Host {host}
+			header_up X-Forwarded-Host {host}
+		}
 	}
 
 	respond 404
@@ -131,7 +140,10 @@
 
 	@status_api path /health /ready /api/v1/public/status
 	handle @status_api {
-		reverse_proxy backend:8000
+		reverse_proxy backend:8000 {
+			header_up Host {host}
+			header_up X-Forwarded-Host {host}
+		}
 	}
 
 	@status_root path /

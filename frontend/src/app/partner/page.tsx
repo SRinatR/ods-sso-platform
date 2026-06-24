@@ -30,6 +30,8 @@ type Application = {
   token_endpoint_auth_method: "none" | "client_secret_basic" | "client_secret_post";
   require_pkce: boolean;
   enabled: boolean;
+  logo_uri?: string;
+  hide_ods_branding: boolean;
 };
 
 type Integration = {
@@ -71,6 +73,8 @@ type ApplicationForm = {
   scopes: string[];
   clientType: "public" | "confidential";
   tokenEndpointAuthMethod: "none" | "client_secret_basic" | "client_secret_post";
+  logoUri: string;
+  hideOdsBranding: boolean;
 };
 
 const emptyApplication: ApplicationForm = {
@@ -81,6 +85,8 @@ const emptyApplication: ApplicationForm = {
   scopes: ["openid", "profile", "email"],
   clientType: "confidential",
   tokenEndpointAuthMethod: "client_secret_basic",
+  logoUri: "",
+  hideOdsBranding: false,
 };
 
 const scopeLabels: Record<string, string> = {
@@ -209,6 +215,8 @@ export default function PartnerPage() {
       scopes: application.scopes,
       clientType: application.client_type,
       tokenEndpointAuthMethod: application.token_endpoint_auth_method,
+      logoUri: application.logo_uri || "",
+      hideOdsBranding: application.hide_ods_branding,
     });
     setNotice("");
     setError("");
@@ -733,6 +741,24 @@ function ApplicationEditor({
           onChange={(event) => onChange({ ...form, description: event.target.value })}
         />
       </label>
+      <div className="grid two">
+        <label>
+          Logo URL для экрана согласия
+          <input
+            placeholder="https://service.example.uz/logo.png"
+            value={form.logoUri}
+            onChange={(event) => onChange({ ...form, logoUri: event.target.value })}
+          />
+        </label>
+        <label className="checkbox">
+          <input
+            type="checkbox"
+            checked={form.hideOdsBranding}
+            onChange={(event) => onChange({ ...form, hideOdsBranding: event.target.checked })}
+          />
+          <span>Скрыть логотип ODS на экране согласия</span>
+        </label>
+      </div>
       {form.clientType === "confidential" && (
         <label>
           Аутентификация token endpoint
@@ -822,6 +848,8 @@ function applicationPayload(form: ApplicationForm) {
     scopes: form.scopes,
     client_type: form.clientType,
     token_endpoint_auth_method: form.tokenEndpointAuthMethod,
+    logo_uri: form.logoUri,
+    hide_ods_branding: form.hideOdsBranding,
   };
 }
 

@@ -28,8 +28,17 @@ data class ConsentDetailsResponse(
     val clientId: String,
     val clientName: String,
     val clientDescription: String?,
+    val logoUri: String?,
+    val hideOdsBranding: Boolean,
     val requestedScopes: List<String>,
     val newScopes: List<String>,
+    val dataFields: List<ConsentDataField>,
+)
+
+data class ConsentDataField(
+    val scope: String,
+    val label: String,
+    val fields: List<String>,
 )
 
 @Service
@@ -64,10 +73,27 @@ class ConsentService(
             clientId = clientId,
             clientName = client.clientName,
             clientDescription = client.clientSettings.settings["description"]?.toString(),
+            logoUri = client.clientSettings.settings["logo_uri"]?.toString()?.ifBlank { null },
+            hideOdsBranding = client.clientSettings.settings["hide_ods_branding"] as? Boolean ?: false,
             requestedScopes = requestedScopes.sorted(),
             newScopes = (requestedScopes - existing).sorted(),
+            dataFields = requestedScopes.sorted().map(::dataFieldForScope),
         )
     }
+
+    private fun dataFieldForScope(scope: String): ConsentDataField =
+        when (scope) {
+            "openid" -> ConsentDataField(scope, "Идентификатор аккаунта", listOf("Уникальный ID пользователя ODS"))
+            "profile" -> ConsentDataField(scope, "Профиль", listOf("Имя", "Роль в организации", "Права доступа"))
+            "email" -> ConsentDataField(scope, "Email", listOf("Email", "Статус подтверждения email"))
+            "phone" -> ConsentDataField(scope, "Телефон", listOf("Номер телефона, если он заполнен"))
+            "offline_access" -> ConsentDataField(
+                scope,
+                "Долгая сессия",
+                listOf("Refresh token для обновления доступа без повторного входа"),
+            )
+            else -> ConsentDataField(scope, scope, listOf("Данные, связанные со scope $scope"))
+        }
 
     @Transactional
     fun synchronize(userId: String, tenantId: String, clientId: String, scopes: Set<String>) {

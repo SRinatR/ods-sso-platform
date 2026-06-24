@@ -49,6 +49,9 @@ data class PartnerApplicationCreate(
     val clientType: String = "confidential",
     @field:Pattern(regexp = "^(none|client_secret_basic|client_secret_post)$")
     val tokenEndpointAuthMethod: String = "client_secret_basic",
+    @field:Size(max = 1000)
+    val logoUri: String? = null,
+    val hideOdsBranding: Boolean = false,
 )
 
 data class PartnerApplicationUpdate(
@@ -66,6 +69,9 @@ data class PartnerApplicationUpdate(
     val clientType: String? = null,
     @field:Pattern(regexp = "^(none|client_secret_basic|client_secret_post)$")
     val tokenEndpointAuthMethod: String? = null,
+    @field:Size(max = 1000)
+    val logoUri: String? = null,
+    val hideOdsBranding: Boolean? = null,
     val enabled: Boolean? = null,
 )
 
@@ -82,6 +88,8 @@ data class PartnerApplicationResponse(
     val tokenEndpointAuthMethod: String,
     val requirePkce: Boolean,
     val enabled: Boolean,
+    val logoUri: String?,
+    val hideOdsBranding: Boolean,
     val createdAt: Instant,
 )
 
