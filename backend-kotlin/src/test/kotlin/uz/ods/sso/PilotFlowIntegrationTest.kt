@@ -6,6 +6,7 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity
 import org.springframework.test.web.servlet.MockMvc
@@ -267,6 +268,10 @@ class PilotFlowIntegrationTest {
         mvc.perform(get("/privacy"))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.status").value("published"))
+
+        val errorResponse = mvc.perform(get("/error")).andReturn().response
+        assertThat(errorResponse.status).isNotEqualTo(HttpStatus.UNAUTHORIZED.value())
+        assertThat(errorResponse.contentAsString).doesNotContain("not_authenticated")
 
         mvc.perform(
             post("/api/v1/auth/register")

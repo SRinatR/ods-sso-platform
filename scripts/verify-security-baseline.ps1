@@ -73,7 +73,7 @@ Assert-Pattern "SEC-BASE-006" $rotationService 'REFRESH_TOKEN_REUSE_DETECTED' "r
 Assert-Pattern "SEC-BASE-006" $rotationService 'sessions\.revokeAll' "refresh-token reuse must revoke active sessions"
 Assert-Pattern "SEC-BASE-007" $cryptoService '(?s)Argon2PasswordEncoder\(\s*16,\s*32,\s*4,\s*131_072,\s*4,\s*\)' "Argon2id parameters must remain m=131072,t=4,p=4"
 Assert-Absent "SEC-BASE-007" $cryptoService 'BCryptPasswordEncoder|Pbkdf2PasswordEncoder|SCryptPasswordEncoder' "prohibited password encoders must not be introduced"
-Assert-Pattern "SEC-BASE-008" "Caddyfile.production" 'protocols\s+tls1\.3' "production TLS minimum must remain TLS 1.3"
+Assert-Pattern "SEC-BASE-008" "Caddyfile.production" 'protocols\s+tls1\.2\s+tls1\.3' "production TLS must explicitly support TLS 1.2 and TLS 1.3"
 Assert-Pattern "SEC-BASE-008" "Caddyfile.staging" 'protocols\s+tls1\.3' "staging TLS minimum must remain TLS 1.3"
 Assert-Pattern "SEC-BASE-008" "docker-compose.yml" 'image:\s+caddy:2\.11\.1-alpine' "Caddy must remain pinned to the reviewed runtime version"
 Assert-Pattern "SEC-BASE-009" $cryptoService 'Mac\.getInstance\("HmacSHA256"\)' "opaque token MACs must use HMAC-SHA256"
