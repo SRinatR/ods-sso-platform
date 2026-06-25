@@ -2,6 +2,7 @@ package uz.ods.sso.admin
 
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.validation.Valid
+import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PatchMapping
 import org.springframework.web.bind.annotation.PathVariable
@@ -37,6 +38,10 @@ class AdminController(
         request: HttpServletRequest,
     ) = service.updateUser(userId, body, request)
 
+    @DeleteMapping("/users/{userId}")
+    fun deleteUser(@PathVariable userId: String, request: HttpServletRequest): MessageResponse =
+        service.deleteUser(userId, request)
+
     @PostMapping("/users/{userId}/sessions/revoke")
     fun revokeSessions(@PathVariable userId: String, request: HttpServletRequest): MessageResponse =
         service.revokeUserSessions(userId, request)
@@ -64,6 +69,19 @@ class AdminController(
     @PostMapping("/oauth-clients/{clientId}/rotate-secret")
     fun rotateSecret(@PathVariable clientId: String, request: HttpServletRequest) =
         service.rotateSecret(clientId, request)
+
+    @DeleteMapping("/oauth-clients/{clientId}")
+    fun deleteClient(@PathVariable clientId: String, request: HttpServletRequest): MessageResponse =
+        service.deleteClient(clientId, request)
+
+    @GetMapping("/organizations")
+    fun organizations(request: HttpServletRequest) = service.listOrganizations(request)
+
+    @DeleteMapping("/organizations/{organizationId}")
+    fun deleteOrganization(
+        @PathVariable organizationId: String,
+        request: HttpServletRequest,
+    ): MessageResponse = service.deleteOrganization(organizationId, request)
 
     @GetMapping("/sessions")
     fun sessions(request: HttpServletRequest, @RequestParam(required = false) userId: String?) =

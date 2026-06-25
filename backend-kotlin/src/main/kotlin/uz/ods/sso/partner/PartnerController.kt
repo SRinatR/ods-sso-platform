@@ -2,6 +2,7 @@ package uz.ods.sso.partner
 
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.validation.Valid
+import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PatchMapping
 import org.springframework.web.bind.annotation.PathVariable
@@ -27,6 +28,9 @@ class PartnerController(
         request: HttpServletRequest,
     ): PartnerWorkspaceResponse = service.createOrganization(body, request)
 
+    @DeleteMapping("/organizations/current")
+    fun deleteCurrentOrganization(request: HttpServletRequest) = service.deleteCurrentOrganization(request)
+
     @PostMapping("/applications")
     fun createApplication(
         @Valid @RequestBody body: PartnerApplicationCreate,
@@ -46,6 +50,12 @@ class PartnerController(
         request: HttpServletRequest,
     ): PartnerApplicationResponse = service.rotateSecret(applicationId, request)
 
+    @DeleteMapping("/applications/{applicationId}")
+    fun deleteApplication(
+        @PathVariable applicationId: String,
+        request: HttpServletRequest,
+    ) = service.deleteApplication(applicationId, request)
+
     @PostMapping("/members")
     fun createMember(
         @Valid @RequestBody body: PartnerMemberCreate,
@@ -58,4 +68,10 @@ class PartnerController(
         @Valid @RequestBody body: PartnerMemberUpdate,
         request: HttpServletRequest,
     ): PartnerMemberResponse = service.updateMember(membershipId, body, request)
+
+    @DeleteMapping("/members/{membershipId}")
+    fun deleteMember(
+        @PathVariable membershipId: String,
+        request: HttpServletRequest,
+    ) = service.deleteMember(membershipId, request)
 }

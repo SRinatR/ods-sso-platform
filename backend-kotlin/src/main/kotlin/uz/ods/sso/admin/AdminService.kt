@@ -21,8 +21,13 @@ import uz.ods.sso.identity.MessageResponse
 import uz.ods.sso.identity.UserResponse
 import uz.ods.sso.identity.toResponse
 import uz.ods.sso.mfa.MfaService
+import uz.ods.sso.oauth.OAuthClientProvisioningService
 import uz.ods.sso.persistence.AuditLogRepository
 import uz.ods.sso.persistence.LoginHistoryRepository
+import uz.ods.sso.persistence.PartnerApplicationEntity
+import uz.ods.sso.persistence.PartnerApplicationRepository
+import uz.ods.sso.persistence.PartnerOrganizationEntity
+import uz.ods.sso.persistence.PartnerOrganizationRepository
 import uz.ods.sso.persistence.SecurityPolicyEntity
 import uz.ods.sso.persistence.SecurityPolicyRepository
 import uz.ods.sso.persistence.UserRepository
@@ -80,6 +85,17 @@ data class OAuthClientResponse(
     val enabled: Boolean,
     val createdAt: Instant,
     val clientSecret: String? = null,
+)
+
+data class AdminOrganizationResponse(
+    val id: String,
+    val slug: String,
+    val name: String,
+    val legalName: String?,
+    val websiteUrl: String?,
+    val contactEmail: String,
+    val status: String,
+    val createdAt: Instant,
 )
 
 data class AuditResponse(
@@ -146,8 +162,11 @@ class AdminService(
     private val sessions: UserSessionRepository,
     private val loginHistory: LoginHistoryRepository,
     private val auditLogs: AuditLogRepository,
+    private val partnerOrganizations: PartnerOrganizationRepository,
+    private val partnerApplications: PartnerApplicationRepository,
     private val policies: SecurityPolicyRepository,
     private val clients: RegisteredClientRepository,
+    private val oauthProvisioning: OAuthClientProvisioningService,
     private val jdbc: JdbcOperations,
     private val crypto: CryptoService,
     private val mfa: MfaService,
@@ -160,7 +179,7 @@ class AdminService(
         val principal = guard.require(request)
         val since = Instant.now().minus(24, ChronoUnit.HOURS)
         return AdminDashboardResponse(
-            usersTotal = users.countByTenantId(principal.user.tenantId),
+            usersTotal = users.countByTenantIdAndStatusNot(principal.user.tenantId, "deleted"),
             usersActive = users.countByTenantIdAndStatus(principal.user.tenantId, "active"),
             activeSessions = sessions.countByTenantIdAndRevokedAtIsNullAndExpiresAtAfter(principal.user.tenantId, Instant.now()),
             oauthClients = jdbc.queryForObject("select count(*) from oauth2_registered_client", Long::class.java) ?: 0,
@@ -191,6 +210,7 @@ class AdminService(
                 select public_id, email, name, phone, email_verified_at, status, role, mfa_enabled, created_at
                 from users
                 where tenant_id = ?
+                  and status <> 'deleted'
                 order by created_at desc
                 limit ? offset ?
                 """.trimIndent(),
@@ -205,6 +225,7 @@ class AdminService(
                 select public_id, email, name, phone, email_verified_at, status, role, mfa_enabled, created_at
                 from users
                 where tenant_id = ?
+                  and status <> 'deleted'
                   and (lower(email) like lower(concat('%', ?, '%'))
                        or lower(coalesce(name, '')) like lower(concat('%', ?, '%')))
                 order by created_at desc
@@ -259,6 +280,62 @@ class AdminService(
     }
 
     @Transactional
+    fun deleteUser(userId: String, request: HttpServletRequest): MessageResponse {
+        val principal = guard.require(request)
+        val user = users.findByPublicId(userId)
+            ?: throw AppException(HttpStatus.NOT_FOUND, "user_not_found", "User was not found")
+        if (user.tenantId != principal.user.tenantId || user.status == "deleted") {
+            throw AppException(HttpStatus.NOT_FOUND, "user_not_found", "User was not found")
+        }
+        if (user.id == principal.user.id) {
+            throw AppException(
+                HttpStatus.CONFLICT,
+                "cannot_delete_current_admin",
+                "Sign in as another administrator before deleting this account",
+            )
+        }
+        val now = Instant.now()
+        val previousEmailHash = crypto.sha256(user.email.lowercase())
+        sessionService.revokeAll(user.id)
+        jdbc.update("delete from oauth2_authorization where principal_name = ?", user.id)
+        jdbc.update("delete from oauth2_authorization_consent where principal_name = ?", user.id)
+        jdbc.update("delete from account_tokens where user_id = ?", user.id)
+        jdbc.update("delete from mfa_methods where user_id = ?", user.id)
+        jdbc.update("delete from backup_codes where user_id = ?", user.id)
+        jdbc.update("delete from trusted_devices where user_id = ?", user.id)
+        jdbc.update("delete from risk_assessments where user_id = ?", user.id)
+        jdbc.update("delete from used_refresh_tokens where user_id = ?", user.id)
+        jdbc.update(
+            "update user_consents set status = 'revoked', revoked_at = coalesce(revoked_at, ?) where user_id = ?",
+            now,
+            user.id,
+        )
+        jdbc.update("delete from user_credentials where user_entity_user_id = ?", user.id)
+        jdbc.update("delete from user_entities where id = ?", user.id)
+        jdbc.update("update partner_memberships set status = 'disabled' where user_id = ?", user.id)
+        user.email = deletedEmail(user.id)
+        user.name = null
+        user.phone = null
+        user.passwordHash = crypto.hashPassword(crypto.randomUrl(48))
+        user.emailVerifiedAt = null
+        user.status = "deleted"
+        user.role = "user"
+        user.mfaEnabled = false
+        user.failedLoginCount = 0
+        user.lockedUntil = null
+        user.updatedAt = now
+        audit.write(
+            user.tenantId,
+            request,
+            "ADMIN_USER_DELETED",
+            principal.user.id,
+            user.id,
+            details = mapOf("previous_email_sha256" to previousEmailHash),
+        )
+        return MessageResponse(message = "User account deleted")
+    }
+
+    @Transactional
     fun revokeUserSessions(userId: String, request: HttpServletRequest): MessageResponse {
         val principal = guard.require(request)
         val user = users.findByPublicId(userId) ?: throw
@@ -292,6 +369,12 @@ class AdminService(
         return jdbc.query("select client_id from oauth2_registered_client order by client_id_issued_at desc") { rs, _ ->
             rawClient(rs.getString(1))?.toResponse()
         }.filterNotNull()
+    }
+
+    fun listOrganizations(request: HttpServletRequest): List<AdminOrganizationResponse> {
+        val principal = guard.require(request)
+        return partnerOrganizations.findByTenantIdOrderByCreatedAtDesc(principal.user.tenantId)
+            .map { it.toAdminResponse() }
     }
 
     @Transactional
@@ -389,6 +472,60 @@ class AdminService(
         return updated.toResponse(raw)
     }
 
+    @Transactional
+    fun deleteClient(clientId: String, request: HttpServletRequest): MessageResponse {
+        val principal = guard.require(request)
+        val existing = rawClient(clientId)
+            ?: throw AppException(HttpStatus.NOT_FOUND, "client_not_found", "OAuth client was not found")
+        val linkedPartnerApplication = jdbc.queryForObject(
+            "select count(*) from partner_applications where registered_client_id = ?",
+            Long::class.java,
+            existing.id,
+        ) ?: 0
+        if (linkedPartnerApplication > 0) {
+            throw AppException(
+                HttpStatus.CONFLICT,
+                "client_owned_by_partner_organization",
+                "Delete the partner organization or partner application that owns this OAuth client",
+            )
+        }
+        oauthProvisioning.delete(existing)
+        audit.write(
+            principal.user.tenantId,
+            request,
+            "OAUTH_CLIENT_DELETED",
+            principal.user.id,
+            existing.id,
+            existing.clientId,
+        )
+        return MessageResponse(message = "OAuth client deleted")
+    }
+
+    @Transactional
+    fun deleteOrganization(organizationId: String, request: HttpServletRequest): MessageResponse {
+        val principal = guard.require(request)
+        val organization = partnerOrganizations.findByPublicId(organizationId)
+            ?: throw AppException(HttpStatus.NOT_FOUND, "partner_organization_not_found", "Organization was not found")
+        if (organization.tenantId != principal.user.tenantId) {
+            throw AppException(HttpStatus.NOT_FOUND, "partner_organization_not_found", "Organization was not found")
+        }
+        val deletedApplications = deleteOrganizationClients(organization)
+        partnerOrganizations.delete(organization)
+        audit.write(
+            principal.user.tenantId,
+            request,
+            "PARTNER_ORGANIZATION_DELETED",
+            principal.user.id,
+            organization.id,
+            details = mapOf(
+                "slug" to organization.slug,
+                "applications_deleted" to deletedApplications,
+                "source" to "admin",
+            ),
+        )
+        return MessageResponse(message = "Organization deleted")
+    }
+
     fun listSessions(request: HttpServletRequest, userId: String?): List<Map<String, Any?>> {
         val principal = guard.require(request)
         return sessions.findForAdmin(principal.user.tenantId, userId, PageRequest.of(0, 500)).map {
@@ -461,6 +598,31 @@ class AdminService(
             createdAt = clientIdIssuedAt ?: Instant.EPOCH,
             clientSecret = secret,
         )
+
+    private fun PartnerOrganizationEntity.toAdminResponse() = AdminOrganizationResponse(
+        id = id,
+        slug = slug,
+        name = name,
+        legalName = legalName,
+        websiteUrl = websiteUrl,
+        contactEmail = contactEmail,
+        status = status,
+        createdAt = createdAt,
+    )
+
+    private fun deleteOrganizationClients(organization: PartnerOrganizationEntity): Int {
+        val metadata = partnerApplications.findByOrganizationIdOrderByCreatedAtDesc(organization.id)
+        metadata.forEach(::deletePartnerApplicationClient)
+        return metadata.size
+    }
+
+    private fun deletePartnerApplicationClient(metadata: PartnerApplicationEntity) {
+        oauthProvisioning.findIncludingDisabledById(metadata.registeredClientId)
+            ?.let(oauthProvisioning::delete)
+    }
+
+    private fun deletedEmail(userId: String): String =
+        "deleted+${userId.removePrefix("usr_").lowercase()}@deleted.ods.local"
 
     private fun enabled(client: RegisteredClient): Boolean =
         client.clientSettings.settings["enabled"] as? Boolean ?: true
