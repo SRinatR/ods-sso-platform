@@ -130,6 +130,45 @@ data class PartnerIntegrationMetadata(
     val supportedTokenEndpointAuthMethods: List<String>,
 )
 
+data class PartnerAnalyticsResponse(
+    val windowDays: Int,
+    val generatedAt: Instant,
+    val summary: PartnerAnalyticsSummary,
+    val applications: List<PartnerApplicationAnalytics>,
+    val recentEvents: List<PartnerAnalyticsEvent>,
+)
+
+data class PartnerAnalyticsSummary(
+    val successfulSsoLogins: Long,
+    val tokenRefreshes: Long,
+    val uniqueUsers: Long,
+    val consentsGranted: Long,
+    val consentsRevoked: Long,
+    val securityFailures: Long,
+    val configurationChanges: Long,
+)
+
+data class PartnerApplicationAnalytics(
+    val clientId: String,
+    val name: String,
+    val successfulSsoLogins: Long,
+    val tokenRefreshes: Long,
+    val uniqueUsers: Long,
+    val consentsGranted: Long,
+    val consentsRevoked: Long,
+    val securityFailures: Long,
+    val configurationChanges: Long,
+)
+
+data class PartnerAnalyticsEvent(
+    val id: String,
+    val eventType: String,
+    val clientId: String?,
+    val applicationName: String?,
+    val requestId: String,
+    val createdAt: Instant,
+)
+
 data class PartnerWorkspaceResponse(
     val organization: PartnerOrganizationResponse?,
     val applications: List<PartnerApplicationResponse>,

@@ -4,6 +4,7 @@ import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.security.oauth2.server.authorization.OAuth2Authorization
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService
 import org.springframework.security.oauth2.server.authorization.OAuth2TokenType
+import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import uz.ods.sso.audit.AuditService
@@ -16,6 +17,7 @@ import java.time.Instant
 
 open class RotationTrackingAuthorizationService(
     private val delegate: OAuth2AuthorizationService,
+    private val clients: RegisteredClientRepository,
     private val usedTokens: UsedRefreshTokenRepository,
     private val users: UserRepository,
     private val sessions: UserSessionRepository,
@@ -27,15 +29,16 @@ open class RotationTrackingAuthorizationService(
         val previous = delegate.findById(authorization.id)
         val oldRefresh = previous?.refreshToken?.token?.tokenValue
         val newRefresh = authorization.refreshToken?.token?.tokenValue
+        val user = users.findByPublicId(authorization.principalName)
+        val clientId = clientIdFor(authorization.registeredClientId)
         if (oldRefresh != null && newRefresh != null && oldRefresh != newRefresh) {
-            val user = users.findByPublicId(authorization.principalName)
             if (user != null && usedTokens.findByTokenHash(crypto.hashSecret(oldRefresh)) == null) {
                 usedTokens.save(
                     UsedRefreshTokenEntity(
                         tenantId = user.tenantId,
                         authorizationId = authorization.id,
                         userId = user.id,
-                        clientId = authorization.registeredClientId,
+                        clientId = clientId,
                         tokenHash = crypto.hashSecret(oldRefresh),
                         expiresAt = previous.refreshToken!!.token.expiresAt ?: Instant.now(),
                     ),
@@ -43,6 +46,36 @@ open class RotationTrackingAuthorizationService(
             }
         }
         delegate.save(authorization)
+        if (user != null) {
+            val previousAccess = previous?.accessToken?.token?.tokenValue
+            val currentAccess = authorization.accessToken?.token?.tokenValue
+            when {
+                previous == null -> audit.writeSystem(
+                    tenantId = user.tenantId,
+                    eventType = "OAUTH_AUTHORIZATION_CREATED",
+                    actorId = user.id,
+                    subjectId = user.id,
+                    clientId = clientId,
+                    details = mapOf("authorization_id" to authorization.id),
+                )
+                previousAccess == null && currentAccess != null -> audit.writeSystem(
+                    tenantId = user.tenantId,
+                    eventType = "OAUTH_TOKEN_ISSUED",
+                    actorId = user.id,
+                    subjectId = user.id,
+                    clientId = clientId,
+                    details = mapOf("authorization_id" to authorization.id),
+                )
+                previousAccess != null && currentAccess != null && previousAccess != currentAccess -> audit.writeSystem(
+                    tenantId = user.tenantId,
+                    eventType = "OAUTH_TOKEN_REFRESHED",
+                    actorId = user.id,
+                    subjectId = user.id,
+                    clientId = clientId,
+                    details = mapOf("authorization_id" to authorization.id),
+                )
+            }
+        }
     }
 
     override fun remove(authorization: OAuth2Authorization) = delegate.remove(authorization)
@@ -72,6 +105,9 @@ open class RotationTrackingAuthorizationService(
         }
         return null
     }
+
+    private fun clientIdFor(registeredClientId: String): String =
+        clients.findById(registeredClientId)?.clientId ?: registeredClientId
 }
 
 @Service

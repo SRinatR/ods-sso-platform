@@ -1,6 +1,7 @@
 package uz.ods.sso.partner
 
 import jakarta.servlet.http.HttpServletRequest
+import org.springframework.data.domain.PageRequest
 import org.springframework.http.HttpStatus
 import org.springframework.security.oauth2.core.ClientAuthenticationMethod
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClient
@@ -9,6 +10,8 @@ import org.springframework.transaction.annotation.Transactional
 import uz.ods.sso.audit.AuditService
 import uz.ods.sso.config.OdsProperties
 import uz.ods.sso.oauth.OAuthClientProvisioningService
+import uz.ods.sso.persistence.AuditLogEntity
+import uz.ods.sso.persistence.AuditLogRepository
 import uz.ods.sso.persistence.PartnerApplicationEntity
 import uz.ods.sso.persistence.PartnerApplicationRepository
 import uz.ods.sso.persistence.PartnerMembershipEntity
@@ -31,6 +34,7 @@ class PartnerService(
     private val users: UserRepository,
     private val oauthClients: OAuthClientProvisioningService,
     private val audit: AuditService,
+    private val auditLogs: AuditLogRepository,
     private val properties: OdsProperties,
     private val domains: PartnerDomainService,
 ) {
@@ -56,6 +60,106 @@ class PartnerService(
             integration = integrationMetadata(),
             organizations = available.map { (item, itemMembership) -> item.toResponse(itemMembership.role) },
             members = if (organization != null) membersFor(organization) else emptyList(),
+        )
+    }
+
+    fun analytics(request: HttpServletRequest): PartnerAnalyticsResponse {
+        val principal = sessions.current()
+        val (organization, membership) = requireOrganization(principal, request)
+        requireManager(membership)
+
+        val generatedAt = Instant.now()
+        val since = generatedAt.minusSeconds(ANALYTICS_WINDOW_DAYS * 24L * 60L * 60L)
+        val appMetadata = applications.findByOrganizationIdOrderByCreatedAtDesc(organization.id)
+        val clientIds = appMetadata.map { it.clientId }
+        val clientNames = appMetadata.associate { it.clientId to (applicationResponse(it)?.name ?: it.clientId) }
+
+        val eventCountsByClient = if (clientIds.isEmpty()) emptyMap() else {
+            auditLogs.countClientEventsByType(
+                principal.user.tenantId,
+                clientIds,
+                ANALYTICS_CLIENT_EVENTS,
+                since,
+            ).groupBy { it.clientId.orEmpty() }
+                .mapValues { (_, values) -> values.associate { it.eventType to it.total } }
+        }
+        val uniqueUsersByClient = if (clientIds.isEmpty()) emptyMap() else {
+            auditLogs.countDistinctClientActorsByClient(
+                principal.user.tenantId,
+                clientIds,
+                setOf("OAUTH_TOKEN_ISSUED"),
+                since,
+            ).associate { it.clientId.orEmpty() to it.total }
+        }
+        val configurationChanges = auditLogs.countOrganizationEvents(
+            principal.user.tenantId,
+            organization.id,
+            ANALYTICS_CONFIGURATION_EVENTS,
+            since,
+        )
+        val applicationAnalytics = appMetadata.map { metadata ->
+            val counts = eventCountsByClient[metadata.clientId].orEmpty()
+            PartnerApplicationAnalytics(
+                clientId = metadata.clientId,
+                name = clientNames[metadata.clientId] ?: metadata.clientId,
+                successfulSsoLogins = counts.totalOf("OAUTH_TOKEN_ISSUED"),
+                tokenRefreshes = counts.totalOf("OAUTH_TOKEN_REFRESHED"),
+                uniqueUsers = uniqueUsersByClient[metadata.clientId] ?: 0,
+                consentsGranted = counts.totalOf("CONSENT_GRANTED"),
+                consentsRevoked = counts.totalOf("CONSENT_REVOKED"),
+                securityFailures = counts.totalOf("REFRESH_TOKEN_REUSE_DETECTED"),
+                configurationChanges = counts.totalOfConfigurationEvents(),
+            )
+        }
+        val oauthEvents = if (clientIds.isEmpty()) emptyList() else {
+            auditLogs.findClientEvents(
+                principal.user.tenantId,
+                clientIds,
+                ANALYTICS_CLIENT_EVENTS,
+                since,
+                PageRequest.of(0, 20),
+            )
+        }
+        val managementEvents = auditLogs.findOrganizationEvents(
+            principal.user.tenantId,
+            organization.id,
+            ANALYTICS_CONFIGURATION_EVENTS,
+            since,
+            PageRequest.of(0, 20),
+        )
+        return PartnerAnalyticsResponse(
+            windowDays = ANALYTICS_WINDOW_DAYS,
+            generatedAt = generatedAt,
+            summary = PartnerAnalyticsSummary(
+                successfulSsoLogins = applicationAnalytics.sumOf { it.successfulSsoLogins },
+                tokenRefreshes = applicationAnalytics.sumOf { it.tokenRefreshes },
+                uniqueUsers = if (clientIds.isEmpty()) 0 else {
+                    auditLogs.countDistinctClientActors(
+                        principal.user.tenantId,
+                        clientIds,
+                        setOf("OAUTH_TOKEN_ISSUED"),
+                        since,
+                    )
+                },
+                consentsGranted = applicationAnalytics.sumOf { it.consentsGranted },
+                consentsRevoked = applicationAnalytics.sumOf { it.consentsRevoked },
+                securityFailures = applicationAnalytics.sumOf { it.securityFailures },
+                configurationChanges = configurationChanges,
+            ),
+            applications = applicationAnalytics,
+            recentEvents = (oauthEvents + managementEvents)
+                .sortedByDescending(AuditLogEntity::createdAt)
+                .take(20)
+                .map { event ->
+                    PartnerAnalyticsEvent(
+                        id = event.id,
+                        eventType = event.eventType,
+                        clientId = event.clientId,
+                        applicationName = event.clientId?.let(clientNames::get),
+                        requestId = event.requestId,
+                        createdAt = event.createdAt,
+                    )
+                },
         )
     }
 
@@ -406,4 +510,32 @@ class PartnerService(
         )
     }
 
+    private fun Map<String, Long>.totalOf(eventType: String): Long = this[eventType] ?: 0
+
+    private fun Map<String, Long>.totalOfConfigurationEvents(): Long =
+        ANALYTICS_CONFIGURATION_EVENTS.sumOf { this[it] ?: 0 }
+
+    companion object {
+        private const val ANALYTICS_WINDOW_DAYS = 30
+
+        private val ANALYTICS_CLIENT_EVENTS = setOf(
+            "OAUTH_TOKEN_ISSUED",
+            "OAUTH_TOKEN_REFRESHED",
+            "CONSENT_GRANTED",
+            "CONSENT_REVOKED",
+            "REFRESH_TOKEN_REUSE_DETECTED",
+            "PARTNER_APPLICATION_CREATED",
+            "PARTNER_APPLICATION_UPDATED",
+            "PARTNER_APPLICATION_SECRET_ROTATED",
+        )
+
+        private val ANALYTICS_CONFIGURATION_EVENTS = setOf(
+            "PARTNER_ORGANIZATION_CREATED",
+            "PARTNER_APPLICATION_CREATED",
+            "PARTNER_APPLICATION_UPDATED",
+            "PARTNER_APPLICATION_SECRET_ROTATED",
+            "PARTNER_MEMBER_ADDED",
+            "PARTNER_MEMBER_UPDATED",
+        )
+    }
 }
