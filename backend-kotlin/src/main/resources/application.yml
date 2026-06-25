@@ -100,6 +100,7 @@ ods:
   environment: ${ENV:dev}
   issuer: ${ISSUER:http://localhost:8080}
   account-url: ${ACCOUNT_URL:http://account.localhost}
+  partners-url: ${PARTNERS_URL:http://partners.localhost}
   api-url: ${API_URL:http://localhost:8080}
   root-domain: ${ROOT_DOMAIN:localhost}
   allowed-origins: ${ALLOWED_ORIGINS:http://account.localhost,http://localhost:3000}

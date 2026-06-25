@@ -3,7 +3,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { Shell } from "@/components/Shell";
 import { apiAt, ApiRequestError } from "@/lib/api";
-import { onAuth } from "@/lib/domains";
+import { onAuth, onPartners } from "@/lib/domains";
 
 type Organization = {
   id: string;
@@ -135,6 +135,7 @@ export default function PartnerPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [accessDenied, setAccessDenied] = useState(false);
   const [notice, setNotice] = useState("");
   const [secret, setSecret] = useState<{ clientId: string; value: string } | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -154,6 +155,7 @@ export default function PartnerPage() {
 
   const load = useCallback(() => {
     setError("");
+    setAccessDenied(false);
     partnerApi<Workspace>("/api/v1/partner/workspace")
       .then((loaded) => {
         setWorkspace(loaded);
@@ -174,6 +176,14 @@ export default function PartnerPage() {
           return;
         }
         setLoading(false);
+        if (
+          cause instanceof ApiRequestError &&
+          cause.status === 403 &&
+          cause.code === "partner_workspace_forbidden"
+        ) {
+          setAccessDenied(true);
+          return;
+        }
         setError(cause instanceof Error ? cause.message : "Кабинет временно недоступен");
       });
   }, []);
@@ -376,13 +386,30 @@ export default function PartnerPage() {
 
   return (
     <Shell
-      title={workspace?.organization ? workspace.organization.name : "Мои контрагенты"}
-      subtitle="Самостоятельная настройка входа через ODS"
+      title={workspace?.organization ? workspace.organization.name : "Партнёрский кабинет"}
+      subtitle={
+        workspace?.organization
+          ? "Настройки компании, SSO-приложений, участников и аналитики"
+          : "Входная точка для ваших компаний в ODS"
+      }
       product="partner"
     >
       {error && <div className="alert error">{error}</div>}
       {notice && <div className="alert success">{notice}</div>}
       {loading && <div className="panel">Загрузка кабинета…</div>}
+      {accessDenied && (
+        <section className="panel narrow">
+          <p className="eyebrow">Нет доступа к компании</p>
+          <h2>Этот поддомен уже закреплён за организацией</h2>
+          <p className="muted">
+            Ваша учётная запись ODS не добавлена в участники этой организации. Попросите
+            владельца или администратора добавить ваш email в разделе «Участники и роли».
+          </p>
+          <a className="button secondary" href={onPartners("/")}>
+            Открыть список моих компаний
+          </a>
+        </section>
+      )}
 
       {workspace && !workspace.organization && (
         <>
@@ -391,8 +418,8 @@ export default function PartnerPage() {
               <p className="eyebrow">Контрагенты</p>
               <h2>Выберите компанию</h2>
               <p className="muted">
-                Данные, участники, приложения и аналитика каждой компании доступны только
-                на её собственном поддомене.
+                Это общий вход. Данные, участники, приложения, branding consent-экрана
+                и аналитика каждой компании доступны только на её собственном поддомене.
               </p>
               <div className="application-list">
                 {workspace.organizations.map((organization) => (
@@ -413,80 +440,84 @@ export default function PartnerPage() {
             <p className="eyebrow">Новый контрагент</p>
             <h2>Создайте отдельный кабинет компании</h2>
             <p className="muted">
-              Ваша личная учётная запись станет единственным владельцем организации.
-              Кабинет будет доступен только на её поддомене: company.uz → company.ods.uz.
+              Ваша личная учётная запись станет владельцем организации. Кабинет компании
+              будет доступен только на её поддомене: company.uz → company.ods.uz.
             </p>
             <form className="stack" onSubmit={createOrganization}>
-            <label>
-              Название организации
-              <input
-                required
-                minLength={2}
-                value={organizationForm.name}
-                onChange={(event) =>
-                  setOrganizationForm({ ...organizationForm, name: event.target.value })
-                }
-              />
-            </label>
-            <label>
-              Адрес кабинета
-              <input
-                pattern="[a-z0-9][a-z0-9-]{2,62}"
-                placeholder="company"
-                value={organizationForm.slug}
-                onChange={(event) =>
-                  setOrganizationForm({
-                    ...organizationForm,
-                    slug: event.target.value.toLowerCase(),
-                  })
-                }
-              />
-              <small className="muted">
-                {organizationForm.slug
-                  ? `https://${organizationForm.slug}.ods.uz`
-                  : "Автоматически определяется из сайта"}
-              </small>
-            </label>
-            <label>
-              Юридическое название
-              <input
-                value={organizationForm.legalName}
-                onChange={(event) =>
-                  setOrganizationForm({ ...organizationForm, legalName: event.target.value })
-                }
-              />
-            </label>
-            <label>
-              Сайт
-              <input
-                type="text"
-                inputMode="url"
-                placeholder="company.uz"
-                value={organizationForm.websiteUrl}
-                onChange={(event) => {
-                  const websiteUrl = event.target.value;
-                  setOrganizationForm({
-                    ...organizationForm,
-                    websiteUrl,
-                    slug: organizationForm.slug || deriveSlug(websiteUrl),
-                  });
-                }}
-              />
-            </label>
-            <label>
-              Контактный email
-              <input
-                required
-                type="email"
-                value={organizationForm.contactEmail}
-                onChange={(event) =>
-                  setOrganizationForm({ ...organizationForm, contactEmail: event.target.value })
-                }
-              />
-            </label>
-            <button className="button" disabled={saving}>
-              {saving ? "Создаём кабинет…" : "Создать кабинет"}
-            </button>
+              <label>
+                Название организации
+                <input
+                  required
+                  minLength={2}
+                  value={organizationForm.name}
+                  onChange={(event) =>
+                    setOrganizationForm({ ...organizationForm, name: event.target.value })
+                  }
+                />
+              </label>
+              <label>
+                Адрес кабинета
+                <input
+                  pattern="[a-z0-9][a-z0-9-]{2,62}"
+                  placeholder="company"
+                  value={organizationForm.slug}
+                  onChange={(event) =>
+                    setOrganizationForm({
+                      ...organizationForm,
+                      slug: event.target.value.toLowerCase(),
+                    })
+                  }
+                />
+                <small className="muted">
+                  {organizationForm.slug
+                    ? `https://${organizationForm.slug}.ods.uz`
+                    : "Автоматически определяется из сайта"}
+                </small>
+              </label>
+              <label>
+                Юридическое название
+                <input
+                  value={organizationForm.legalName}
+                  onChange={(event) =>
+                    setOrganizationForm({ ...organizationForm, legalName: event.target.value })
+                  }
+                />
+              </label>
+              <label>
+                Сайт
+                <input
+                  type="text"
+                  inputMode="url"
+                  placeholder="company.uz"
+                  value={organizationForm.websiteUrl}
+                  onChange={(event) => {
+                    const websiteUrl = event.target.value;
+                    setOrganizationForm({
+                      ...organizationForm,
+                      websiteUrl,
+                      slug: organizationForm.slug || deriveSlug(websiteUrl),
+                    });
+                  }}
+                />
+              </label>
+              <label>
+                Контактный email для уведомлений
+                <input
+                  required
+                  type="email"
+                  value={organizationForm.contactEmail}
+                  onChange={(event) =>
+                    setOrganizationForm({ ...organizationForm, contactEmail: event.target.value })
+                  }
+                />
+                <small className="muted">
+                  Этот адрес не выдаёт доступ автоматически. Владельца, администраторов и
+                  пользователей добавляйте отдельно в разделе «Участники и роли».
+                </small>
+              </label>
+              <button className="button" disabled={saving}>
+                {saving ? "Создаём кабинет…" : "Создать кабинет"}
+              </button>
             </form>
           </section>
         </>
@@ -501,7 +532,7 @@ export default function PartnerPage() {
               <dl className="detail-list">
                 <div><dt>Код</dt><dd><code>{workspace.organization.slug}</code></dd></div>
                 <div><dt>Роль</dt><dd>{workspace.organization.role}</dd></div>
-                <div><dt>Контакт</dt><dd>{workspace.organization.contact_email}</dd></div>
+                <div><dt>Контакт для уведомлений</dt><dd>{workspace.organization.contact_email}</dd></div>
                 <div><dt>Статус</dt><dd><span className="badge success">{workspace.organization.status}</span></dd></div>
               </dl>
             </section>
@@ -512,7 +543,7 @@ export default function PartnerPage() {
                 Настройки этой организации изолированы от личного кабинета и системной
                 админки.
               </p>
-              <a className="text-button" href={onAuth("/partner")}>
+              <a className="text-button" href={onPartners("/")}>
                 Все компании и создание нового контрагента
               </a>
             </section>

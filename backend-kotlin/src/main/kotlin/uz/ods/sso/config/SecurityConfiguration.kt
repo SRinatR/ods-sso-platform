@@ -372,6 +372,7 @@ class SecurityConfiguration(
             listOf(
                 "https://auth.${properties.rootDomain}",
                 "https://accounts.${properties.rootDomain}",
+                "https://partners.${properties.rootDomain}",
                 "https://admin.${properties.rootDomain}",
             )
         } else {

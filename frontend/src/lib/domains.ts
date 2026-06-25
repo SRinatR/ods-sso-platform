@@ -3,6 +3,8 @@ export const AUTH_URL = process.env.NEXT_PUBLIC_AUTH_URL || "http://account.loca
 export const ACCOUNTS_URL =
   process.env.NEXT_PUBLIC_ACCOUNTS_URL || "http://accounts.localhost";
 export const ADMIN_URL = process.env.NEXT_PUBLIC_ADMIN_URL || "http://admin.localhost";
+export const PARTNERS_URL =
+  process.env.NEXT_PUBLIC_PARTNERS_URL || "http://partners.localhost";
 export const ROOT_DOMAIN = process.env.NEXT_PUBLIC_ROOT_DOMAIN || "localhost";
 
 export function onAuth(path: string): string {
@@ -15,6 +17,10 @@ export function onAccounts(path: string): string {
 
 export function onAdmin(path: string): string {
   return new URL(path, `${ADMIN_URL}/`).toString();
+}
+
+export function onPartners(path: string): string {
+  return new URL(path, `${PARTNERS_URL}/`).toString();
 }
 
 export function loginUrl(returnTo: string): string {

@@ -3,11 +3,13 @@ package uz.ods.sso.partner
 import jakarta.servlet.http.HttpServletRequest
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 import org.mockito.kotlin.any
 import org.mockito.kotlin.eq
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.whenever
 import org.springframework.data.domain.Pageable
+import org.springframework.http.HttpStatus
 import org.springframework.security.oauth2.core.AuthorizationGrantType
 import org.springframework.security.oauth2.core.ClientAuthenticationMethod
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClient
@@ -30,6 +32,7 @@ import uz.ods.sso.persistence.UserRepository
 import uz.ods.sso.persistence.UserSessionEntity
 import uz.ods.sso.session.CurrentPrincipal
 import uz.ods.sso.session.SessionService
+import uz.ods.sso.shared.AppException
 import java.time.Instant
 
 class PartnerServiceTest {
@@ -174,6 +177,27 @@ class PartnerServiceTest {
         assertThat(analytics.summary.configurationChanges).isEqualTo(2)
         assertThat(analytics.applications.single().name).isEqualTo("Tatarlar production")
         assertThat(analytics.recentEvents.single().requestId).isEqualTo("req_1")
+    }
+
+    @Test
+    fun `workspace returns forbidden when organization exists but current user is not a member`() {
+        val request = mock<HttpServletRequest>()
+        whenever(request.serverName).thenReturn("tatarlar.ods.uz")
+        val user = UserEntity(tenantId = "tnt_1", email = "artur@example.com").apply {
+            publicId = "usr_artur"
+        }
+        val session = UserSessionEntity(tenantId = "tnt_1", userId = "usr_artur").apply {
+            publicId = "ses_artur"
+        }
+        whenever(sessions.current()).thenReturn(CurrentPrincipal(user, session))
+        whenever(memberships.findByUserIdAndStatusOrderByCreatedAtAsc("usr_artur", "active"))
+            .thenReturn(emptyList())
+        whenever(organizations.findBySlugAndStatus("tatarlar", "active"))
+            .thenReturn(PartnerOrganizationEntity(slug = "tatarlar", status = "active"))
+
+        val error = assertThrows<AppException> { service.workspace(request) }
+        assertThat(error.status).isEqualTo(HttpStatus.FORBIDDEN)
+        assertThat(error.code).isEqualTo("partner_workspace_forbidden")
     }
 
     private fun count(clientId: String, eventType: String, total: Long) =
