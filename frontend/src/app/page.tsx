@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ACCOUNTS_URL, AUTH_URL, onAuth } from "@/lib/domains";
+import { ACCOUNTS_URL, AUTH_URL, PARTNERS_URL, onAuth, onPartners } from "@/lib/domains";
 
 export default function HomePage() {
   return (
@@ -9,7 +9,7 @@ export default function HomePage() {
           ODS Identity
         </Link>
         <div className="actions">
-          <Link href={onAuth("/partner")} className="button secondary">
+          <Link href={onPartners("/")} className="button secondary">
             Кабинет контрагента
           </Link>
           <Link href={onAuth("/login")} className="button secondary">
@@ -77,6 +77,8 @@ export default function HomePage() {
           <span>Личный кабинет пользователя</span>
           <code>{ACCOUNTS_URL}</code>
           <span>Кабинет контрагента</span>
+          <code>{PARTNERS_URL}</code>
+          <span>Настройки конкретной компании</span>
           <code>https://company.ods.uz</code>
         </div>
       </section>

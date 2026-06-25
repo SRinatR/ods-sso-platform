@@ -102,6 +102,7 @@ class PartnerDomainService(
             "www",
             "auth",
             "accounts",
+            "partners",
             "admin",
             "api",
             "docs",

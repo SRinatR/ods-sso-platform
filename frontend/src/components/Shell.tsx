@@ -89,7 +89,7 @@ function ProductNavigation({ product }: { product: Product }) {
 }
 
 function productName(product: Product): string {
-  if (product === "partner") return "Кабинет контрагента";
+  if (product === "partner") return "Партнёрский кабинет";
   if (product === "admin") return "Системное администрирование";
   return "Личный кабинет";
 }

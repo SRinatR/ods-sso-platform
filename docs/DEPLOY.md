@@ -49,6 +49,7 @@ Required records:
 | A or CNAME | `www` | `94.232.44.189` or `ods.uz` |
 | A | `auth` | `94.232.44.189` |
 | A | `accounts` | `94.232.44.189` |
+| A | `partners` | `94.232.44.189` |
 | A | `admin` | `94.232.44.189` |
 | A | `api` | `94.232.44.189` |
 | A | `docs` | `94.232.44.189` |
@@ -65,6 +66,8 @@ The service domains expose only implemented behavior:
 
 - `auth.ods.uz` owns registration, login, consent, verification and password reset.
 - `accounts.ods.uz` serves only the ordinary personal account dashboard.
+- `partners.ods.uz` serves only the central partner entry point: organization list and
+  organization creation. It does not contain organization-specific settings.
 - `admin.ods.uz` serves only the system administration UI.
 - `docs.ods.uz` serves the OpenAPI UI.
 - `sso.ods.uz` redirects to the canonical issuer.
@@ -81,8 +84,8 @@ The service domains expose only implemented behavior:
 ## User entry points
 
 - A counterparty starts at `https://auth.ods.uz/register?kind=partner`. The first user verifies
-  email, signs in, registers the organization and becomes its owner. The application then opens
-  the organization portal such as `https://company.ods.uz`.
+  email, signs in, opens `https://partners.ods.uz`, registers the organization and becomes its
+  owner. The application then opens the organization portal such as `https://company.ods.uz`.
 - A platform administrator opens `https://admin.ods.uz`. The portal redirects to the canonical
   login, verifies the `admin` or `security_admin` role, requires a strong passkey or TOTP-authenticated
   session, and then asks for a fresh step-up before loading administrative data.
