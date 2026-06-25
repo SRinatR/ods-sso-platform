@@ -8,6 +8,7 @@ import org.mockito.kotlin.mock
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
+import org.springframework.jdbc.core.JdbcOperations
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClient
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository
 import uz.ods.sso.config.OdsProperties
@@ -20,8 +21,9 @@ class OAuthClientProvisioningServiceTest {
         tokenPepper = "token-pepper-that-is-independent-and-long",
     )
     private val clients = mock<RegisteredClientRepository>()
+    private val jdbc = mock<JdbcOperations>()
     private val crypto = CryptoService(properties)
-    private val service = OAuthClientProvisioningService(clients, crypto, properties)
+    private val service = OAuthClientProvisioningService(clients, jdbc, crypto, properties)
 
     @Test
     fun `client lifecycle preserves PKCE scopes tenant and one time secret`() {
@@ -123,5 +125,23 @@ class OAuthClientProvisioningServiceTest {
         whenever(clients.findById(client.id)).thenReturn(client)
 
         assertThat(service.findIncludingDisabledById(client.id)).isSameAs(client)
+    }
+
+    @Test
+    fun `delete removes token state consents and registered client`() {
+        val client = service.createConfidential(
+            "tnt_1",
+            "Partner",
+            null,
+            listOf("https://partner.example/callback"),
+        ).client
+
+        service.delete(client)
+
+        verify(jdbc).update("delete from oauth2_authorization where registered_client_id = ?", client.id)
+        verify(jdbc).update("delete from oauth2_authorization_consent where registered_client_id = ?", client.id)
+        verify(jdbc).update("delete from user_consents where client_id = ?", client.clientId)
+        verify(jdbc).update("delete from used_refresh_tokens where client_id = ?", client.clientId)
+        verify(jdbc).update("delete from oauth2_registered_client where id = ?", client.id)
     }
 }

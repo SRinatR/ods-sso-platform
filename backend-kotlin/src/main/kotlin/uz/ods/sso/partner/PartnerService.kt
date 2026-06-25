@@ -24,6 +24,7 @@ import uz.ods.sso.session.CurrentPrincipal
 import uz.ods.sso.session.SessionService
 import uz.ods.sso.shared.AppException
 import java.time.Instant
+import uz.ods.sso.identity.MessageResponse
 
 @Service
 class PartnerService(
@@ -208,6 +209,31 @@ class PartnerService(
     }
 
     @Transactional
+    fun deleteCurrentOrganization(request: HttpServletRequest): MessageResponse {
+        val principal = sessions.current()
+        val (organization, membership) = requireOrganization(principal, request)
+        requireOwner(membership)
+        val metadata = applications.findByOrganizationIdOrderByCreatedAtDesc(organization.id)
+        metadata.forEach { item ->
+            oauthClients.findIncludingDisabledById(item.registeredClientId)?.let(oauthClients::delete)
+        }
+        organizations.delete(organization)
+        audit.write(
+            principal.user.tenantId,
+            request,
+            "PARTNER_ORGANIZATION_DELETED",
+            principal.user.id,
+            organization.id,
+            details = mapOf(
+                "slug" to organization.slug,
+                "applications_deleted" to metadata.size,
+                "source" to "partner",
+            ),
+        )
+        return MessageResponse(message = "Organization deleted")
+    }
+
+    @Transactional
     fun createApplication(body: PartnerApplicationCreate, request: HttpServletRequest): PartnerApplicationResponse {
         val principal = sessions.current()
         val (organization, membership) = requireOrganization(principal, request)
@@ -320,6 +346,28 @@ class PartnerService(
     }
 
     @Transactional
+    fun deleteApplication(applicationId: String, request: HttpServletRequest): MessageResponse {
+        val principal = sessions.current()
+        val (organization, membership) = requireOrganization(principal, request)
+        requireManager(membership)
+        val metadata = applications.findByPublicIdAndOrganizationId(applicationId, organization.id)
+            ?: throw AppException(HttpStatus.NOT_FOUND, "partner_application_not_found", "Application was not found")
+        val existing = oauthClients.findIncludingDisabledById(metadata.registeredClientId)
+            ?: throw AppException(HttpStatus.NOT_FOUND, "partner_application_not_found", "Application was not found")
+        oauthClients.delete(existing)
+        audit.write(
+            principal.user.tenantId,
+            request,
+            "PARTNER_APPLICATION_DELETED",
+            principal.user.id,
+            metadata.id,
+            existing.clientId,
+            mapOf("organization_id" to organization.id),
+        )
+        return MessageResponse(message = "Application deleted")
+    }
+
+    @Transactional
     fun createMember(body: PartnerMemberCreate, request: HttpServletRequest): PartnerMemberResponse {
         val principal = sessions.current()
         val (organization, membership) = requireOrganization(principal, request)
@@ -392,6 +440,32 @@ class PartnerService(
             ),
         )
         return membership.toResponse(user)
+    }
+
+    @Transactional
+    fun deleteMember(membershipId: String, request: HttpServletRequest): MessageResponse {
+        val principal = sessions.current()
+        val (organization, currentMembership) = requireOrganization(principal, request)
+        requireOwner(currentMembership)
+        val membership = memberships.findByPublicIdAndOrganizationId(membershipId, organization.id)
+            ?: throw AppException(HttpStatus.NOT_FOUND, "partner_member_not_found", "Organization member was not found")
+        if (membership.role == "owner") {
+            throw AppException(
+                HttpStatus.CONFLICT,
+                "partner_owner_immutable",
+                "The primary organization administrator cannot be removed",
+            )
+        }
+        memberships.delete(membership)
+        audit.write(
+            principal.user.tenantId,
+            request,
+            "PARTNER_MEMBER_DELETED",
+            principal.user.id,
+            membership.userId,
+            details = mapOf("organization_id" to organization.id, "role" to membership.role),
+        )
+        return MessageResponse(message = "Organization member deleted")
     }
 
     private fun activeOrganizations(
@@ -542,8 +616,11 @@ class PartnerService(
             "PARTNER_APPLICATION_CREATED",
             "PARTNER_APPLICATION_UPDATED",
             "PARTNER_APPLICATION_SECRET_ROTATED",
+            "PARTNER_APPLICATION_DELETED",
             "PARTNER_MEMBER_ADDED",
             "PARTNER_MEMBER_UPDATED",
+            "PARTNER_MEMBER_DELETED",
+            "PARTNER_ORGANIZATION_DELETED",
         )
     }
 }

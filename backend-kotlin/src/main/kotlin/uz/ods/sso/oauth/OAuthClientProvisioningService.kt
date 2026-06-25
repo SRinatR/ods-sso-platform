@@ -1,6 +1,7 @@
 package uz.ods.sso.oauth
 
 import org.springframework.http.HttpStatus
+import org.springframework.jdbc.core.JdbcOperations
 import org.springframework.security.oauth2.core.AuthorizationGrantType
 import org.springframework.security.oauth2.core.ClientAuthenticationMethod
 import org.springframework.security.oauth2.core.oidc.OidcScopes
@@ -27,6 +28,7 @@ data class ProvisionedOAuthClient(
 @Service
 class OAuthClientProvisioningService(
     private val clients: RegisteredClientRepository,
+    private val jdbc: JdbcOperations,
     private val crypto: CryptoService,
     private val properties: OdsProperties,
 ) {
@@ -182,6 +184,14 @@ class OAuthClientProvisioningService(
             .build()
         clients.save(updated)
         return ProvisionedOAuthClient(updated, rawSecret)
+    }
+
+    fun delete(existing: RegisteredClient) {
+        jdbc.update("delete from oauth2_authorization where registered_client_id = ?", existing.id)
+        jdbc.update("delete from oauth2_authorization_consent where registered_client_id = ?", existing.id)
+        jdbc.update("delete from user_consents where client_id = ?", existing.clientId)
+        jdbc.update("delete from used_refresh_tokens where client_id = ?", existing.clientId)
+        jdbc.update("delete from oauth2_registered_client where id = ?", existing.id)
     }
 
     fun findIncludingDisabledById(id: String): RegisteredClient? =
