@@ -165,6 +165,7 @@ class SecurityConfiguration(
                     .requestMatchers(
                         "/health",
                         "/ready",
+                        "/error",
                         "/privacy",
                         "/docs",
                         "/docs/**",

@@ -17,9 +17,9 @@
 	}
 }
 
-(tls13_only) {
+(tls_compatible) {
 	tls {
-		protocols tls1.3
+		protocols tls1.2 tls1.3
 	}
 }
 
@@ -35,7 +35,7 @@
 }
 
 {$ROOT_DOMAIN} {
-	import tls13_only
+	import tls_compatible
 	import security_headers
 
 	@public_frontend path / /privacy /_next/* /icon.svg /favicon.ico /robots.txt
@@ -50,12 +50,12 @@
 }
 
 {$WWW_DOMAIN} {
-	import tls13_only
+	import tls_compatible
 	redir https://{$ROOT_DOMAIN}{uri} permanent
 }
 
 {$PUBLIC_DOMAIN} {
-	import tls13_only
+	import tls_compatible
 	import security_headers
 	import application_backend
 
@@ -71,7 +71,7 @@
 }
 
 {$ACCOUNT_DOMAIN} {
-	import tls13_only
+	import tls_compatible
 	import security_headers
 	import application_backend
 
@@ -87,7 +87,7 @@
 }
 
 {$PARTNER_DOMAIN} {
-	import tls13_only
+	import tls_compatible
 	import security_headers
 	import application_backend
 
@@ -103,7 +103,7 @@
 }
 
 {$ADMIN_DOMAIN} {
-	import tls13_only
+	import tls_compatible
 	import security_headers
 	import application_backend
 
@@ -119,13 +119,13 @@
 }
 
 {$API_DOMAIN} {
-	import tls13_only
+	import tls_compatible
 	import security_headers
 
 	@api_root path /
 	redir @api_root https://{$DOCS_DOMAIN}/ temporary
 
-	@api path /api/* /authorize /token /userinfo /revoke /introspect /.well-known/* /webauthn/* /login/webauthn /health /ready /openapi.json /docs /docs/* /swagger-ui/* /webjars/*
+	@api path /api/* /authorize /token /userinfo /revoke /introspect /.well-known/* /webauthn/* /login/webauthn /health /ready /openapi.json /docs /docs/* /swagger-ui/* /webjars/* /error
 	handle @api {
 		reverse_proxy backend:8000 {
 			header_up Host {host}
@@ -137,7 +137,7 @@
 }
 
 {$DOCS_DOMAIN} {
-	import tls13_only
+	import tls_compatible
 	import security_headers
 
 	@docs_root path /
@@ -155,7 +155,7 @@
 }
 
 {$STATUS_DOMAIN} {
-	import tls13_only
+	import tls_compatible
 	import security_headers
 
 	@status_api path /health /ready /api/v1/public/status
@@ -178,20 +178,20 @@
 }
 
 {$SSO_DOMAIN} {
-	import tls13_only
+	import tls_compatible
 	import security_headers
 	redir https://{$PUBLIC_DOMAIN}{uri} permanent
 }
 
 {$SCIM_DOMAIN} {
-	import tls13_only
+	import tls_compatible
 	import security_headers
 	header Content-Type application/json
 	respond `{"service":"scim","status":"not_implemented","documentation":"https://{$DOCS_DOMAIN}/"}` 501
 }
 
 {$WEBHOOKS_DOMAIN} {
-	import tls13_only
+	import tls_compatible
 	import security_headers
 	header Content-Type application/json
 	respond `{"service":"webhooks","status":"not_implemented","documentation":"https://{$DOCS_DOMAIN}/"}` 501
@@ -200,7 +200,7 @@
 https:// {
 	import security_headers
 	tls {
-		protocols tls1.3
+		protocols tls1.2 tls1.3
 		on_demand
 	}
 	import application_backend
