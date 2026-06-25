@@ -11,10 +11,12 @@ import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.springframework.data.domain.Pageable
 import org.springframework.jdbc.core.JdbcOperations
+import org.springframework.jdbc.core.RowMapper
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository
 import tools.jackson.databind.json.JsonMapper
 import uz.ods.sso.audit.AuditService
 import uz.ods.sso.config.OdsProperties
+import uz.ods.sso.identity.UserResponse
 import uz.ods.sso.mfa.MfaService
 import uz.ods.sso.persistence.AuditLogEntity
 import uz.ods.sso.persistence.AuditLogRepository
@@ -88,8 +90,30 @@ class AdminServiceTest {
         whenever(jdbc.queryForObject("select count(*) from oauth2_registered_client", Long::class.java)).thenReturn(2)
         whenever(loginHistory.countByTenantIdAndSuccessFalseAndCreatedAtAfter(eq("tnt_1"), any())).thenReturn(3)
         whenever(auditLogs.countByTenantIdAndCreatedAtAfter(eq("tnt_1"), any())).thenReturn(12)
-        val user = UserEntity(tenantId = "tnt_1", email = "user@example.com").apply { publicId = "usr_1" }
-        whenever(users.search(eq("tnt_1"), eq("user"), any<Pageable>())).thenReturn(listOf(user))
+        val projectedUser = UserResponse(
+            id = "usr_1",
+            email = "user@example.com",
+            name = null,
+            phone = null,
+            emailVerified = false,
+            status = "active",
+            role = "user",
+            mfaEnabled = false,
+            createdAt = java.time.Instant.now(),
+        )
+        whenever(jdbc.query(any<String>(), any<RowMapper<UserResponse>>(), eq("tnt_1"), eq(20), eq(0)))
+            .thenReturn(listOf(projectedUser))
+        whenever(
+            jdbc.query(
+                any<String>(),
+                any<RowMapper<UserResponse>>(),
+                eq("tnt_1"),
+                eq("user"),
+                eq("user"),
+                eq(20),
+                eq(0),
+            ),
+        ).thenReturn(listOf(projectedUser))
         val session = UserSessionEntity(tenantId = "tnt_1", userId = "usr_1").apply { publicId = "ses_1" }
         whenever(sessions.findForAdmin(eq("tnt_1"), eq("usr_1"), any<Pageable>())).thenReturn(listOf(session))
         whenever(auditLogs.search(eq("tnt_1"), eq("LOGIN"), eq("usr_1"), any<Pageable>())).thenReturn(
@@ -110,6 +134,7 @@ class AdminServiceTest {
 
         assertThat(service.dashboard(request)).isEqualTo(AdminDashboardResponse(10, 8, 4, 2, 3, 12))
         assertThat(service.listUsers(request, "user", 0, 20).single().id).isEqualTo("usr_1")
+        assertThat(service.listUsers(request, null, 0, 20).single().id).isEqualTo("usr_1")
         assertThat(service.listSessions(request, "usr_1").single()["id"]).isEqualTo("ses_1")
         assertThat(service.audit(request, "LOGIN", "usr_1", 20).single().id).isEqualTo("aud_1")
         assertThat(service.policies(request).single().key).isEqualTo("password")

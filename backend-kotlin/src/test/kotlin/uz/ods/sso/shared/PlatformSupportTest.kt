@@ -16,10 +16,21 @@ import uz.ods.sso.shared.exceptions.PlatformException
 import uz.ods.sso.shared.exceptions.ResourceNotFoundException
 import uz.ods.sso.shared.exceptions.ValidationException
 import uz.ods.sso.shared.logging.LoggingContext
+import uz.ods.sso.config.partnerPermissionsForRole
 
 class PlatformSupportTest {
     @AfterEach
     fun clearMdc() = MDC.clear()
+
+    @Test
+    fun `partner roles map to explicit token permissions`() {
+        assertThat(partnerPermissionsForRole("owner"))
+            .contains("organization:manage", "members:manage", "applications:manage")
+        assertThat(partnerPermissionsForRole("admin")).contains("members:manage", "applications:manage")
+        assertThat(partnerPermissionsForRole("editor")).containsExactly("content:read", "content:write")
+        assertThat(partnerPermissionsForRole("user")).containsExactly("content:read", "content:use")
+        assertThat(partnerPermissionsForRole("viewer")).containsExactly("content:read")
+    }
 
     @Test
     fun `exception factories preserve structured diagnostics`() {

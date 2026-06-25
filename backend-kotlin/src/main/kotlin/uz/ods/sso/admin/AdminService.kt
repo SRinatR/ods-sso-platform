@@ -171,7 +171,53 @@ class AdminService(
 
     fun listUsers(request: HttpServletRequest, query: String?, offset: Int, limit: Int): List<UserResponse> {
         val principal = guard.require(request)
-        return users.search(principal.user.tenantId, query, PageRequest.of(offset / limit, limit)).map { it.toResponse() }
+        val normalizedQuery = query?.trim()?.ifBlank { null }
+        val rowMapper = { rs: java.sql.ResultSet, _: Int ->
+            UserResponse(
+                id = rs.getString("public_id"),
+                email = rs.getString("email"),
+                name = rs.getString("name"),
+                phone = rs.getString("phone"),
+                emailVerified = rs.getTimestamp("email_verified_at") != null,
+                status = rs.getString("status"),
+                role = rs.getString("role"),
+                mfaEnabled = rs.getBoolean("mfa_enabled"),
+                createdAt = rs.getTimestamp("created_at").toInstant(),
+            )
+        }
+        return if (normalizedQuery == null) {
+            jdbc.query(
+                """
+                select public_id, email, name, phone, email_verified_at, status, role, mfa_enabled, created_at
+                from users
+                where tenant_id = ?
+                order by created_at desc
+                limit ? offset ?
+                """.trimIndent(),
+                rowMapper,
+                principal.user.tenantId,
+                limit,
+                offset,
+            )
+        } else {
+            jdbc.query(
+                """
+                select public_id, email, name, phone, email_verified_at, status, role, mfa_enabled, created_at
+                from users
+                where tenant_id = ?
+                  and (lower(email) like lower(concat('%', ?, '%'))
+                       or lower(coalesce(name, '')) like lower(concat('%', ?, '%')))
+                order by created_at desc
+                limit ? offset ?
+                """.trimIndent(),
+                rowMapper,
+                principal.user.tenantId,
+                normalizedQuery,
+                normalizedQuery,
+                limit,
+                offset,
+            )
+        }
     }
 
     @Transactional

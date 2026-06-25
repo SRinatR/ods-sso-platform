@@ -56,7 +56,9 @@ function ProductNavigation({ product }: { product: Product }) {
   if (product === "partner") {
     return (
       <nav>
+        <a href="#organizations">Все компании</a>
         <a href="#organization">Организация</a>
+        <a href="#members">Участники и роли</a>
         <a href="#applications">SSO-приложения</a>
         <a href="#integration">Параметры OIDC</a>
       </nav>

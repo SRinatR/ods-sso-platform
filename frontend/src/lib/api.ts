@@ -25,7 +25,15 @@ export class ApiRequestError extends Error {
 }
 
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_URL}${path}`, {
+  return apiAt<T>(API_URL, path, init);
+}
+
+export async function apiAt<T>(
+  baseUrl: string,
+  path: string,
+  init?: RequestInit,
+): Promise<T> {
+  const response = await fetch(`${baseUrl.replace(/\/$/, "")}${path}`, {
     ...init,
     credentials: "include",
     headers: {

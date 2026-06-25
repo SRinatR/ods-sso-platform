@@ -2,8 +2,8 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { Shell } from "@/components/Shell";
-import { api, ApiRequestError } from "@/lib/api";
-import { AUTH_URL, onAuth } from "@/lib/domains";
+import { apiAt, ApiRequestError } from "@/lib/api";
+import { onAuth } from "@/lib/domains";
 
 type Organization = {
   id: string;
@@ -30,6 +30,8 @@ type Application = {
   token_endpoint_auth_method: "none" | "client_secret_basic" | "client_secret_post";
   require_pkce: boolean;
   enabled: boolean;
+  logo_uri?: string;
+  hide_ods_branding: boolean;
 };
 
 type Integration = {
@@ -47,8 +49,20 @@ type Integration = {
 
 type Workspace = {
   organization?: Organization;
+  organizations: Organization[];
   applications: Application[];
+  members: Member[];
   integration: Integration;
+};
+
+type Member = {
+  id: string;
+  user_id: string;
+  email: string;
+  name?: string;
+  role: "owner" | "admin" | "editor" | "user" | "viewer";
+  status: "active" | "disabled";
+  created_at: string;
 };
 
 type ApplicationForm = {
@@ -59,6 +73,8 @@ type ApplicationForm = {
   scopes: string[];
   clientType: "public" | "confidential";
   tokenEndpointAuthMethod: "none" | "client_secret_basic" | "client_secret_post";
+  logoUri: string;
+  hideOdsBranding: boolean;
 };
 
 const emptyApplication: ApplicationForm = {
@@ -69,6 +85,8 @@ const emptyApplication: ApplicationForm = {
   scopes: ["openid", "profile", "email"],
   clientType: "confidential",
   tokenEndpointAuthMethod: "client_secret_basic",
+  logoUri: "",
+  hideOdsBranding: false,
 };
 
 const scopeLabels: Record<string, string> = {
@@ -96,18 +114,15 @@ export default function PartnerPage() {
   });
   const [applicationForm, setApplicationForm] =
     useState<ApplicationForm>(emptyApplication);
+  const [memberForm, setMemberForm] = useState({
+    email: "",
+    role: "user" as "editor" | "user" | "viewer",
+  });
 
   const load = useCallback(() => {
     setError("");
-    api<Workspace>("/api/v1/partner/workspace")
+    partnerApi<Workspace>("/api/v1/partner/workspace")
       .then((loaded) => {
-        if (
-          loaded.organization?.portal_url &&
-          window.location.origin === new URL(AUTH_URL).origin
-        ) {
-          window.location.href = loaded.organization.portal_url;
-          return;
-        }
         setWorkspace(loaded);
         setLoading(false);
       })
@@ -133,7 +148,7 @@ export default function PartnerPage() {
     setError("");
     setSaving(true);
     try {
-      const created = await api<Workspace>("/api/v1/partner/organizations", {
+      const created = await partnerApi<Workspace>("/api/v1/partner/organizations", {
         method: "POST",
         body: JSON.stringify({
           name: organizationForm.name,
@@ -163,14 +178,14 @@ export default function PartnerPage() {
     const payload = applicationPayload(applicationForm);
     try {
       if (editingId) {
-        const updated = await api<Application>(
+        const updated = await partnerApi<Application>(
           `/api/v1/partner/applications/${editingId}`,
           { method: "PATCH", body: JSON.stringify(payload) },
         );
         replaceApplication(updated);
         setNotice(`Настройки «${updated.name}» сохранены.`);
       } else {
-        const created = await api<Application>("/api/v1/partner/applications", {
+        const created = await partnerApi<Application>("/api/v1/partner/applications", {
           method: "POST",
           body: JSON.stringify(payload),
         });
@@ -200,6 +215,8 @@ export default function PartnerPage() {
       scopes: application.scopes,
       clientType: application.client_type,
       tokenEndpointAuthMethod: application.token_endpoint_auth_method,
+      logoUri: application.logo_uri || "",
+      hideOdsBranding: application.hide_ods_branding,
     });
     setNotice("");
     setError("");
@@ -214,7 +231,7 @@ export default function PartnerPage() {
   async function toggleApplication(application: Application) {
     setError("");
     try {
-      const updated = await api<Application>(
+      const updated = await partnerApi<Application>(
         `/api/v1/partner/applications/${application.id}`,
         {
           method: "PATCH",
@@ -232,7 +249,7 @@ export default function PartnerPage() {
     setError("");
     setSecret(null);
     try {
-      const updated = await api<Application>(
+      const updated = await partnerApi<Application>(
         `/api/v1/partner/applications/${application.id}/rotate-secret`,
         { method: "POST" },
       );
@@ -258,6 +275,49 @@ export default function PartnerPage() {
     );
   }
 
+  async function addMember(event: FormEvent) {
+    event.preventDefault();
+    setError("");
+    setNotice("");
+    setSaving(true);
+    try {
+      const created = await partnerApi<Member>("/api/v1/partner/members", {
+        method: "POST",
+        body: JSON.stringify(memberForm),
+      });
+      setWorkspace((current) =>
+        current ? { ...current, members: [...current.members, created] } : current,
+      );
+      setMemberForm({ email: "", role: "user" });
+      setNotice("Участник добавлен. Его роль попадёт в OIDC-токены этой организации.");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Не удалось добавить участника");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function updateMember(member: Member, patch: Partial<Pick<Member, "role" | "status">>) {
+    setError("");
+    try {
+      const updated = await partnerApi<Member>(`/api/v1/partner/members/${member.id}`, {
+        method: "PATCH",
+        body: JSON.stringify(patch),
+      });
+      setWorkspace((current) =>
+        current
+          ? {
+              ...current,
+              members: current.members.map((item) => (item.id === updated.id ? updated : item)),
+            }
+          : current,
+      );
+      setNotice("Доступ участника обновлён.");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Не удалось изменить участника");
+    }
+  }
+
   const authorizationExample = useMemo(() => {
     const first = workspace?.applications[0];
     if (!first || !workspace) return "";
@@ -276,7 +336,7 @@ export default function PartnerPage() {
 
   return (
     <Shell
-      title={workspace?.organization ? workspace.organization.name : "Регистрация контрагента"}
+      title={workspace?.organization ? workspace.organization.name : "Мои контрагенты"}
       subtitle="Самостоятельная настройка входа через ODS"
       product="partner"
     >
@@ -285,14 +345,38 @@ export default function PartnerPage() {
       {loading && <div className="panel">Загрузка кабинета…</div>}
 
       {workspace && !workspace.organization && (
-        <section className="panel narrow" id="organization">
-          <p className="eyebrow">Организация</p>
-          <h2>Создайте отдельный кабинет контрагента</h2>
-          <p className="muted">
-            Личная учётная запись станет владельцем организации. Кабинет будет доступен
-            только на её поддомене: company.uz → company.ods.uz.
-          </p>
-          <form className="stack" onSubmit={createOrganization}>
+        <>
+          {workspace.organizations.length > 0 && (
+            <section className="panel" id="organizations">
+              <p className="eyebrow">Контрагенты</p>
+              <h2>Выберите компанию</h2>
+              <p className="muted">
+                Данные, участники, приложения и аналитика каждой компании доступны только
+                на её собственном поддомене.
+              </p>
+              <div className="application-list">
+                {workspace.organizations.map((organization) => (
+                  <a className="application-card" href={organization.portal_url} key={organization.id}>
+                    <div className="row between">
+                      <div>
+                        <h3>{organization.name}</h3>
+                        <code>{organization.portal_url}</code>
+                      </div>
+                      <span className="badge success">{organization.role}</span>
+                    </div>
+                  </a>
+                ))}
+              </div>
+            </section>
+          )}
+          <section className="panel narrow" id="organization">
+            <p className="eyebrow">Новый контрагент</p>
+            <h2>Создайте отдельный кабинет компании</h2>
+            <p className="muted">
+              Ваша личная учётная запись станет единственным владельцем организации.
+              Кабинет будет доступен только на её поддомене: company.uz → company.ods.uz.
+            </p>
+            <form className="stack" onSubmit={createOrganization}>
             <label>
               Название организации
               <input
@@ -363,8 +447,9 @@ export default function PartnerPage() {
             <button className="button" disabled={saving}>
               {saving ? "Создаём кабинет…" : "Создать кабинет"}
             </button>
-          </form>
-        </section>
+            </form>
+          </section>
+        </>
       )}
 
       {workspace?.organization && (
@@ -387,6 +472,9 @@ export default function PartnerPage() {
                 Настройки этой организации изолированы от личного кабинета и системной
                 админки.
               </p>
+              <a className="text-button" href={onAuth("/partner")}>
+                Все компании и создание нового контрагента
+              </a>
             </section>
           </div>
 
@@ -477,6 +565,94 @@ export default function PartnerPage() {
             )}
           </section>
 
+          <section className="panel" id="members">
+            <div className="row between">
+              <div>
+                <p className="eyebrow">Доступ</p>
+                <h2>Участники и роли</h2>
+              </div>
+              <span className="badge">{workspace.members.length}</span>
+            </div>
+            <p className="muted">
+              Владелец один. Роли editor, user и reader передаются подключённым приложениям
+              в claims <code>organization_role</code>, <code>roles</code> и <code>permissions</code>.
+            </p>
+            {workspace.organization.role === "owner" && (
+              <form className="grid two top-gap" onSubmit={addMember}>
+                <label>
+                  Email зарегистрированного пользователя ODS
+                  <input
+                    required
+                    type="email"
+                    value={memberForm.email}
+                    onChange={(event) => setMemberForm({ ...memberForm, email: event.target.value })}
+                  />
+                </label>
+                <label>
+                  Роль
+                  <select
+                    value={memberForm.role}
+                    onChange={(event) =>
+                      setMemberForm({
+                        ...memberForm,
+                        role: event.target.value as "editor" | "user" | "viewer",
+                      })
+                    }
+                  >
+                    <option value="editor">Редактор</option>
+                    <option value="user">Пользователь</option>
+                    <option value="viewer">Читатель</option>
+                  </select>
+                </label>
+                <button className="button" disabled={saving}>Добавить участника</button>
+              </form>
+            )}
+            <div className="table-wrap top-gap">
+              <table>
+                <thead>
+                  <tr><th>Пользователь</th><th>Роль</th><th>Статус</th><th /></tr>
+                </thead>
+                <tbody>
+                  {workspace.members.map((member) => (
+                    <tr key={member.id}>
+                      <td><b>{member.name || member.email}</b><br /><span>{member.email}</span></td>
+                      <td>{member.role === "viewer" ? "reader" : member.role}</td>
+                      <td>{member.status}</td>
+                      <td>
+                        {workspace.organization?.role === "owner" && member.role !== "owner" && (
+                          <div className="actions">
+                            <select
+                              value={member.role}
+                              onChange={(event) =>
+                                updateMember(member, {
+                                  role: event.target.value as Member["role"],
+                                })
+                              }
+                            >
+                              <option value="editor">Редактор</option>
+                              <option value="user">Пользователь</option>
+                              <option value="viewer">Читатель</option>
+                            </select>
+                            <button
+                              className="text-button danger"
+                              onClick={() =>
+                                updateMember(member, {
+                                  status: member.status === "active" ? "disabled" : "active",
+                                })
+                              }
+                            >
+                              {member.status === "active" ? "Отключить" : "Включить"}
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
           <section className="panel" id="integration">
             <p className="eyebrow">Интеграция</p>
             <h2>Готовые параметры OpenID Connect</h2>
@@ -501,6 +677,10 @@ export default function PartnerPage() {
       )}
     </Shell>
   );
+}
+
+function partnerApi<T>(path: string, init?: RequestInit): Promise<T> {
+  return apiAt<T>(window.location.origin, path, init);
 }
 
 function ApplicationEditor({
@@ -561,6 +741,24 @@ function ApplicationEditor({
           onChange={(event) => onChange({ ...form, description: event.target.value })}
         />
       </label>
+      <div className="grid two">
+        <label>
+          Logo URL для экрана согласия
+          <input
+            placeholder="https://service.example.uz/logo.png"
+            value={form.logoUri}
+            onChange={(event) => onChange({ ...form, logoUri: event.target.value })}
+          />
+        </label>
+        <label className="checkbox">
+          <input
+            type="checkbox"
+            checked={form.hideOdsBranding}
+            onChange={(event) => onChange({ ...form, hideOdsBranding: event.target.checked })}
+          />
+          <span>Скрыть логотип ODS на экране согласия</span>
+        </label>
+      </div>
       {form.clientType === "confidential" && (
         <label>
           Аутентификация token endpoint
@@ -650,6 +848,8 @@ function applicationPayload(form: ApplicationForm) {
     scopes: form.scopes,
     client_type: form.clientType,
     token_endpoint_auth_method: form.tokenEndpointAuthMethod,
+    logo_uri: form.logoUri,
+    hide_ods_branding: form.hideOdsBranding,
   };
 }
 

@@ -18,7 +18,8 @@ class PartnerDomainService(
     private val organizations: PartnerOrganizationRepository,
     private val properties: OdsProperties,
 ) {
-    fun requestedSlug(request: HttpServletRequest): String? = slugFromDomain(request.serverName)
+    fun requestedSlug(request: HttpServletRequest): String? =
+        candidateHosts(request).firstNotNullOfOrNull(::slugFromDomain)
 
     fun portalUrl(slug: String): String = properties.partnerPortalUrl(slug)
 
@@ -73,6 +74,25 @@ class PartnerDomainService(
         val slug = domain.removeSuffix(".$root")
         if (slug.contains('.') || slug in RESERVED || !SLUG.matches(slug)) return null
         return slug
+    }
+
+    private fun candidateHosts(request: HttpServletRequest): List<String> {
+        val forwardedHost = request.getHeader("X-Forwarded-Host")
+            ?.split(",")
+            ?.firstOrNull()
+            ?.trim()
+        val forwarded = request.getHeader("Forwarded")
+            ?.split(";")
+            ?.map(String::trim)
+            ?.firstOrNull { it.startsWith("host=", ignoreCase = true) }
+            ?.substringAfter("=")
+            ?.trim('"')
+        return listOfNotNull(
+            request.getHeader("X-ODS-Portal-Host")?.trim(),
+            forwardedHost,
+            forwarded,
+            request.serverName,
+        ).filter(String::isNotBlank).distinct()
     }
 
     companion object {

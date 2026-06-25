@@ -44,6 +44,8 @@ class OAuthClientProvisioningService(
         scopes = DEFAULT_SCOPES,
         clientType = "confidential",
         tokenEndpointAuthMethod = "client_secret_basic",
+        logoUri = null,
+        hideOdsBranding = false,
     )
 
     fun create(
@@ -55,10 +57,13 @@ class OAuthClientProvisioningService(
         scopes: List<String>,
         clientType: String,
         tokenEndpointAuthMethod: String,
+        logoUri: String? = null,
+        hideOdsBranding: Boolean = false,
     ): ProvisionedOAuthClient {
         validateName(name)
         validateRedirectUris(redirectUris)
         validateOptionalRedirectUris(postLogoutRedirectUris)
+        logoUri?.trim()?.ifBlank { null }?.let { validateUriValues(listOf(it), "Logo URI") }
         val normalizedScopes = validateScopes(scopes)
         val publicClient = clientType == "public"
         if (clientType !in setOf("public", "confidential")) {
@@ -84,6 +89,8 @@ class OAuthClientProvisioningService(
                     .setting("description", description.orEmpty().trim())
                     .setting("enabled", true)
                     .setting("tenant_id", tenantId)
+                    .setting("logo_uri", logoUri?.trim().orEmpty())
+                    .setting("hide_ods_branding", hideOdsBranding)
                     .build(),
             )
             .tokenSettings(defaultTokenSettings())
@@ -109,10 +116,13 @@ class OAuthClientProvisioningService(
         postLogoutRedirectUris: List<String>?,
         scopes: List<String>?,
         enabled: Boolean?,
+        logoUri: String? = null,
+        hideOdsBranding: Boolean? = null,
     ): RegisteredClient {
         name?.let(::validateName)
         redirectUris?.let(::validateRedirectUris)
         postLogoutRedirectUris?.let(::validateOptionalRedirectUris)
+        logoUri?.trim()?.ifBlank { null }?.let { validateUriValues(listOf(it), "Logo URI") }
         val normalizedScopes = scopes?.let(::validateScopes)
         val builder = RegisteredClient.from(existing)
         name?.let { builder.clientName(it.trim()) }
@@ -134,7 +144,7 @@ class OAuthClientProvisioningService(
                 current.addAll(values)
             }
         }
-        if (description != null || enabled != null) {
+        if (description != null || enabled != null || logoUri != null || hideOdsBranding != null) {
             builder.clientSettings(
                 ClientSettings.withSettings(existing.clientSettings.settings)
                     .setting(
@@ -142,6 +152,16 @@ class OAuthClientProvisioningService(
                         description?.trim() ?: existing.clientSettings.settings["description"]?.toString().orEmpty(),
                     )
                     .setting("enabled", enabled ?: isEnabled(existing))
+                    .setting(
+                        "logo_uri",
+                        logoUri?.trim()
+                            ?: existing.clientSettings.settings["logo_uri"]?.toString().orEmpty(),
+                    )
+                    .setting(
+                        "hide_ods_branding",
+                        hideOdsBranding
+                            ?: (existing.clientSettings.settings["hide_ods_branding"] as? Boolean ?: false),
+                    )
                     .build(),
             )
         }
