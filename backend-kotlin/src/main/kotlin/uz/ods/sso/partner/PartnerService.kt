@@ -44,11 +44,7 @@ class PartnerService(
         val requestedSlug = domains.requestedSlug(request)
         val selected = requestedSlug?.let { slug ->
             available.firstOrNull { it.first.slug == slug }
-                ?: throw AppException(
-                    HttpStatus.NOT_FOUND,
-                    "partner_workspace_not_found",
-                    "Partner workspace was not found for this domain",
-                )
+                ?: throwWorkspaceAccessError(slug)
         }
         val organization = selected?.first
         val membership = selected?.second
@@ -418,11 +414,23 @@ class PartnerService(
             "Open the organization portal URL before changing organization settings",
         )
         return activeOrganizations(principal).firstOrNull { it.first.slug == requestedSlug }
-            ?: throw AppException(
-                HttpStatus.NOT_FOUND,
-                "partner_workspace_not_found",
-                "Partner workspace was not found for this domain",
+            ?: throwWorkspaceAccessError(requestedSlug)
+    }
+
+    private fun throwWorkspaceAccessError(slug: String): Nothing {
+        val organizationExists = organizations.findBySlugAndStatus(slug, "active") != null
+        if (organizationExists) {
+            throw AppException(
+                HttpStatus.FORBIDDEN,
+                "partner_workspace_forbidden",
+                "Your ODS account is not a member of this organization",
             )
+        }
+        throw AppException(
+            HttpStatus.NOT_FOUND,
+            "partner_workspace_not_found",
+            "Partner workspace was not found for this domain",
+        )
     }
 
     private fun requireManager(membership: PartnerMembershipEntity) {

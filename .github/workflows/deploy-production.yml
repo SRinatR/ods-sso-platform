@@ -107,6 +107,7 @@ jobs:
               'ROOT_DOMAIN=ods.uz' \
               'WWW_DOMAIN=www.ods.uz' \
               'ACCOUNT_DOMAIN=accounts.ods.uz' \
+              'PARTNER_DOMAIN=partners.ods.uz' \
               'ADMIN_DOMAIN=admin.ods.uz' \
               'API_DOMAIN=api.ods.uz' \
               'DOCS_DOMAIN=docs.ods.uz' \
@@ -116,11 +117,12 @@ jobs:
               'WEBHOOKS_DOMAIN=webhooks.ods.uz' \
               'ISSUER=https://auth.ods.uz' \
               'ACCOUNT_URL=https://auth.ods.uz' \
+              'PARTNERS_URL=https://partners.ods.uz' \
               'ACCOUNTS_URL=https://accounts.ods.uz' \
               'ADMIN_URL=https://admin.ods.uz' \
               'ROOT_URL=https://ods.uz' \
               'API_URL=https://auth.ods.uz' \
-              'ALLOWED_ORIGINS=https://auth.ods.uz,https://accounts.ods.uz,https://admin.ods.uz,https://ods.uz' \
+              'ALLOWED_ORIGINS=https://auth.ods.uz,https://accounts.ods.uz,https://partners.ods.uz,https://admin.ods.uz,https://ods.uz' \
               'ALLOWED_ORIGIN_PATTERNS=https://*.ods.uz' \
               'SESSION_COOKIE_DOMAIN=ods.uz' \
               'POSTGRES_USER=ods' \

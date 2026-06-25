@@ -5,7 +5,7 @@ import { FormEvent, Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { AuthCard } from "@/components/Shell";
 import { api } from "@/lib/api";
-import { onAuth } from "@/lib/domains";
+import { onAuth, onPartners } from "@/lib/domains";
 
 type RegistrationResponse = {
   message: string;
@@ -113,7 +113,11 @@ function RegisterForm() {
         </form>
       )}
       <div className="auth-links">
-        <Link href={onAuth(`/login${partner ? "?return_to=/partner" : ""}`)}>
+        <Link
+          href={onAuth(
+            partner ? `/login?return_to=${encodeURIComponent(onPartners("/"))}` : "/login",
+          )}
+        >
           Вернуться ко входу
         </Link>
         {!partner && <Link href={onAuth("/register?kind=partner")}>Для контрагентов</Link>}

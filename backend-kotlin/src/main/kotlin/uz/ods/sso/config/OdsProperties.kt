@@ -8,6 +8,7 @@ data class OdsProperties(
     val environment: String = "dev",
     val issuer: String = "http://localhost:8080",
     val accountUrl: String = "http://account.localhost",
+    val partnersUrl: String = "http://partners.localhost",
     val apiUrl: String = "http://localhost:8080",
     val rootDomain: String = "localhost",
     val allowedOrigins: String = "http://account.localhost,http://localhost:3000",
@@ -38,7 +39,10 @@ data class OdsProperties(
 ) {
     val productionLike: Boolean get() = environment in setOf("staging", "production")
     val corsOrigins: List<String>
-        get() = (allowedOrigins.split(",") + accountUrl).map(String::trim).filter(String::isNotEmpty).distinct()
+        get() = (allowedOrigins.split(",") + accountUrl + partnersUrl)
+            .map(String::trim)
+            .filter(String::isNotEmpty)
+            .distinct()
     val corsOriginPatterns: List<String>
         get() = allowedOriginPatterns.split(",").map(String::trim).filter(String::isNotEmpty).distinct()
 

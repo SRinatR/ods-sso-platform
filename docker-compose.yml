@@ -181,6 +181,7 @@ services:
         NEXT_PUBLIC_AUTH_URL: ${ACCOUNT_URL:-http://account.localhost}
         NEXT_PUBLIC_ACCOUNTS_URL: ${ACCOUNTS_URL:-http://accounts.localhost}
         NEXT_PUBLIC_ADMIN_URL: ${ADMIN_URL:-http://admin.localhost}
+        NEXT_PUBLIC_PARTNERS_URL: ${PARTNERS_URL:-http://partners.localhost}
         NEXT_PUBLIC_ROOT_DOMAIN: ${ROOT_DOMAIN:-localhost}
     environment:
       NEXT_PUBLIC_API_URL: ${API_URL:-http://localhost:8080}
@@ -188,6 +189,7 @@ services:
       NEXT_PUBLIC_AUTH_URL: ${ACCOUNT_URL:-http://account.localhost}
       NEXT_PUBLIC_ACCOUNTS_URL: ${ACCOUNTS_URL:-http://accounts.localhost}
       NEXT_PUBLIC_ADMIN_URL: ${ADMIN_URL:-http://admin.localhost}
+      NEXT_PUBLIC_PARTNERS_URL: ${PARTNERS_URL:-http://partners.localhost}
       NEXT_PUBLIC_ROOT_DOMAIN: ${ROOT_DOMAIN:-localhost}
     depends_on:
       backend:
@@ -210,6 +212,7 @@ services:
       ADMIN_DOMAIN: ${ADMIN_DOMAIN:-admin.localhost}
       ACME_EMAIL: ${ACME_EMAIL:-admin@ods.uz}
       DOCS_DOMAIN: ${DOCS_DOMAIN:-docs.localhost}
+      PARTNER_DOMAIN: ${PARTNER_DOMAIN:-partners.localhost}
       PUBLIC_DOMAIN: ${PUBLIC_DOMAIN:-localhost}
       ROOT_DOMAIN: ${ROOT_DOMAIN:-localhost}
       SCIM_DOMAIN: ${SCIM_DOMAIN:-scim.localhost}

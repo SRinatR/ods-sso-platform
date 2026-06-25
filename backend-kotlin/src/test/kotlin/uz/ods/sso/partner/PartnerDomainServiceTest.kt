@@ -32,6 +32,7 @@ class PartnerDomainServiceTest {
         assertThat(service.domainAllowed("company.ods.uz")).isTrue()
         assertThat(service.domainAllowed("unknown.ods.uz")).isFalse()
         assertThat(service.domainAllowed("admin.ods.uz")).isFalse()
+        assertThat(service.domainAllowed("partners.ods.uz")).isFalse()
         assertThat(service.domainAllowed("nested.company.ods.uz")).isFalse()
     }
 
@@ -54,6 +55,10 @@ class PartnerDomainServiceTest {
     @Test
     fun `reserved and occupied slugs are rejected`() {
         assertThatThrownBy { service.requireAvailableSlug("admin") }
+            .isInstanceOf(AppException::class.java)
+            .hasMessage("This organization code is reserved")
+
+        assertThatThrownBy { service.requireAvailableSlug("partners") }
             .isInstanceOf(AppException::class.java)
             .hasMessage("This organization code is reserved")
 

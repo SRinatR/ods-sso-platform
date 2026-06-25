@@ -46,6 +46,7 @@ required=(
   ROOT_DOMAIN
   WWW_DOMAIN
   ACCOUNT_DOMAIN
+  PARTNER_DOMAIN
   ADMIN_DOMAIN
   API_DOMAIN
   DOCS_DOMAIN
@@ -55,6 +56,7 @@ required=(
   WEBHOOKS_DOMAIN
   ISSUER
   ACCOUNT_URL
+  PARTNERS_URL
   API_URL
   ALLOWED_ORIGINS
   ALLOWED_ORIGIN_PATTERNS
@@ -99,6 +101,7 @@ fi
 
 declare -A service_domains=(
   [ACCOUNT_DOMAIN]="accounts"
+  [PARTNER_DOMAIN]="partners"
   [ADMIN_DOMAIN]="admin"
   [API_DOMAIN]="api"
   [DOCS_DOMAIN]="docs"
@@ -124,6 +127,12 @@ for name in ISSUER ACCOUNT_URL API_URL; do
     exit 1
   fi
 done
+
+partners_url="$(grep '^PARTNERS_URL=' "${env_file}" | cut -d= -f2-)"
+if [ "${partners_url}" != "https://partners.${root_domain}" ]; then
+  echo "Deployment aborted: PARTNERS_URL must equal https://partners.${root_domain}" >&2
+  exit 1
+fi
 
 allowed_origin_patterns="$(grep '^ALLOWED_ORIGIN_PATTERNS=' "${env_file}" | cut -d= -f2-)"
 session_cookie_domain="$(grep '^SESSION_COOKIE_DOMAIN=' "${env_file}" | cut -d= -f2-)"
