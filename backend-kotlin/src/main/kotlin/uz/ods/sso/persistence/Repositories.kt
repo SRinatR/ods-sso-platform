@@ -122,6 +122,139 @@ interface AuditLogRepository : JpaRepository<AuditLogEntity, UUID> {
     fun search(tenantId: String, eventType: String?, actorId: String?, pageable: Pageable): List<AuditLogEntity>
 
     fun countByTenantIdAndCreatedAtAfter(tenantId: String, since: Instant): Long
+
+    @Query(
+        """
+        select count(a) from AuditLogEntity a
+        where a.tenantId = :tenantId
+          and a.clientId in :clientIds
+          and a.eventType in :eventTypes
+          and a.createdAt >= :since
+        """,
+    )
+    fun countClientEvents(
+        tenantId: String,
+        clientIds: Collection<String>,
+        eventTypes: Collection<String>,
+        since: Instant,
+    ): Long
+
+    @Query(
+        """
+        select count(distinct a.actorId) from AuditLogEntity a
+        where a.tenantId = :tenantId
+          and a.clientId in :clientIds
+          and a.eventType in :eventTypes
+          and a.createdAt >= :since
+          and a.actorId is not null
+        """,
+    )
+    fun countDistinctClientActors(
+        tenantId: String,
+        clientIds: Collection<String>,
+        eventTypes: Collection<String>,
+        since: Instant,
+    ): Long
+
+    @Query(
+        """
+        select a.clientId as clientId, a.eventType as eventType, count(a) as total
+        from AuditLogEntity a
+        where a.tenantId = :tenantId
+          and a.clientId in :clientIds
+          and a.eventType in :eventTypes
+          and a.createdAt >= :since
+        group by a.clientId, a.eventType
+        """,
+    )
+    fun countClientEventsByType(
+        tenantId: String,
+        clientIds: Collection<String>,
+        eventTypes: Collection<String>,
+        since: Instant,
+    ): List<AuditEventCountProjection>
+
+    @Query(
+        """
+        select a.clientId as clientId, count(distinct a.actorId) as total
+        from AuditLogEntity a
+        where a.tenantId = :tenantId
+          and a.clientId in :clientIds
+          and a.eventType in :eventTypes
+          and a.createdAt >= :since
+          and a.actorId is not null
+        group by a.clientId
+        """,
+    )
+    fun countDistinctClientActorsByClient(
+        tenantId: String,
+        clientIds: Collection<String>,
+        eventTypes: Collection<String>,
+        since: Instant,
+    ): List<AuditClientCountProjection>
+
+    @Query(
+        """
+        select a from AuditLogEntity a
+        where a.tenantId = :tenantId
+          and a.clientId in :clientIds
+          and a.eventType in :eventTypes
+          and a.createdAt >= :since
+        order by a.createdAt desc
+        """,
+    )
+    fun findClientEvents(
+        tenantId: String,
+        clientIds: Collection<String>,
+        eventTypes: Collection<String>,
+        since: Instant,
+        pageable: Pageable,
+    ): List<AuditLogEntity>
+
+    @Query(
+        """
+        select count(a) from AuditLogEntity a
+        where a.tenantId = :tenantId
+          and a.eventType in :eventTypes
+          and a.createdAt >= :since
+          and (a.subjectId = :organizationId or a.detailsJson like concat('%', :organizationId, '%'))
+        """,
+    )
+    fun countOrganizationEvents(
+        tenantId: String,
+        organizationId: String,
+        eventTypes: Collection<String>,
+        since: Instant,
+    ): Long
+
+    @Query(
+        """
+        select a from AuditLogEntity a
+        where a.tenantId = :tenantId
+          and a.eventType in :eventTypes
+          and a.createdAt >= :since
+          and (a.subjectId = :organizationId or a.detailsJson like concat('%', :organizationId, '%'))
+        order by a.createdAt desc
+        """,
+    )
+    fun findOrganizationEvents(
+        tenantId: String,
+        organizationId: String,
+        eventTypes: Collection<String>,
+        since: Instant,
+        pageable: Pageable,
+    ): List<AuditLogEntity>
+}
+
+interface AuditEventCountProjection {
+    val clientId: String?
+    val eventType: String
+    val total: Long
+}
+
+interface AuditClientCountProjection {
+    val clientId: String?
+    val total: Long
 }
 
 interface UserConsentRepository : JpaRepository<UserConsentEntity, UUID> {

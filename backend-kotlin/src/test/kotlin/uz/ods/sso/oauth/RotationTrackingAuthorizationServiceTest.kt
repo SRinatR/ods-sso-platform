@@ -15,6 +15,7 @@ import org.springframework.security.oauth2.server.authorization.OAuth2Authorizat
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService
 import org.springframework.security.oauth2.server.authorization.OAuth2TokenType
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClient
+import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository
 import uz.ods.sso.audit.AuditService
 import uz.ods.sso.config.OdsProperties
 import uz.ods.sso.persistence.AuditLogEntity
@@ -29,6 +30,7 @@ import java.time.temporal.ChronoUnit
 
 class RotationTrackingAuthorizationServiceTest {
     private val delegate: OAuth2AuthorizationService = mock()
+    private val clients: RegisteredClientRepository = mock()
     private val usedTokens: UsedRefreshTokenRepository = mock()
     private val users: UserRepository = mock()
     private val sessions: UserSessionRepository = mock()
@@ -41,6 +43,7 @@ class RotationTrackingAuthorizationServiceTest {
     )
     private val service = RotationTrackingAuthorizationService(
         delegate,
+        clients,
         usedTokens,
         users,
         sessions,

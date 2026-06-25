@@ -256,6 +256,7 @@ class SecurityConfiguration(
         audit: AuditService,
     ): OAuth2AuthorizationService = RotationTrackingAuthorizationService(
         JdbcOAuth2AuthorizationService(jdbc, clients),
+        clients,
         usedTokens,
         users,
         sessions,
@@ -269,11 +270,13 @@ class SecurityConfiguration(
         clients: RegisteredClientRepository,
         consents: UserConsentRepository,
         users: UserRepository,
+        audit: AuditService,
     ): OAuth2AuthorizationConsentService = MirroringAuthorizationConsentService(
         JdbcOAuth2AuthorizationConsentService(jdbc, clients),
         consents,
         users,
         clients,
+        audit,
     )
 
     @Bean

@@ -26,6 +26,7 @@ Last updated: 2026-06-23.
 | Admin Console API compatibility | Implemented |
 | Partner organization self-registration | Implemented |
 | Multiple organizations per account and subdomain-scoped selection | Implemented |
+| Partner-scoped SSO analytics | Implemented |
 | Partner member roles in OIDC claims | Implemented |
 | Partner self-service OIDC configuration and secret lifecycle | Implemented |
 | Isolated personal, counterparty and administration navigation | Implemented |

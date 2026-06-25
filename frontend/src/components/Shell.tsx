@@ -58,6 +58,7 @@ function ProductNavigation({ product }: { product: Product }) {
       <nav>
         <a href="#organizations">Все компании</a>
         <a href="#organization">Организация</a>
+        <a href="#analytics">Аналитика</a>
         <a href="#members">Участники и роли</a>
         <a href="#applications">SSO-приложения</a>
         <a href="#integration">Параметры OIDC</a>

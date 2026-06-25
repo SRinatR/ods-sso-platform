@@ -100,7 +100,7 @@ class ConsentServiceTest {
     fun `mirroring service writes and revokes domain consent`() {
         val delegate = mock<OAuth2AuthorizationConsentService>()
         val users = mock<UserRepository>()
-        val mirror = MirroringAuthorizationConsentService(delegate, consents, users, clients)
+        val mirror = MirroringAuthorizationConsentService(delegate, consents, users, clients, audit)
         val authorizationConsent = OAuth2AuthorizationConsent.withId("registered-1", "usr_1")
             .scope("openid")
             .scope("email")
@@ -113,6 +113,14 @@ class ConsentServiceTest {
         mirror.save(authorizationConsent)
         assertThat(entity.status).isEqualTo("granted")
         assertThat(entity.scopes).isEqualTo("email openid")
+        verify(audit).writeSystem(
+            tenantId = "tnt_1",
+            eventType = "CONSENT_GRANTED",
+            actorId = "usr_1",
+            subjectId = "usr_1",
+            clientId = "client-1",
+            details = mapOf("scopes" to listOf("email", "openid")),
+        )
 
         mirror.remove(authorizationConsent)
         assertThat(entity.status).isEqualTo("revoked")

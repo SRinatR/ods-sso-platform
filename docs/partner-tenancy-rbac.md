@@ -45,9 +45,11 @@ organization.
 
 ## Analytics boundary
 
-Partner analytics will be scoped by `organization_id` and `client_id`. The target metrics are:
+Partner analytics is scoped by `organization_id` and `client_id`. The cabinet shows a 30-day
+aggregate view for organization owners and admins:
 
-- successful and failed SSO logins;
+- successful SSO logins;
+- OAuth security and token failures;
 - unique active users;
 - consent acceptance and denial;
 - token issuance and refresh failures;
