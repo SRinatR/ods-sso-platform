@@ -35,6 +35,16 @@ type Client = {
   allowed_scopes: string[];
   enabled: boolean;
 };
+type Organization = {
+  id: string;
+  slug: string;
+  name: string;
+  legal_name?: string;
+  website_url?: string;
+  contact_email: string;
+  status: string;
+  created_at: string;
+};
 type Audit = {
   id: string;
   event_type: string;
@@ -62,6 +72,7 @@ export default function AdminPage() {
   const [dashboard, setDashboard] = useState<Dashboard | null>(null);
   const [users, setUsers] = useState<User[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
+  const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [sessions, setSessions] = useState<Array<Record<string, unknown>>>([]);
   const [audit, setAudit] = useState<Audit[]>([]);
   const [policies, setPolicies] = useState<Policy[]>([]);
@@ -73,11 +84,12 @@ export default function AdminPage() {
   });
 
   const load = useCallback(async () => {
-    const [summary, userList, clientList, sessionList, auditList, policyList] =
+    const [summary, userList, clientList, organizationList, sessionList, auditList, policyList] =
       await Promise.all([
         api<Dashboard>("/api/v1/admin/dashboard"),
         api<User[]>("/api/v1/admin/users"),
         api<Client[]>("/api/v1/admin/oauth-clients"),
+        api<Organization[]>("/api/v1/admin/organizations"),
         api<Array<Record<string, unknown>>>("/api/v1/admin/sessions"),
         api<Audit[]>("/api/v1/admin/audit"),
         api<Policy[]>("/api/v1/admin/security-policies"),
@@ -85,6 +97,7 @@ export default function AdminPage() {
     setDashboard(summary);
     setUsers(userList);
     setClients(clientList);
+    setOrganizations(organizationList);
     setSessions(sessionList);
     setAudit(auditList);
     setPolicies(policyList);
@@ -149,6 +162,33 @@ export default function AdminPage() {
       method: "PATCH",
       body: JSON.stringify(changes),
     });
+    await load();
+  }
+
+  async function deleteUser(user: User) {
+    const confirmed = window.confirm(
+      `Удалить аккаунт ${user.email}? Доступ будет отозван, сессии закрыты, персональные данные очищены.`,
+    );
+    if (!confirmed) return;
+    await api(`/api/v1/admin/users/${user.id}`, { method: "DELETE" });
+    await load();
+  }
+
+  async function deleteClient(client: Client) {
+    const confirmed = window.confirm(
+      `Удалить OAuth-клиент ${client.name}? Все токены и consent для client_id ${client.client_id} будут удалены.`,
+    );
+    if (!confirmed) return;
+    await api(`/api/v1/admin/oauth-clients/${client.client_id}`, { method: "DELETE" });
+    await load();
+  }
+
+  async function deleteOrganization(organization: Organization) {
+    const confirmed = window.confirm(
+      `Удалить организацию ${organization.name}? Будут удалены её участники, SSO-приложения, OAuth-клиенты и токены.`,
+    );
+    if (!confirmed) return;
+    await api(`/api/v1/admin/organizations/${organization.id}`, { method: "DELETE" });
     await load();
   }
 
@@ -314,6 +354,7 @@ export default function AdminPage() {
                   <td className="actions">
                     <button
                       className="text-button"
+                      type="button"
                       onClick={() =>
                         updateUser(user, {
                           status: user.status === "active" ? "suspended" : "active",
@@ -324,11 +365,19 @@ export default function AdminPage() {
                     </button>
                     <button
                       className="text-button"
+                      type="button"
                       onClick={() =>
                         updateUser(user, { role: user.role === "admin" ? "user" : "admin" })
                       }
                     >
                       Toggle admin
+                    </button>
+                    <button
+                      className="text-button danger"
+                      type="button"
+                      onClick={() => deleteUser(user)}
+                    >
+                      Delete
                     </button>
                   </td>
                 </tr>
@@ -385,6 +434,7 @@ export default function AdminPage() {
                 <th>Redirect URIs</th>
                 <th>Scopes</th>
                 <th>Status</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -398,6 +448,63 @@ export default function AdminPage() {
                   <td>{client.redirect_uris.join(", ")}</td>
                   <td>{client.allowed_scopes.join(" ")}</td>
                   <td>{client.enabled ? "enabled" : "disabled"}</td>
+                  <td>
+                    <button
+                      className="text-button danger"
+                      type="button"
+                      onClick={() => deleteClient(client)}
+                    >
+                      Delete
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section className="panel" id="organizations">
+        <h2>Контрагенты и организации</h2>
+        <p className="muted">
+          Удаление организации удаляет её участников, partner metadata, OAuth-клиенты,
+          active authorizations и consent-записи.
+        </p>
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Organization</th>
+                <th>Slug</th>
+                <th>Contact</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {organizations.map((organization) => (
+                <tr key={organization.id}>
+                  <td>
+                    <b>{organization.name}</b>
+                    {organization.legal_name && (
+                      <>
+                        <br />
+                        <span>{organization.legal_name}</span>
+                      </>
+                    )}
+                  </td>
+                  <td><code>{organization.slug}</code></td>
+                  <td>{organization.contact_email}</td>
+                  <td>{organization.status}</td>
+                  <td>
+                    <button
+                      className="text-button danger"
+                      type="button"
+                      onClick={() => deleteOrganization(organization)}
+                    >
+                      Delete
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>

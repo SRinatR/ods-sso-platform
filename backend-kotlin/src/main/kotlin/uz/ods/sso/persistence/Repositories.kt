@@ -15,6 +15,7 @@ interface TenantRepository : JpaRepository<TenantEntity, UUID> {
 interface PartnerOrganizationRepository : JpaRepository<PartnerOrganizationEntity, UUID> {
     fun findByPublicId(publicId: String): PartnerOrganizationEntity?
     fun findByTenantIdAndSlug(tenantId: String, slug: String): PartnerOrganizationEntity?
+    fun findByTenantIdOrderByCreatedAtDesc(tenantId: String): List<PartnerOrganizationEntity>
     fun findBySlug(slug: String): PartnerOrganizationEntity?
     fun findBySlugAndStatus(slug: String, status: String): PartnerOrganizationEntity?
 }
@@ -54,6 +55,7 @@ interface UserRepository : JpaRepository<UserEntity, UUID> {
     fun searchByText(tenantId: String, query: String, pageable: Pageable): List<UserEntity>
 
     fun countByTenantId(tenantId: String): Long
+    fun countByTenantIdAndStatusNot(tenantId: String, status: String): Long
     fun countByTenantIdAndStatus(tenantId: String, status: String): Long
 }
 

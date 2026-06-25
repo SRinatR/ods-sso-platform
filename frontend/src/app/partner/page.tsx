@@ -312,6 +312,32 @@ export default function PartnerPage() {
     }
   }
 
+  async function deleteApplication(application: Application) {
+    const confirmed = window.confirm(
+      `Удалить приложение «${application.name}»? Client ID ${application.client_id}, токены и consent будут удалены.`,
+    );
+    if (!confirmed) return;
+    setError("");
+    setNotice("");
+    try {
+      await partnerApi(`/api/v1/partner/applications/${application.id}`, { method: "DELETE" });
+      setWorkspace((current) =>
+        current
+          ? {
+              ...current,
+              applications: current.applications.filter((item) => item.id !== application.id),
+            }
+          : current,
+      );
+      setNotice(`Приложение «${application.name}» удалено.`);
+      if (editingId === application.id) {
+        cancelEditing();
+      }
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Не удалось удалить приложение");
+    }
+  }
+
   function replaceApplication(updated: Application) {
     setWorkspace((current) =>
       current
@@ -365,6 +391,45 @@ export default function PartnerPage() {
       setNotice("Доступ участника обновлён.");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Не удалось изменить участника");
+    }
+  }
+
+  async function deleteMember(member: Member) {
+    const confirmed = window.confirm(`Удалить участника ${member.email} из организации?`);
+    if (!confirmed) return;
+    setError("");
+    setNotice("");
+    try {
+      await partnerApi(`/api/v1/partner/members/${member.id}`, { method: "DELETE" });
+      setWorkspace((current) =>
+        current
+          ? {
+              ...current,
+              members: current.members.filter((item) => item.id !== member.id),
+            }
+          : current,
+      );
+      setNotice("Участник удалён из организации.");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Не удалось удалить участника");
+    }
+  }
+
+  async function deleteCurrentOrganization() {
+    if (!workspace?.organization) return;
+    const confirmed = window.confirm(
+      `Удалить организацию «${workspace.organization.name}»? Будут удалены участники, приложения, client_id, токены и consent-записи.`,
+    );
+    if (!confirmed) return;
+    setError("");
+    setNotice("");
+    setSaving(true);
+    try {
+      await partnerApi("/api/v1/partner/organizations/current", { method: "DELETE" });
+      window.location.href = onPartners("/");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Не удалось удалить организацию");
+      setSaving(false);
     }
   }
 
@@ -546,6 +611,23 @@ export default function PartnerPage() {
               <a className="text-button" href={onPartners("/")}>
                 Все компании и создание нового контрагента
               </a>
+              {workspace.organization.role === "owner" && (
+                <div className="alert warning top-gap">
+                  <strong>Опасная зона.</strong>
+                  <p>
+                    Удаление компании полностью отключит её кабинет, участников,
+                    SSO-приложения, client_id, токены и consent-записи.
+                  </p>
+                  <button
+                    className="button danger"
+                    disabled={saving}
+                    type="button"
+                    onClick={deleteCurrentOrganization}
+                  >
+                    {saving ? "Удаляем…" : "Удалить компанию"}
+                  </button>
+                </div>
+              )}
             </section>
           </div>
 
@@ -712,6 +794,13 @@ export default function PartnerPage() {
                           Выпустить новый secret
                         </button>
                       )}
+                      <button
+                        className="text-button danger"
+                        type="button"
+                        onClick={() => deleteApplication(application)}
+                      >
+                        Удалить приложение
+                      </button>
                     </div>
                   </article>
                 ))}
@@ -789,6 +878,7 @@ export default function PartnerPage() {
                             </select>
                             <button
                               className="text-button danger"
+                              type="button"
                               onClick={() =>
                                 updateMember(member, {
                                   status: member.status === "active" ? "disabled" : "active",
@@ -796,6 +886,13 @@ export default function PartnerPage() {
                               }
                             >
                               {member.status === "active" ? "Отключить" : "Включить"}
+                            </button>
+                            <button
+                              className="text-button danger"
+                              type="button"
+                              onClick={() => deleteMember(member)}
+                            >
+                              Удалить
                             </button>
                           </div>
                         )}

@@ -7,6 +7,7 @@ import org.junit.jupiter.api.assertThrows
 import org.mockito.kotlin.any
 import org.mockito.kotlin.eq
 import org.mockito.kotlin.mock
+import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
@@ -198,6 +199,52 @@ class PartnerServiceTest {
         val error = assertThrows<AppException> { service.workspace(request) }
         assertThat(error.status).isEqualTo(HttpStatus.FORBIDDEN)
         assertThat(error.code).isEqualTo("partner_workspace_forbidden")
+    }
+
+    @Test
+    fun `owner deletes organization and owned oauth clients`() {
+        val request = mock<HttpServletRequest>()
+        whenever(request.serverName).thenReturn("company.ods.uz")
+        val user = UserEntity(tenantId = "tnt_1", email = "owner@example.com").apply { publicId = "usr_owner" }
+        val session = UserSessionEntity(tenantId = "tnt_1", userId = "usr_owner").apply { publicId = "ses_1" }
+        whenever(sessions.current()).thenReturn(CurrentPrincipal(user, session))
+        val organization = PartnerOrganizationEntity(
+            tenantId = "tnt_1",
+            slug = "company",
+            name = "Company",
+            contactEmail = "owner@example.com",
+        ).apply { publicId = "org_1" }
+        val membership = PartnerMembershipEntity(
+            organizationId = "org_1",
+            userId = "usr_owner",
+            role = "owner",
+        )
+        whenever(memberships.findByUserIdAndStatusOrderByCreatedAtAsc("usr_owner", "active"))
+            .thenReturn(listOf(membership))
+        whenever(organizations.findByPublicId("org_1")).thenReturn(organization)
+        val app = PartnerApplicationEntity(
+            organizationId = "org_1",
+            registeredClientId = "registered-1",
+            clientId = "client-1",
+            createdBy = "usr_owner",
+        ).apply { publicId = "appmeta_1" }
+        val client = RegisteredClient.withId("registered-1")
+            .clientId("client-1")
+            .clientName("Company app")
+            .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
+            .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
+            .redirectUri("https://company.example/callback")
+            .scope("openid")
+            .clientSettings(ClientSettings.builder().requireProofKey(true).setting("enabled", true).build())
+            .build()
+        whenever(applications.findByOrganizationIdOrderByCreatedAtDesc("org_1")).thenReturn(listOf(app))
+        whenever(oauthClients.findIncludingDisabledById("registered-1")).thenReturn(client)
+
+        val response = service.deleteCurrentOrganization(request)
+
+        assertThat(response.ok).isTrue()
+        verify(oauthClients).delete(client)
+        verify(organizations).delete(organization)
     }
 
     private fun count(clientId: String, eventType: String, total: Long) =

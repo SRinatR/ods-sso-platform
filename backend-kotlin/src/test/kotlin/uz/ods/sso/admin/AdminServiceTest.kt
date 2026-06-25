@@ -5,6 +5,7 @@ import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 import org.mockito.kotlin.any
 import org.mockito.kotlin.eq
+import org.mockito.kotlin.isNull
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
@@ -12,15 +13,24 @@ import org.mockito.kotlin.whenever
 import org.springframework.data.domain.Pageable
 import org.springframework.jdbc.core.JdbcOperations
 import org.springframework.jdbc.core.RowMapper
+import org.springframework.security.oauth2.core.AuthorizationGrantType
+import org.springframework.security.oauth2.core.ClientAuthenticationMethod
+import org.springframework.security.oauth2.server.authorization.client.RegisteredClient
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository
+import org.springframework.security.oauth2.server.authorization.settings.ClientSettings
 import tools.jackson.databind.json.JsonMapper
 import uz.ods.sso.audit.AuditService
 import uz.ods.sso.config.OdsProperties
 import uz.ods.sso.identity.UserResponse
 import uz.ods.sso.mfa.MfaService
+import uz.ods.sso.oauth.OAuthClientProvisioningService
 import uz.ods.sso.persistence.AuditLogEntity
 import uz.ods.sso.persistence.AuditLogRepository
 import uz.ods.sso.persistence.LoginHistoryRepository
+import uz.ods.sso.persistence.PartnerApplicationEntity
+import uz.ods.sso.persistence.PartnerApplicationRepository
+import uz.ods.sso.persistence.PartnerOrganizationEntity
+import uz.ods.sso.persistence.PartnerOrganizationRepository
 import uz.ods.sso.persistence.SecurityPolicyEntity
 import uz.ods.sso.persistence.SecurityPolicyRepository
 import uz.ods.sso.persistence.UserEntity
@@ -40,8 +50,11 @@ class AdminServiceTest {
     private val sessions = mock<UserSessionRepository>()
     private val loginHistory = mock<LoginHistoryRepository>()
     private val auditLogs = mock<AuditLogRepository>()
+    private val partnerOrganizations = mock<PartnerOrganizationRepository>()
+    private val partnerApplications = mock<PartnerApplicationRepository>()
     private val policies = mock<SecurityPolicyRepository>()
     private val clients = mock<RegisteredClientRepository>()
+    private val oauthProvisioning = mock<OAuthClientProvisioningService>()
     private val jdbc = mock<JdbcOperations>()
     private val mfa = mock<MfaService>()
     private val sessionService = mock<SessionService>()
@@ -57,8 +70,11 @@ class AdminServiceTest {
         sessions,
         loginHistory,
         auditLogs,
+        partnerOrganizations,
+        partnerApplications,
         policies,
         clients,
+        oauthProvisioning,
         jdbc,
         crypto,
         mfa,
@@ -84,7 +100,7 @@ class AdminServiceTest {
     @Test
     fun `dashboard and list projections use tenant scoped repositories`() {
         whenever(guard.require(request)).thenReturn(principal)
-        whenever(users.countByTenantId("tnt_1")).thenReturn(10)
+        whenever(users.countByTenantIdAndStatusNot("tnt_1", "deleted")).thenReturn(10)
         whenever(users.countByTenantIdAndStatus("tnt_1", "active")).thenReturn(8)
         whenever(sessions.countByTenantIdAndRevokedAtIsNullAndExpiresAtAfter(eq("tnt_1"), any())).thenReturn(4)
         whenever(jdbc.queryForObject("select count(*) from oauth2_registered_client", Long::class.java)).thenReturn(2)
@@ -159,6 +175,79 @@ class AdminServiceTest {
     }
 
     @Test
+    fun `delete user revokes access anonymizes account and preserves audit identity`() {
+        whenever(guard.require(request)).thenReturn(principal)
+        val user = UserEntity(
+            tenantId = "tnt_1",
+            email = "delete-me@example.com",
+            name = "Delete Me",
+            phone = "+998901234567",
+            role = "support",
+            mfaEnabled = true,
+        ).apply { publicId = "usr_delete" }
+        whenever(users.findByPublicId("usr_delete")).thenReturn(user)
+
+        val response = service.deleteUser("usr_delete", request)
+
+        assertThat(response.ok).isTrue()
+        assertThat(user.status).isEqualTo("deleted")
+        assertThat(user.email).isEqualTo("deleted+delete@deleted.ods.local")
+        assertThat(user.name).isNull()
+        assertThat(user.phone).isNull()
+        assertThat(user.role).isEqualTo("user")
+        assertThat(user.mfaEnabled).isFalse()
+        verify(sessionService).revokeAll("usr_delete")
+        verify(jdbc).update("delete from oauth2_authorization where principal_name = ?", "usr_delete")
+        verify(jdbc).update("update partner_memberships set status = 'disabled' where user_id = ?", "usr_delete")
+        verify(audit).write(
+            eq("tnt_1"),
+            eq(request),
+            eq("ADMIN_USER_DELETED"),
+            eq("usr_admin"),
+            eq("usr_delete"),
+            isNull(),
+            any<Map<String, Any?>>(),
+        )
+    }
+
+    @Test
+    fun `delete organization removes owned oauth clients before deleting organization`() {
+        whenever(guard.require(request)).thenReturn(principal)
+        val organization = PartnerOrganizationEntity(
+            tenantId = "tnt_1",
+            slug = "company",
+            name = "Company",
+            contactEmail = "owner@example.com",
+        ).apply { publicId = "org_1" }
+        val metadata = PartnerApplicationEntity(
+            organizationId = "org_1",
+            registeredClientId = "registered-1",
+            clientId = "cli_1",
+            createdBy = "usr_admin",
+        ).apply { publicId = "appmeta_1" }
+        val registered = registeredClient("registered-1", "cli_1")
+        whenever(partnerOrganizations.findByPublicId("org_1")).thenReturn(organization)
+        whenever(partnerApplications.findByOrganizationIdOrderByCreatedAtDesc("org_1"))
+            .thenReturn(listOf(metadata))
+        whenever(oauthProvisioning.findIncludingDisabledById("registered-1")).thenReturn(registered)
+
+        val response = service.deleteOrganization("org_1", request)
+
+        assertThat(response.ok).isTrue()
+        verify(oauthProvisioning).delete(registered)
+        verify(partnerOrganizations).delete(organization)
+        verify(audit).write(
+            eq("tnt_1"),
+            eq(request),
+            eq("PARTNER_ORGANIZATION_DELETED"),
+            eq("usr_admin"),
+            eq("org_1"),
+            isNull(),
+            any<Map<String, Any?>>(),
+        )
+    }
+
+    @Test
     fun `security policy is created and serialized`() {
         whenever(guard.require(request)).thenReturn(principal)
         whenever(policies.findByTenantIdAndKey("tnt_1", "oauth")).thenReturn(null)
@@ -186,4 +275,15 @@ class AdminServiceTest {
         assertThat(guard.require(request)).isSameAs(principal)
         verify(limiter).enforce(RateLimiter.ADMIN, "usr_admin")
     }
+
+    private fun registeredClient(id: String, clientId: String): RegisteredClient =
+        RegisteredClient.withId(id)
+            .clientId(clientId)
+            .clientName("Client")
+            .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
+            .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
+            .redirectUri("https://client.example/callback")
+            .scope("openid")
+            .clientSettings(ClientSettings.builder().setting("enabled", true).build())
+            .build()
 }
