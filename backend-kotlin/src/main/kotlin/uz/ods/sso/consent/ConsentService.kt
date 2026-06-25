@@ -148,6 +148,7 @@ open class MirroringAuthorizationConsentService(
     private val consents: UserConsentRepository,
     private val users: uz.ods.sso.persistence.UserRepository,
     private val clients: RegisteredClientRepository,
+    private val audit: AuditService,
 ) : OAuth2AuthorizationConsentService {
     @Transactional
     open override fun save(authorizationConsent: OAuth2AuthorizationConsent) {
@@ -161,13 +162,22 @@ open class MirroringAuthorizationConsentService(
         entity.grantedAt = Instant.now()
         entity.revokedAt = null
         consents.save(entity)
+        audit.writeSystem(
+            user.tenantId,
+            "CONSENT_GRANTED",
+            actorId = user.id,
+            subjectId = user.id,
+            clientId = client.clientId,
+            details = mapOf("scopes" to authorizationConsent.scopes.sorted()),
+        )
     }
 
     @Transactional
     open override fun remove(authorizationConsent: OAuth2AuthorizationConsent) {
         delegate.remove(authorizationConsent)
+        val user = users.findByPublicId(authorizationConsent.principalName) ?: return
         val client = clients.findById(authorizationConsent.registeredClientId) ?: return
-        consents.findByUserIdAndClientId(authorizationConsent.principalName, client.clientId)?.let {
+        consents.findByUserIdAndClientId(user.id, client.clientId)?.let {
             it.status = "revoked"
             it.revokedAt = Instant.now()
         }

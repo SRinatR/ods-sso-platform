@@ -18,6 +18,9 @@ class PartnerController(
     @GetMapping("/workspace")
     fun workspace(request: HttpServletRequest): PartnerWorkspaceResponse = service.workspace(request)
 
+    @GetMapping("/analytics")
+    fun analytics(request: HttpServletRequest): PartnerAnalyticsResponse = service.analytics(request)
+
     @PostMapping("/organizations")
     fun createOrganization(
         @Valid @RequestBody body: PartnerOrganizationCreate,

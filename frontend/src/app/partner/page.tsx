@@ -55,6 +55,38 @@ type Workspace = {
   integration: Integration;
 };
 
+type Analytics = {
+  window_days: number;
+  generated_at: string;
+  summary: AnalyticsSummary;
+  applications: ApplicationAnalytics[];
+  recent_events: AnalyticsEvent[];
+};
+
+type AnalyticsSummary = {
+  successful_sso_logins: number;
+  token_refreshes: number;
+  unique_users: number;
+  consents_granted: number;
+  consents_revoked: number;
+  security_failures: number;
+  configuration_changes: number;
+};
+
+type ApplicationAnalytics = AnalyticsSummary & {
+  client_id: string;
+  name: string;
+};
+
+type AnalyticsEvent = {
+  id: string;
+  event_type: string;
+  client_id?: string;
+  application_name?: string;
+  request_id: string;
+  created_at: string;
+};
+
 type Member = {
   id: string;
   user_id: string;
@@ -99,6 +131,7 @@ const scopeLabels: Record<string, string> = {
 
 export default function PartnerPage() {
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
+  const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -125,6 +158,13 @@ export default function PartnerPage() {
       .then((loaded) => {
         setWorkspace(loaded);
         setLoading(false);
+        if (loaded.organization && ["owner", "admin"].includes(loaded.organization.role)) {
+          partnerApi<Analytics>("/api/v1/partner/analytics")
+            .then(setAnalytics)
+            .catch(() => setAnalytics(null));
+        } else {
+          setAnalytics(null);
+        }
       })
       .catch((cause) => {
         if (cause instanceof ApiRequestError && cause.status === 401) {
@@ -478,6 +518,89 @@ export default function PartnerPage() {
             </section>
           </div>
 
+          {analytics && (
+            <section className="panel" id="analytics">
+              <div className="row between">
+                <div>
+                  <p className="eyebrow">Аналитика</p>
+                  <h2>Активность SSO за {analytics.window_days} дней</h2>
+                </div>
+                <span className="badge">
+                  обновлено {formatDateTime(analytics.generated_at)}
+                </span>
+              </div>
+              <div className="metric-grid top-gap">
+                <Metric label="SSO-входы" value={analytics.summary.successful_sso_logins} />
+                <Metric label="Активные пользователи" value={analytics.summary.unique_users} />
+                <Metric label="Refresh token" value={analytics.summary.token_refreshes} />
+                <Metric label="Consent granted" value={analytics.summary.consents_granted} />
+                <Metric label="Consent revoked" value={analytics.summary.consents_revoked} />
+                <Metric label="Изменения настроек" value={analytics.summary.configuration_changes} />
+              </div>
+              {analytics.summary.security_failures > 0 && (
+                <div className="alert warning top-gap">
+                  Обнаружены security-события: {analytics.summary.security_failures}. Проверьте
+                  последние события и при необходимости выпустите новый client secret.
+                </div>
+              )}
+              {analytics.applications.length > 0 && (
+                <div className="table-wrap top-gap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Приложение</th>
+                        <th>SSO</th>
+                        <th>Пользователи</th>
+                        <th>Refresh</th>
+                        <th>Consent</th>
+                        <th>Security</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {analytics.applications.map((item) => (
+                        <tr key={item.client_id}>
+                          <td><b>{item.name}</b><br /><code>{item.client_id}</code></td>
+                          <td>{item.successful_sso_logins}</td>
+                          <td>{item.unique_users}</td>
+                          <td>{item.token_refreshes}</td>
+                          <td>{item.consents_granted} / {item.consents_revoked}</td>
+                          <td>{item.security_failures}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              {analytics.recent_events.length > 0 && (
+                <div className="table-wrap top-gap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Время</th>
+                        <th>Событие</th>
+                        <th>Приложение</th>
+                        <th>Request ID</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {analytics.recent_events.map((event) => (
+                        <tr key={event.id}>
+                          <td>{formatDateTime(event.created_at)}</td>
+                          <td>{eventLabel(event.event_type)}</td>
+                          <td>
+                            {event.application_name || event.client_id || "Организация"}
+                            {event.client_id && <><br /><code>{event.client_id}</code></>}
+                          </td>
+                          <td><code>{event.request_id}</code></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+          )}
+
           {secret && (
             <div className="alert warning secret-delivery">
               <strong>Сохраните secret сейчас. Повторно он не показывается.</strong>
@@ -681,6 +804,41 @@ export default function PartnerPage() {
 
 function partnerApi<T>(path: string, init?: RequestInit): Promise<T> {
   return apiAt<T>(window.location.origin, path, init);
+}
+
+function Metric({ label, value }: { label: string; value: number }) {
+  return (
+    <section className="metric">
+      <span>{label}</span>
+      <strong>{value.toLocaleString("ru-RU")}</strong>
+    </section>
+  );
+}
+
+function formatDateTime(value: string): string {
+  return new Date(value).toLocaleString("ru-RU", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function eventLabel(value: string): string {
+  const labels: Record<string, string> = {
+    OAUTH_TOKEN_ISSUED: "SSO-вход",
+    OAUTH_TOKEN_REFRESHED: "Refresh token",
+    CONSENT_GRANTED: "Consent выдан",
+    CONSENT_REVOKED: "Consent отозван",
+    REFRESH_TOKEN_REUSE_DETECTED: "Повтор refresh token",
+    PARTNER_ORGANIZATION_CREATED: "Компания создана",
+    PARTNER_APPLICATION_CREATED: "Приложение создано",
+    PARTNER_APPLICATION_UPDATED: "Приложение обновлено",
+    PARTNER_APPLICATION_SECRET_ROTATED: "Secret перевыпущен",
+    PARTNER_MEMBER_ADDED: "Участник добавлен",
+    PARTNER_MEMBER_UPDATED: "Участник изменён",
+  };
+  return labels[value] || value;
 }
 
 function ApplicationEditor({
