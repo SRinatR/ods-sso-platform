@@ -36,6 +36,15 @@ class PartnerDomainServiceTest {
     }
 
     @Test
+    fun `tenant slug can be resolved from forwarded host`() {
+        val request = mock<HttpServletRequest>()
+        whenever(request.serverName).thenReturn("backend")
+        whenever(request.getHeader("X-Forwarded-Host")).thenReturn("company.ods.uz")
+
+        assertThat(service.requestedSlug(request)).isEqualTo("company")
+    }
+
+    @Test
     fun `website is normalized and supplies a default slug`() {
         assertThat(service.normalizeWebsite("www.company.uz")).isEqualTo("https://www.company.uz")
         assertThat(service.deriveSlug("https://www.company.uz")).isEqualTo("company")

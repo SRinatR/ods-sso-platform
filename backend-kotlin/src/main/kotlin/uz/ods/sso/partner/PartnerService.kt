@@ -121,6 +121,8 @@ class PartnerService(
             scopes = body.scopes,
             clientType = body.clientType,
             tokenEndpointAuthMethod = body.tokenEndpointAuthMethod,
+            logoUri = body.logoUri,
+            hideOdsBranding = body.hideOdsBranding,
         )
         val metadata = applications.save(
             PartnerApplicationEntity(
@@ -180,6 +182,8 @@ class PartnerService(
             body.postLogoutRedirectUris,
             body.scopes,
             body.enabled,
+            body.logoUri,
+            body.hideOdsBranding,
         )
         metadata.updatedAt = Instant.now()
         audit.write(
@@ -368,6 +372,8 @@ class PartnerService(
         tokenEndpointAuthMethod = clientAuthenticationMethods.firstOrNull()?.value ?: "none",
         requirePkce = clientSettings.isRequireProofKey,
         enabled = oauthClients.isEnabled(this),
+        logoUri = clientSettings.settings["logo_uri"]?.toString()?.ifBlank { null },
+        hideOdsBranding = clientSettings.settings["hide_ods_branding"] as? Boolean ?: false,
         createdAt = metadata.createdAt,
     )
 

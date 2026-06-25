@@ -9,8 +9,15 @@ type Consent = {
   client_id: string;
   client_name: string;
   client_description?: string;
+  logo_uri?: string;
+  hide_ods_branding: boolean;
   requested_scopes: string[];
   new_scopes: string[];
+  data_fields: Array<{
+    scope: string;
+    label: string;
+    fields: string[];
+  }>;
 };
 
 const scopeLabels: Record<string, string> = {
@@ -43,17 +50,34 @@ function ConsentContent() {
       {error && <div className="alert error">{error}</div>}
       {consent && (
         <>
+          <div className="consent-branding">
+            {consent.logo_uri && (
+              // eslint-disable-next-line @next/next/no-img-element -- partner-provided logo URL
+              <img alt="" src={consent.logo_uri} />
+            )}
+            {!consent.hide_ods_branding && <span className="badge">ODS Identity</span>}
+          </div>
           {consent.new_scopes.length < consent.requested_scopes.length && (
             <div className="alert warning">Это дополнительный запрос доступа.</div>
           )}
-          <ul className="scope-list">
-            {consent.new_scopes.map((scope) => (
-              <li key={scope}>
-                <strong>{scopeLabels[scope] || scope}</strong>
-                <span className="badge warning">Новое</span>
-              </li>
+          <div className="scope-list detailed">
+            {consent.data_fields.map((item) => (
+              <article key={item.scope}>
+                <div>
+                  <strong>{item.label || scopeLabels[item.scope] || item.scope}</strong>
+                  <code>{item.scope}</code>
+                </div>
+                <ul>
+                  {item.fields.map((field) => (
+                    <li key={field}>{field}</li>
+                  ))}
+                </ul>
+                {consent.new_scopes.includes(item.scope) && (
+                  <span className="badge warning">Новое</span>
+                )}
+              </article>
             ))}
-          </ul>
+          </div>
           <p className="muted">
             Доступ можно отозвать в любой момент. Приложение не получит данные вне этого списка.
           </p>

@@ -192,6 +192,8 @@ class ControllerCoverageTest {
             "client_secret_basic",
             true,
             true,
+            null,
+            false,
             Instant.now(),
         )
         val member = PartnerMemberResponse(
