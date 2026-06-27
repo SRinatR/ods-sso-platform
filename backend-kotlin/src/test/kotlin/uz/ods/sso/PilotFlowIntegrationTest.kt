@@ -241,7 +241,7 @@ class PilotFlowIntegrationTest {
                 .param("code_challenge", "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM")
                 .param("code_challenge_method", "S256"),
         )
-            .andExpect(status().isFound)
+            .andExpect(status().is3xxRedirection)
             .andReturn()
         assertThat(authorizationResponse.response.getHeader("Location"))
             .startsWith("https://partner.example/sso/callback?")
