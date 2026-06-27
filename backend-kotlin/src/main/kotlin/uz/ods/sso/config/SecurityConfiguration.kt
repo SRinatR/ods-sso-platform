@@ -255,15 +255,28 @@ class SecurityConfiguration(
         sessions: UserSessionRepository,
         crypto: CryptoService,
         audit: AuditService,
-    ): OAuth2AuthorizationService = RotationTrackingAuthorizationService(
-        JdbcOAuth2AuthorizationService(jdbc, clients),
-        clients,
-        usedTokens,
-        users,
-        sessions,
-        crypto,
-        audit,
-    )
+    ): OAuth2AuthorizationService {
+        val service = JdbcOAuth2AuthorizationService(jdbc, clients)
+        val defaultMapper = JdbcOAuth2AuthorizationService.OAuth2AuthorizationParametersMapper()
+        service.setAuthorizationParametersMapper { authorization ->
+            defaultMapper.apply(authorization).map { param ->
+                if (param.sqlType == java.sql.Types.BLOB) {
+                    org.springframework.jdbc.core.SqlParameterValue(java.sql.Types.VARBINARY, param.value)
+                } else {
+                    param
+                }
+            }
+        }
+        return RotationTrackingAuthorizationService(
+            service,
+            clients,
+            usedTokens,
+            users,
+            sessions,
+            crypto,
+            audit,
+        )
+    }
 
     @Bean
     fun authorizationConsentService(
