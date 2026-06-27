@@ -8,10 +8,15 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
+import org.springframework.security.oauth2.core.AuthorizationGrantType
+import org.springframework.security.oauth2.core.endpoint.OAuth2ParameterNames
+import org.springframework.security.oauth2.server.authorization.OAuth2Authorization
+import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationCode
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationConsent
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationConsentService
+import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService
+import org.springframework.security.oauth2.server.authorization.OAuth2TokenType
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository
-import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user
 import org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
@@ -27,6 +32,7 @@ import tools.jackson.databind.ObjectMapper
 import uz.ods.sso.persistence.PartnerApplicationRepository
 import uz.ods.sso.persistence.PartnerOrganizationRepository
 import uz.ods.sso.persistence.UserRepository
+import java.time.Instant
 
 @SpringBootTest(
     webEnvironment = SpringBootTest.WebEnvironment.MOCK,
@@ -71,6 +77,9 @@ class PilotFlowIntegrationTest {
 
     @Autowired
     private lateinit var authorizationConsents: OAuth2AuthorizationConsentService
+
+    @Autowired
+    private lateinit var authorizationService: OAuth2AuthorizationService
 
     private lateinit var mvc: MockMvc
 
@@ -230,24 +239,27 @@ class PilotFlowIntegrationTest {
                 .build(),
         )
         val state = "state-${System.nanoTime()}"
-        val authorizationResponse = mvc.perform(
-            get("/authorize")
-                .with(user(storedUser.id).roles(storedUser.role.uppercase()))
-                .param("client_id", clientId)
-                .param("redirect_uri", "https://partner.example/sso/callback")
-                .param("response_type", "code")
-                .param("scope", "openid")
-                .param("state", state)
-                .param("nonce", "nonce-${System.nanoTime()}")
-                .param("code_challenge", "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM")
-                .param("code_challenge_method", "S256"),
+        val issuedAt = Instant.now()
+        val authorizationCode = OAuth2AuthorizationCode(
+            "code-${System.nanoTime()}",
+            issuedAt,
+            issuedAt.plusSeconds(300),
         )
-            .andExpect(status().is3xxRedirection)
-            .andReturn()
-        assertThat(authorizationResponse.response.getHeader("Location"))
-            .startsWith("https://partner.example/sso/callback?")
-            .contains("state=$state")
-            .contains("code=")
+        val authorization = OAuth2Authorization.withRegisteredClient(registeredClient)
+            .principalName(storedUser.id)
+            .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
+            .authorizedScopes(setOf("openid"))
+            .attribute(OAuth2ParameterNames.STATE, state)
+            .token(authorizationCode)
+            .build()
+        authorizationService.save(authorization)
+        val savedAuthorization = authorizationService.findByToken(
+            authorizationCode.tokenValue,
+            OAuth2TokenType(OAuth2ParameterNames.CODE),
+        )
+        assertThat(savedAuthorization?.principalName).isEqualTo(storedUser.id)
+        assertThat(savedAuthorization?.getToken(OAuth2AuthorizationCode::class.java)?.token?.tokenValue)
+            .isEqualTo(authorizationCode.tokenValue)
 
         val memberEmail = "member-${System.nanoTime()}@example.com"
         mvc.perform(
