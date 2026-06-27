@@ -8,6 +8,9 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
+import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationConsent
+import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationConsentService
+import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository
 import org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
@@ -61,6 +64,12 @@ class PilotFlowIntegrationTest {
 
     @Autowired
     private lateinit var applications: PartnerApplicationRepository
+
+    @Autowired
+    private lateinit var registeredClients: RegisteredClientRepository
+
+    @Autowired
+    private lateinit var authorizationConsents: OAuth2AuthorizationConsentService
 
     private lateinit var mvc: MockMvc
 
@@ -181,7 +190,7 @@ class PilotFlowIntegrationTest {
         mvc.perform(get("/internal/caddy/allow-domain").param("domain", "unknown.localhost"))
             .andExpect(status().isNotFound)
 
-        mvc.perform(
+        val createdApplication = mvc.perform(
             post("/api/v1/partner/applications")
                 .cookie(sessionCookie)
                 .with { it.serverName = "$organizationSlug.localhost"; it }
@@ -208,8 +217,36 @@ class PilotFlowIntegrationTest {
             .andExpect(jsonPath("$.client_type").value("confidential"))
             .andExpect(jsonPath("$.token_endpoint_auth_method").value("client_secret_basic"))
             .andExpect(jsonPath("$.require_pkce").value(true))
+            .andReturn()
 
         assertThat(applications.findAll()).hasSize(1)
+
+        val clientId = objectMapper.readTree(createdApplication.response.contentAsString)["client_id"].asText()
+        val registeredClient = registeredClients.findByClientId(clientId)!!
+        authorizationConsents.save(
+            OAuth2AuthorizationConsent.withId(registeredClient.id, storedUser.id)
+                .scope("openid")
+                .build(),
+        )
+        val state = "state-${System.nanoTime()}"
+        val authorizationResponse = mvc.perform(
+            get("/authorize")
+                .cookie(sessionCookie)
+                .param("client_id", clientId)
+                .param("redirect_uri", "https://partner.example/sso/callback")
+                .param("response_type", "code")
+                .param("scope", "openid")
+                .param("state", state)
+                .param("nonce", "nonce-${System.nanoTime()}")
+                .param("code_challenge", "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM")
+                .param("code_challenge_method", "S256"),
+        )
+            .andExpect(status().isFound)
+            .andReturn()
+        assertThat(authorizationResponse.response.getHeader("Location"))
+            .startsWith("https://partner.example/sso/callback?")
+            .contains("state=$state")
+            .contains("code=")
 
         val memberEmail = "member-${System.nanoTime()}@example.com"
         mvc.perform(
