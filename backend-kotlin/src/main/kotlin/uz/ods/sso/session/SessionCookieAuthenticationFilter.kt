@@ -18,21 +18,19 @@ class SessionCookieAuthenticationFilter(
         response: HttpServletResponse,
         filterChain: FilterChain,
     ) {
-        if (SecurityContextHolder.getContext().authentication == null) {
-            val principal = request.cookies.orEmpty()
-                .asSequence()
-                .filter { it.name == SessionService.COOKIE_NAME }
-                .mapNotNull { sessionService.authenticate(it.value) }
-                .firstOrNull()
-            if (principal != null) {
-                val authorities = sessionService.authorities(principal)
-                val authentication = UsernamePasswordAuthenticationToken.authenticated(
-                    User(principal.userId, "", authorities),
-                    principal.sessionId,
-                    authorities,
-                )
-                SecurityContextHolder.getContext().authentication = authentication
-            }
+        val principal = request.cookies.orEmpty()
+            .asSequence()
+            .filter { it.name == SessionService.COOKIE_NAME }
+            .mapNotNull { sessionService.authenticate(it.value) }
+            .firstOrNull()
+        if (principal != null) {
+            val authorities = sessionService.authorities(principal)
+            val authentication = UsernamePasswordAuthenticationToken.authenticated(
+                User(principal.userId, "", authorities),
+                principal.sessionId,
+                authorities,
+            )
+            SecurityContextHolder.getContext().authentication = authentication
         }
         filterChain.doFilter(request, response)
     }
