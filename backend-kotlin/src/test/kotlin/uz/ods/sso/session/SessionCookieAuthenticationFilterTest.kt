@@ -9,6 +9,7 @@ import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Test
 import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
+import org.mockito.kotlin.never
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.springframework.security.authentication.TestingAuthenticationToken
@@ -56,31 +57,19 @@ class SessionCookieAuthenticationFilterTest {
     }
 
     @Test
-    fun `valid ods session overrides an existing authentication from a previous webauthn login`() {
+    fun `valid ods session does not override an existing request authentication`() {
         val request = mock<HttpServletRequest>()
         val response = mock<HttpServletResponse>()
         val chain = mock<FilterChain>()
         whenever(request.cookies).thenReturn(arrayOf(Cookie(SessionService.COOKIE_NAME, "valid")))
-        val principal = OdsPrincipal(
-            userId = "usr_passkey",
-            tenantId = "tnt_1",
-            sessionId = "ses_passkey",
-            email = "passkey@example.com",
-            role = "user",
-            mfaCompleted = true,
-            authenticationMethod = "passkey",
-            authenticatedAt = Instant.now(),
-        )
-        whenever(sessions.authenticate("valid")).thenReturn(principal)
-        whenever(sessions.authorities(principal)).thenReturn(emptyList())
         SecurityContextHolder.getContext().authentication =
-            TestingAuthenticationToken("webauthn-principal", null, "AMR_WEBAUTHN")
+            TestingAuthenticationToken("request-principal", null, "ROLE_USER")
 
         filter.doFilter(request, response, chain)
 
         val authentication = SecurityContextHolder.getContext().authentication
-        assertThat(authentication?.name).isEqualTo("usr_passkey")
-        assertThat(authentication?.credentials).isEqualTo("ses_passkey")
+        assertThat(authentication?.name).isEqualTo("request-principal")
+        verify(sessions, never()).authenticate("valid")
         verify(chain).doFilter(any(), any())
     }
 }

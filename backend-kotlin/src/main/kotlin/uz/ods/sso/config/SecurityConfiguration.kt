@@ -15,6 +15,7 @@ import org.springframework.http.HttpStatus
 import org.springframework.jdbc.core.JdbcOperations
 import org.springframework.security.config.Customizer.withDefaults
 import org.springframework.security.config.annotation.web.builders.HttpSecurity
+import org.springframework.security.config.http.SessionCreationPolicy
 import org.springframework.security.oauth2.core.OAuth2Error
 import org.springframework.security.oauth2.core.OAuth2ErrorCodes
 import org.springframework.security.oauth2.core.oidc.OidcScopes
@@ -148,6 +149,13 @@ class SecurityConfiguration(
             .addFilterAfter(sessionFilter, LogoutFilter::class.java)
             .cors(withDefaults())
             .csrf { csrf -> csrf.ignoringRequestMatchers(endpointsMatcher) }
+            .securityContext {
+                it.securityContextRepository(RequestAttributeSecurityContextRepository())
+            }
+            .sessionManagement {
+                it.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+            }
+            .requestCache { it.disable() }
 
         return http.build()
     }
