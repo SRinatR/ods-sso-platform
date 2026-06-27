@@ -241,8 +241,15 @@ class PilotFlowIntegrationTest {
                 .param("code_challenge", "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM")
                 .param("code_challenge_method", "S256"),
         )
-            .andExpect(status().is3xxRedirection)
             .andReturn()
+        assertThat(authorizationResponse.response.status)
+            .withFailMessage(
+                "authorize response status=%s location=%s body=%s",
+                authorizationResponse.response.status,
+                authorizationResponse.response.getHeader("Location"),
+                authorizationResponse.response.contentAsString,
+            )
+            .isBetween(300, 399)
         assertThat(authorizationResponse.response.getHeader("Location"))
             .startsWith("https://partner.example/sso/callback?")
             .contains("state=$state")
