@@ -244,14 +244,13 @@ class PilotFlowIntegrationTest {
         )
             .andDo(print())
             .andReturn()
-        assertThat(authorizationResponse.response.status)
-            .withFailMessage(
-                "authorize response status=%s location=%s body=%s",
-                authorizationResponse.response.status,
-                authorizationResponse.response.getHeader("Location"),
-                authorizationResponse.response.contentAsString,
+        if (authorizationResponse.response.status !in 300..399) {
+            error(
+                "authorize response status=${authorizationResponse.response.status} " +
+                    "location=${authorizationResponse.response.getHeader("Location")} " +
+                    "body=${authorizationResponse.response.contentAsString}",
             )
-            .isBetween(300, 399)
+        }
         assertThat(authorizationResponse.response.getHeader("Location"))
             .startsWith("https://partner.example/sso/callback?")
             .contains("state=$state")
