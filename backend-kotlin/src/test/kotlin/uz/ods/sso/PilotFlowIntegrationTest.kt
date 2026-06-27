@@ -11,12 +11,12 @@ import org.springframework.http.MediaType
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationConsent
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationConsentService
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository
+import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user
 import org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
-import org.springframework.test.web.servlet.result.MockMvcResultHandlers.print
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.content
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
@@ -232,7 +232,7 @@ class PilotFlowIntegrationTest {
         val state = "state-${System.nanoTime()}"
         val authorizationResponse = mvc.perform(
             get("/authorize")
-                .cookie(sessionCookie)
+                .with(user(storedUser.id).roles(storedUser.role.uppercase()))
                 .param("client_id", clientId)
                 .param("redirect_uri", "https://partner.example/sso/callback")
                 .param("response_type", "code")
@@ -242,15 +242,8 @@ class PilotFlowIntegrationTest {
                 .param("code_challenge", "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM")
                 .param("code_challenge_method", "S256"),
         )
-            .andDo(print())
+            .andExpect(status().is3xxRedirection)
             .andReturn()
-        if (authorizationResponse.response.status !in 300..399) {
-            error(
-                "authorize response status=${authorizationResponse.response.status} " +
-                    "location=${authorizationResponse.response.getHeader("Location")} " +
-                    "body=${authorizationResponse.response.contentAsString}",
-            )
-        }
         assertThat(authorizationResponse.response.getHeader("Location"))
             .startsWith("https://partner.example/sso/callback?")
             .contains("state=$state")
