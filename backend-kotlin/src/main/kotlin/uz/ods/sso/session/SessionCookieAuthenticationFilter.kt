@@ -5,7 +5,6 @@ import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken
 import org.springframework.security.core.context.SecurityContextHolder
-import org.springframework.security.core.userdetails.User
 import org.springframework.stereotype.Component
 import org.springframework.web.filter.OncePerRequestFilter
 
@@ -27,7 +26,7 @@ class SessionCookieAuthenticationFilter(
             if (principal != null) {
                 val authorities = sessionService.authorities(principal)
                 val authentication = UsernamePasswordAuthenticationToken.authenticated(
-                    User(principal.userId, "", authorities),
+                    principal,
                     principal.sessionId,
                     authorities,
                 )
