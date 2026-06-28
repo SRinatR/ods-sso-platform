@@ -107,6 +107,11 @@ class SessionService(
         val user = users.findByPublicId(session.userId) ?: return null
         if (user.status != "active") return null
         sessions.touch(session.id, now, now.minusSeconds(LAST_SEEN_TOUCH_INTERVAL_SECONDS))
+        val authenticatedAt = if (session.authenticationMethod == "passkey") {
+            session.stepUpAt ?: session.mfaCompletedAt ?: session.createdAt
+        } else {
+            session.createdAt
+        }
         return OdsPrincipal(
             user.id,
             user.tenantId,
@@ -115,7 +120,7 @@ class SessionService(
             user.role,
             session.mfaCompletedAt != null,
             session.authenticationMethod,
-            session.createdAt,
+            authenticatedAt,
         )
     }
 
@@ -138,7 +143,12 @@ class SessionService(
         SimpleGrantedAuthority("ROLE_${principal.role.uppercase()}"),
         SimpleGrantedAuthority("TENANT_${principal.tenantId}"),
     ) + when (principal.authenticationMethod) {
-        "passkey" -> listOf(SimpleGrantedAuthority("AMR_WEBAUTHN"))
+        "passkey" -> listOf(
+            FactorGrantedAuthority.withAuthority(FactorGrantedAuthority.WEBAUTHN_AUTHORITY)
+                .issuedAt(principal.authenticatedAt)
+                .build(),
+            SimpleGrantedAuthority("AMR_WEBAUTHN"),
+        )
         "password_totp" -> listOf(passwordAuthority(principal), SimpleGrantedAuthority("AMR_OTP"))
         else -> listOf(passwordAuthority(principal))
     }

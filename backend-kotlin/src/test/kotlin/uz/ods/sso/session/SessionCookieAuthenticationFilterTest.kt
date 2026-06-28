@@ -50,7 +50,10 @@ class SessionCookieAuthenticationFilterTest {
 
         filter.doFilter(request, response, chain)
 
-        assertThat(SecurityContextHolder.getContext().authentication?.name).isEqualTo("usr_1")
+        val authentication = SecurityContextHolder.getContext().authentication
+        assertThat(authentication?.name).isEqualTo("usr_1")
+        assertThat(authentication?.principal).isSameAs(principal)
+        assertThat(authentication?.credentials).isEqualTo("ses_1")
         verify(sessions).authenticate("stale")
         verify(sessions).authenticate("valid")
         verify(chain).doFilter(any(), any())

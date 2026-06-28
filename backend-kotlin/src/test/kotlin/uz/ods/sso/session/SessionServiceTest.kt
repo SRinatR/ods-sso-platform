@@ -15,6 +15,7 @@ import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken
+import org.springframework.security.core.authority.FactorGrantedAuthority
 import org.springframework.security.core.context.SecurityContextHolder
 import uz.ods.sso.config.OdsProperties
 import uz.ods.sso.persistence.UserEntity
@@ -71,11 +72,12 @@ class SessionServiceTest {
     @Test
     fun `valid session authenticates and exposes factor timestamp`() {
         val (id, secret, raw) = crypto.opaqueToken("ses")
+        val createdAt = Instant.now().minusSeconds(10)
         val entity = UserSessionEntity(
             tenantId = "tnt_1",
             userId = "usr_1",
             secretHash = crypto.hashSecret(secret),
-            createdAt = Instant.now().minusSeconds(10),
+            createdAt = createdAt,
             expiresAt = Instant.now().plusSeconds(60),
             mfaCompletedAt = Instant.now(),
             authenticationMethod = "password_totp",
@@ -89,6 +91,7 @@ class SessionServiceTest {
         assertThat(principal.sessionId).isEqualTo(id)
         assertThat(principal.mfaCompleted).isTrue()
         assertThat(principal.authenticationMethod).isEqualTo("password_totp")
+        assertThat(principal.authenticatedAt).isEqualTo(createdAt)
         assertThat(service.authorities(principal).map { it.authority })
             .contains("ROLE_USER", "TENANT_tnt_1", "FACTOR_PASSWORD", "AMR_OTP")
         val now = argumentCaptor<Instant>()
@@ -119,9 +122,41 @@ class SessionServiceTest {
         )
 
         assertThat(entity.stepUpAt).isNotNull()
-        assertThat(service.authorities(principal).map { it.authority })
-            .contains("ROLE_USER", "TENANT_tnt_1", "AMR_WEBAUTHN")
+        val authorities = service.authorities(principal)
+        assertThat(authorities.map { it.authority })
+            .contains("ROLE_USER", "TENANT_tnt_1", FactorGrantedAuthority.WEBAUTHN_AUTHORITY, "AMR_WEBAUTHN")
             .doesNotContain("FACTOR_PASSWORD")
+        val webAuthnAuthority = authorities
+            .filterIsInstance<FactorGrantedAuthority>()
+            .single { it.authority == FactorGrantedAuthority.WEBAUTHN_AUTHORITY }
+        assertThat(webAuthnAuthority.issuedAt).isEqualTo(entity.createdAt)
+    }
+
+    @Test
+    fun `passkey authentication exposes step up time for OIDC auth time`() {
+        val (id, secret, raw) = crypto.opaqueToken("ses")
+        val createdAt = Instant.parse("2026-06-28T09:40:00Z")
+        val stepUpAt = Instant.parse("2026-06-28T09:49:32Z")
+        val entity = UserSessionEntity(
+            tenantId = "tnt_1",
+            userId = "usr_1",
+            secretHash = crypto.hashSecret(secret),
+            createdAt = createdAt,
+            expiresAt = Instant.now().plusSeconds(60),
+            mfaCompletedAt = stepUpAt,
+            authenticationMethod = "passkey",
+            stepUpAt = stepUpAt,
+        ).apply { publicId = id }
+        whenever(sessions.findByPublicId(id)).thenReturn(entity)
+        whenever(users.findByPublicId("usr_1")).thenReturn(user)
+
+        val principal = service.authenticate(raw)!!
+        val webAuthnAuthority = service.authorities(principal)
+            .filterIsInstance<FactorGrantedAuthority>()
+            .single { it.authority == FactorGrantedAuthority.WEBAUTHN_AUTHORITY }
+
+        assertThat(principal.authenticatedAt).isEqualTo(stepUpAt)
+        assertThat(webAuthnAuthority.issuedAt).isEqualTo(stepUpAt)
     }
 
     @Test
