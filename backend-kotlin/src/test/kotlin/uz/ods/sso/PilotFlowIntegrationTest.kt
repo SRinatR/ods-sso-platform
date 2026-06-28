@@ -289,6 +289,8 @@ class PilotFlowIntegrationTest {
                         mapOf(
                             "email" to memberEmail,
                             "password" to password,
+                            "full_name_cyrillic" to "Петров Петр",
+                            "full_name_latin" to "Petrov Petr",
                             "accept_terms" to true,
                         ),
                     ),
@@ -347,7 +349,7 @@ class PilotFlowIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     """
-                    {"email":"invalid","password":"short","name":"","accept_terms":false}
+                    {"email":"invalid","password":"short","full_name_cyrillic":"","accept_terms":false}
                     """.trimIndent(),
                 ),
         )
