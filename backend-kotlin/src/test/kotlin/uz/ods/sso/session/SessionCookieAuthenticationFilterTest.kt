@@ -13,7 +13,9 @@ import org.mockito.kotlin.never
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.springframework.security.authentication.TestingAuthenticationToken
+import org.springframework.security.core.authority.SimpleGrantedAuthority
 import org.springframework.security.core.context.SecurityContextHolder
+import org.springframework.security.core.userdetails.User
 import java.time.Instant
 
 class SessionCookieAuthenticationFilterTest {
@@ -46,14 +48,16 @@ class SessionCookieAuthenticationFilterTest {
             authenticatedAt = Instant.now(),
         )
         whenever(sessions.authenticate("valid")).thenReturn(principal)
-        whenever(sessions.authorities(principal)).thenReturn(emptyList())
+        whenever(sessions.authorities(principal)).thenReturn(listOf(SimpleGrantedAuthority("ROLE_USER")))
 
         filter.doFilter(request, response, chain)
 
         val authentication = SecurityContextHolder.getContext().authentication
         assertThat(authentication?.name).isEqualTo("usr_1")
-        assertThat(authentication?.principal).isSameAs(principal)
+        assertThat(authentication?.principal).isInstanceOf(User::class.java)
         assertThat(authentication?.credentials).isEqualTo("ses_1")
+        val userDetails = authentication!!.principal as User
+        assertThat(authentication.authorities).containsExactlyElementsOf(userDetails.authorities)
         verify(sessions).authenticate("stale")
         verify(sessions).authenticate("valid")
         verify(chain).doFilter(any(), any())
