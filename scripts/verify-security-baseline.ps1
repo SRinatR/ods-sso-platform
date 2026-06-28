@@ -56,6 +56,7 @@ $mfaController = "backend-kotlin/src/main/kotlin/uz/ods/sso/mfa/MfaController.kt
 $loggingSanitizer = "backend-kotlin/src/main/kotlin/uz/ods/sso/shared/logging/LoggingSanitizer.kt"
 $ephemeralStore = "backend-kotlin/src/main/kotlin/uz/ods/sso/security/EphemeralStore.kt"
 $domainEvents = "backend-kotlin/src/main/kotlin/uz/ods/sso/events/DomainEvents.kt"
+$oauthV8 = "backend-kotlin/src/main/resources/db/migration/V8__oauth2_authorization_back_to_text.sql"
 
 Assert-Pattern "SEC-BASE-001" $oauthProvisioning '\.requireProofKey\(true\)' "PKCE must remain mandatory"
 Assert-Pattern "SEC-BASE-001" $securityConfig 'code_challenge_method.*S256|Only PKCE S256 is supported' "PKCE method must remain S256-only"
@@ -69,6 +70,9 @@ Assert-Pattern "SEC-BASE-004" $sessionService 'setAttribute\("SameSite", "Lax"\)
 Assert-Pattern "SEC-BASE-004" $securityConfig '(?s)authorizationServerSecurityFilterChain.*?RequestAttributeSecurityContextRepository\(\).*?return http\.build\(\)' "authorization server must not restore first-party identities from HttpSession"
 Assert-Pattern "SEC-BASE-004" $securityConfig '(?s)authorizationServerSecurityFilterChain.*?SessionCreationPolicy\.STATELESS.*?return http\.build\(\)' "authorization server must remain stateless and use ods_session per request"
 Assert-Pattern "SEC-BASE-004" $securityConfig '(?s)authorizationServerSecurityFilterChain.*?requestCache \{ it\.disable\(\) \}.*?return http\.build\(\)' "authorization server must not use Spring request-cache fallback state"
+Assert-Pattern "SEC-BASE-004" $oauthV8 'ALTER COLUMN attributes TYPE text USING convert_from\(attributes, ''UTF8''\)' "PostgreSQL OAuth authorization attributes must be restored to Spring Authorization Server text storage"
+Assert-Pattern "SEC-BASE-004" $oauthV8 'ALTER COLUMN authorization_code_value TYPE text USING convert_from\(authorization_code_value, ''UTF8''\)' "authorization code storage must remain text for PostgreSQL"
+Assert-Absent "SEC-BASE-004" $securityConfig 'Types\.VARBINARY|java\.sql\.Types\.BLOB|setAuthorizationParametersMapper' "custom binary OAuth authorization mapper must not hide schema drift"
 Assert-Pattern "SEC-BASE-005" $oauthProvisioning 'idTokenSignatureAlgorithm\(SignatureAlgorithm\.RS256\)' "ID tokens must use RS256"
 Assert-Pattern "SEC-BASE-005" $securityConfig 'initialize\(3072\)' "development RSA keys must remain at least 2048 bits"
 Assert-Pattern "SEC-BASE-006" $oauthProvisioning 'reuseRefreshTokens\(false\)' "refresh-token rotation must remain enabled"
