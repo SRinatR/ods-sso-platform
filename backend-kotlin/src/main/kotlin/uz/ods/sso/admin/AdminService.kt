@@ -21,6 +21,7 @@ import uz.ods.sso.identity.MessageResponse
 import uz.ods.sso.identity.UserResponse
 import uz.ods.sso.identity.toResponse
 import uz.ods.sso.mfa.MfaService
+import uz.ods.sso.oauth.OdsOidcScopes
 import uz.ods.sso.oauth.OAuthClientProvisioningService
 import uz.ods.sso.persistence.AuditLogRepository
 import uz.ods.sso.persistence.LoginHistoryRepository
@@ -121,6 +122,13 @@ data class SecurityPolicyResponse(
 
 data class SecurityPolicyUpdate(val value: Map<String, Any?>)
 
+data class ConsentUiSettingsResponse(
+    val layout: String,
+    val availableLayouts: List<String>,
+)
+
+data class ConsentUiSettingsUpdate(val layout: String)
+
 @Service
 class AdminGuard(
     private val sessions: SessionService,
@@ -196,6 +204,8 @@ class AdminService(
                 id = rs.getString("public_id"),
                 email = rs.getString("email"),
                 name = rs.getString("name"),
+                fullNameCyrillic = rs.getString("full_name_cyrillic"),
+                fullNameLatin = rs.getString("full_name_latin"),
                 phone = rs.getString("phone"),
                 emailVerified = rs.getTimestamp("email_verified_at") != null,
                 status = rs.getString("status"),
@@ -207,7 +217,7 @@ class AdminService(
         return if (normalizedQuery == null) {
             jdbc.query(
                 """
-                select public_id, email, name, phone, email_verified_at, status, role, mfa_enabled, created_at
+                select public_id, email, name, full_name_cyrillic, full_name_latin, phone, email_verified_at, status, role, mfa_enabled, created_at
                 from users
                 where tenant_id = ?
                   and status <> 'deleted'
@@ -222,7 +232,7 @@ class AdminService(
         } else {
             jdbc.query(
                 """
-                select public_id, email, name, phone, email_verified_at, status, role, mfa_enabled, created_at
+                select public_id, email, name, full_name_cyrillic, full_name_latin, phone, email_verified_at, status, role, mfa_enabled, created_at
                 from users
                 where tenant_id = ?
                   and status <> 'deleted'
@@ -569,6 +579,47 @@ class AdminService(
         }
     }
 
+    fun consentUiSettings(request: HttpServletRequest): ConsentUiSettingsResponse {
+        val principal = guard.require(request)
+        return ConsentUiSettingsResponse(
+            layout = consentLayout(principal.user.tenantId),
+            availableLayouts = listOf(
+                OdsOidcScopes.CONSENT_LAYOUT_GRANULAR,
+                OdsOidcScopes.CONSENT_LAYOUT_CLASSIC,
+            ),
+        )
+    }
+
+    @Transactional
+    fun updateConsentUiSettings(
+        body: ConsentUiSettingsUpdate,
+        request: HttpServletRequest,
+    ): ConsentUiSettingsResponse {
+        val principal = guard.require(request)
+        val layout = normalizeConsentLayout(body.layout)
+        val policy = policies.findByTenantIdAndKey(principal.user.tenantId, OdsOidcScopes.CONSENT_UI_POLICY)
+            ?: SecurityPolicyEntity(tenantId = principal.user.tenantId, key = OdsOidcScopes.CONSENT_UI_POLICY)
+        policy.valueJson = objectMapper.writeValueAsString(mapOf("layout" to layout))
+        policy.updatedBy = principal.user.id
+        policy.updatedAt = Instant.now()
+        policies.save(policy)
+        audit.write(
+            principal.user.tenantId,
+            request,
+            "CONSENT_UI_UPDATED",
+            principal.user.id,
+            OdsOidcScopes.CONSENT_UI_POLICY,
+            details = mapOf("layout" to layout),
+        )
+        return ConsentUiSettingsResponse(
+            layout = layout,
+            availableLayouts = listOf(
+                OdsOidcScopes.CONSENT_LAYOUT_GRANULAR,
+                OdsOidcScopes.CONSENT_LAYOUT_CLASSIC,
+            ),
+        )
+    }
+
     @Transactional
     fun updatePolicy(key: String, body: SecurityPolicyUpdate, request: HttpServletRequest): SecurityPolicyResponse {
         val principal = guard.require(request)
@@ -581,6 +632,18 @@ class AdminService(
         audit.write(principal.user.tenantId, request, "SECURITY_POLICY_UPDATED", principal.user.id, key, details = mapOf("policy" to key))
         return SecurityPolicyResponse(key, body.value, policy.updatedBy, policy.updatedAt)
     }
+
+    private fun consentLayout(tenantId: String): String {
+        val policy = policies.findByTenantIdAndKey(tenantId, OdsOidcScopes.CONSENT_UI_POLICY)
+            ?: return OdsOidcScopes.CONSENT_LAYOUT_GRANULAR
+        val value = runCatching { objectMapper.readValue(policy.valueJson, Any::class.java) }.getOrNull()
+        val layout = (value as? Map<*, *>)?.get("layout")?.toString()
+        return normalizeConsentLayout(layout)
+    }
+
+    private fun normalizeConsentLayout(value: String?): String =
+        value?.trim()?.lowercase()?.takeIf { it in OdsOidcScopes.consentLayouts }
+            ?: OdsOidcScopes.CONSENT_LAYOUT_GRANULAR
 
     private fun RegisteredClient.toResponse(secret: String? = null): OAuthClientResponse =
         OAuthClientResponse(

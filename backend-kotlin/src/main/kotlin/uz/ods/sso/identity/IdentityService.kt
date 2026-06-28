@@ -51,6 +51,8 @@ class IdentityService(
         if (properties.requireEmailVerification) requireMailDelivery()
         val tenant = tenants.current()
         val email = body.email.trim().lowercase()
+        val fullNameCyrillic = FullNameNormalizer.requireCyrillic(body.fullNameCyrillic)
+        val fullNameLatin = FullNameNormalizer.latinFor(fullNameCyrillic, body.fullNameLatin)
         val passwordHash = crypto.hashPassword(body.password)
         val existing = users.findByTenantIdAndEmailIgnoreCase(tenant.id, email)
         if (existing != null) {
@@ -64,7 +66,9 @@ class IdentityService(
                 tenantId = tenant.id,
                 email = email,
                 passwordHash = passwordHash,
-                name = null,
+                name = fullNameCyrillic,
+                fullNameCyrillic = fullNameCyrillic,
+                fullNameLatin = fullNameLatin,
                 emailVerifiedAt = Instant.now().takeUnless { properties.requireEmailVerification },
                 termsAcceptedAt = Instant.now(),
             ),

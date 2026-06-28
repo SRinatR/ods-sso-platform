@@ -121,6 +121,10 @@ class UserEntity(
     var passwordHash: String = "",
     @Column(length = 255)
     var name: String? = null,
+    @Column(length = 255)
+    var fullNameCyrillic: String? = null,
+    @Column(length = 255)
+    var fullNameLatin: String? = null,
     @Column(length = 32)
     var phone: String? = null,
     var emailVerifiedAt: Instant? = null,

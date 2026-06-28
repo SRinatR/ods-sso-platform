@@ -269,6 +269,8 @@ class OAuthClientProvisioningService(
             OidcScopes.PROFILE,
             OidcScopes.EMAIL,
             OidcScopes.PHONE,
+            OdsOidcScopes.FULL_NAME_CYRILLIC,
+            OdsOidcScopes.FULL_NAME_LATIN,
             "offline_access",
         )
         val CONFIDENTIAL_AUTH_METHODS = setOf("client_secret_basic", "client_secret_post")

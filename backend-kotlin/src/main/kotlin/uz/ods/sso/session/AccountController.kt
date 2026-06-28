@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 import uz.ods.sso.audit.AuditService
 import uz.ods.sso.config.OdsProperties
+import uz.ods.sso.identity.FullNameNormalizer
 import uz.ods.sso.identity.MessageResponse
 import uz.ods.sso.identity.ProfileUpdateRequest
 import uz.ods.sso.identity.UserResponse
@@ -65,7 +66,20 @@ class AccountController(
         request: HttpServletRequest,
     ): UserResponse {
         val principal = sessionService.current()
-        principal.user.name = body.name?.trim()?.takeIf(String::isNotEmpty)
+        val requestedCyrillic = FullNameNormalizer.optionalCyrillic(body.fullNameCyrillic ?: body.name)
+        if (requestedCyrillic != null) {
+            principal.user.fullNameCyrillic = requestedCyrillic
+            principal.user.fullNameLatin = FullNameNormalizer.latinFor(requestedCyrillic, body.fullNameLatin)
+            principal.user.name = requestedCyrillic
+        } else if (body.fullNameLatin != null) {
+            val existingCyrillic = principal.user.fullNameCyrillic ?: principal.user.name
+                ?: throw AppException(
+                    HttpStatus.UNPROCESSABLE_CONTENT,
+                    "validation_error",
+                    "Full name in Cyrillic must be saved before Latin spelling can be changed",
+                )
+            principal.user.fullNameLatin = FullNameNormalizer.latinFor(existingCyrillic, body.fullNameLatin)
+        }
         principal.user.phone = body.phone?.trim()?.takeIf(String::isNotEmpty)
         principal.user.updatedAt = Instant.now()
         audit.write(

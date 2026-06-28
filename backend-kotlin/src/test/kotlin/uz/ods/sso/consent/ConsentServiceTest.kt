@@ -14,6 +14,7 @@ import org.springframework.security.oauth2.server.authorization.OAuth2Authorizat
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClient
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository
 import uz.ods.sso.audit.AuditService
+import uz.ods.sso.persistence.SecurityPolicyRepository
 import uz.ods.sso.persistence.UserConsentEntity
 import uz.ods.sso.persistence.UserConsentRepository
 import uz.ods.sso.persistence.UserEntity
@@ -21,6 +22,7 @@ import uz.ods.sso.persistence.UserRepository
 import uz.ods.sso.persistence.UserSessionEntity
 import uz.ods.sso.session.CurrentPrincipal
 import uz.ods.sso.session.SessionService
+import tools.jackson.databind.ObjectMapper
 
 class ConsentServiceTest {
     private val consents = mock<UserConsentRepository>()
@@ -29,8 +31,19 @@ class ConsentServiceTest {
     private val jdbc = mock<JdbcOperations>()
     private val sessions = mock<SessionService>()
     private val audit = mock<AuditService>()
+    private val policies = mock<SecurityPolicyRepository>()
+    private val objectMapper = mock<ObjectMapper>()
     private val request = mock<HttpServletRequest>()
-    private val service = ConsentService(consents, clients, authorizationConsents, jdbc, sessions, audit)
+    private val service = ConsentService(
+        consents,
+        clients,
+        authorizationConsents,
+        jdbc,
+        sessions,
+        audit,
+        policies,
+        objectMapper,
+    )
     private val user = UserEntity(tenantId = "tnt_1", email = "user@example.com").apply { publicId = "usr_1" }
     private val session = UserSessionEntity(tenantId = "tnt_1", userId = "usr_1").apply { publicId = "ses_1" }
     private val principal = CurrentPrincipal(user, session)
@@ -62,6 +75,8 @@ class ConsentServiceTest {
         val details = service.details("client-1", setOf("openid", "email"))
         assertThat(details.clientName).isEqualTo("Partner")
         assertThat(details.newScopes).containsExactly("email")
+        assertThat(details.layout).isEqualTo("granular")
+        assertThat(details.dataFields.filter { it.required }.map { it.scope }).containsExactly("email", "openid")
     }
 
     @Test

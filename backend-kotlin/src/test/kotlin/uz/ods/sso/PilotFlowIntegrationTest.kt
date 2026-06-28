@@ -96,7 +96,15 @@ class PilotFlowIntegrationTest {
             .andExpect(status().isOk)
             .andExpect(
                 jsonPath("$.scopes_supported")
-                    .value(org.hamcrest.Matchers.hasItems("openid", "email", "profile")),
+                    .value(
+                        org.hamcrest.Matchers.hasItems(
+                            "openid",
+                            "email",
+                            "profile",
+                            "full_name_cyrillic",
+                            "full_name_latin",
+                        ),
+                    ),
             )
     }
 
@@ -114,7 +122,8 @@ class PilotFlowIntegrationTest {
                         mapOf(
                             "email" to email,
                             "password" to password,
-                            "name" to "Pilot User",
+                            "full_name_cyrillic" to "Иванов Иван",
+                            "full_name_latin" to "Ivanov Ivan",
                             "accept_terms" to true,
                         ),
                     ),

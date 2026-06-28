@@ -70,22 +70,26 @@ class IdentityServiceTest {
     private val request = mock<HttpServletRequest>()
 
     @Test
-    fun `registration needs only email and password and does not disclose duplicate email`() {
+    fun `registration stores full name and does not disclose duplicate email`() {
         whenever(tenants.current()).thenReturn(tenant)
         whenever(users.findByTenantIdAndEmailIgnoreCase("tnt_1", "user@example.com")).thenReturn(null)
         whenever(users.save(any<UserEntity>())).thenAnswer { it.arguments[0] }
 
-        assertThat(service.register(RegisterRequest("user@example.com", "long-enough-password"), request)).isFalse()
+        assertThat(
+            service.register(RegisterRequest("user@example.com", "long-enough-password", "Иванов Иван"), request),
+        ).isFalse()
         verify(rateLimiter).enforce(RateLimiter.REGISTRATION_BURST, "unknown")
         verify(rateLimiter).enforce(RateLimiter.REGISTRATION_DAILY, "unknown")
         val created = org.mockito.kotlin.argumentCaptor<UserEntity>()
         verify(users).save(created.capture())
-        assertThat(created.firstValue.name).isNull()
+        assertThat(created.firstValue.name).isEqualTo("Иванов Иван")
+        assertThat(created.firstValue.fullNameCyrillic).isEqualTo("Иванов Иван")
+        assertThat(created.firstValue.fullNameLatin).isEqualTo("Ivanov Ivan")
         assertThat(created.firstValue.termsAcceptedAt).isNotNull()
 
         whenever(users.findByTenantIdAndEmailIgnoreCase("tnt_1", "user@example.com")).thenReturn(UserEntity())
         assertThat(
-            service.register(RegisterRequest("user@example.com", "long-enough-password"), request),
+            service.register(RegisterRequest("user@example.com", "long-enough-password", "Иванов Иван"), request),
         ).isFalse()
     }
 
@@ -118,7 +122,7 @@ class IdentityServiceTest {
         whenever(tokens.save(any<AccountTokenEntity>())).thenAnswer { it.arguments[0] }
 
         assertThat(
-            verifiedService.register(RegisterRequest("user@example.com", "long-enough-password"), request),
+            verifiedService.register(RegisterRequest("user@example.com", "long-enough-password", "Иванов Иван"), request),
         ).isTrue()
 
         verify(tokens).invalidate(eq("usr_1"), eq("email_verification"), any())

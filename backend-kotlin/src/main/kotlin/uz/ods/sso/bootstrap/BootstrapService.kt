@@ -16,6 +16,7 @@ import uz.ods.sso.persistence.TenantRepository
 import uz.ods.sso.persistence.UserEntity
 import uz.ods.sso.persistence.UserRepository
 import uz.ods.sso.persistence.UserSessionRepository
+import uz.ods.sso.oauth.OdsOidcScopes
 import uz.ods.sso.security.CryptoService
 import java.time.Instant
 
@@ -141,6 +142,7 @@ class BootstrapService(
                 "refresh_rotation" to true,
                 "reuse_detection" to true,
             ),
+            OdsOidcScopes.CONSENT_UI_POLICY to mapOf("layout" to OdsOidcScopes.CONSENT_LAYOUT_GRANULAR),
             "risk" to mapOf("new_device_score" to 25, "step_up_threshold" to 40, "deny_threshold" to 80),
         )
     }

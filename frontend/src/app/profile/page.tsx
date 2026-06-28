@@ -4,17 +4,21 @@ import { FormEvent, useEffect, useState } from "react";
 import { Shell } from "@/components/Shell";
 import { api } from "@/lib/api";
 import { loginUrl } from "@/lib/domains";
+import { transliterateCyrillicName } from "@/lib/full-name";
 
 type User = {
   email: string;
   name?: string;
+  full_name_cyrillic?: string;
+  full_name_latin?: string;
   phone?: string;
   role: string;
 };
 
 export default function ProfilePage() {
   const [user, setUser] = useState<User | null>(null);
-  const [form, setForm] = useState({ name: "", phone: "" });
+  const [form, setForm] = useState({ fullNameCyrillic: "", fullNameLatin: "", phone: "" });
+  const [latinTouched, setLatinTouched] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
@@ -22,7 +26,13 @@ export default function ProfilePage() {
     api<User>("/api/v1/auth/me")
       .then((value) => {
         setUser(value);
-        setForm({ name: value.name || "", phone: value.phone || "" });
+        const fullNameCyrillic = value.full_name_cyrillic || value.name || "";
+        setForm({
+          fullNameCyrillic,
+          fullNameLatin:
+            value.full_name_latin || (fullNameCyrillic ? transliterateCyrillicName(fullNameCyrillic) : ""),
+          phone: value.phone || "",
+        });
       })
       .catch(() => (window.location.href = loginUrl(window.location.href)));
   }, []);
@@ -34,7 +44,11 @@ export default function ProfilePage() {
     try {
       const updated = await api<User>("/api/v1/account/profile", {
         method: "PATCH",
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          full_name_cyrillic: form.fullNameCyrillic,
+          full_name_latin: form.fullNameLatin || transliterateCyrillicName(form.fullNameCyrillic),
+          phone: form.phone,
+        }),
       });
       setUser(updated);
       setMessage("Профиль сохранён");
@@ -57,12 +71,36 @@ export default function ProfilePage() {
             <input value={user?.email || ""} disabled />
           </label>
           <label>
-            Имя или название контактного лица
+            Полное ФИО на кириллице
             <input
               maxLength={255}
-              value={form.name}
-              onChange={(event) => setForm({ ...form, name: event.target.value })}
+              value={form.fullNameCyrillic}
+              onChange={(event) => {
+                const fullNameCyrillic = event.target.value;
+                setForm({
+                  ...form,
+                  fullNameCyrillic,
+                  fullNameLatin: latinTouched
+                    ? form.fullNameLatin
+                    : transliterateCyrillicName(fullNameCyrillic),
+                });
+              }}
             />
+          </label>
+          <label>
+            Полное ФИО на латинице
+            <input
+              maxLength={255}
+              pattern="[A-Za-z\\s'’\\-]+"
+              value={form.fullNameLatin}
+              onChange={(event) => {
+                setLatinTouched(true);
+                setForm({ ...form, fullNameLatin: event.target.value });
+              }}
+            />
+            <span className="field-hint">
+              Заполняется автоматически; вручную можно изменить до 3 символов.
+            </span>
           </label>
           <label>
             Телефон

@@ -10,10 +10,13 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import uz.ods.sso.audit.AuditService
 import uz.ods.sso.identity.MessageResponse
+import uz.ods.sso.oauth.OdsOidcScopes
+import uz.ods.sso.persistence.SecurityPolicyRepository
 import uz.ods.sso.persistence.UserConsentEntity
 import uz.ods.sso.persistence.UserConsentRepository
 import uz.ods.sso.session.SessionService
 import uz.ods.sso.shared.AppException
+import tools.jackson.databind.ObjectMapper
 import java.time.Instant
 
 data class ConnectedApplicationResponse(
@@ -30,6 +33,7 @@ data class ConsentDetailsResponse(
     val clientDescription: String?,
     val logoUri: String?,
     val hideOdsBranding: Boolean,
+    val layout: String,
     val requestedScopes: List<String>,
     val newScopes: List<String>,
     val dataFields: List<ConsentDataField>,
@@ -39,6 +43,8 @@ data class ConsentDataField(
     val scope: String,
     val label: String,
     val fields: List<String>,
+    val required: Boolean,
+    val enabledByDefault: Boolean,
 )
 
 @Service
@@ -49,6 +55,8 @@ class ConsentService(
     private val jdbc: JdbcOperations,
     private val sessions: SessionService,
     private val audit: AuditService,
+    private val policies: SecurityPolicyRepository,
+    private val objectMapper: ObjectMapper,
 ) {
     fun listConnected(): List<ConnectedApplicationResponse> {
         val principal = sessions.current()
@@ -75,6 +83,7 @@ class ConsentService(
             clientDescription = client.clientSettings.settings["description"]?.toString(),
             logoUri = client.clientSettings.settings["logo_uri"]?.toString()?.ifBlank { null },
             hideOdsBranding = client.clientSettings.settings["hide_ods_branding"] as? Boolean ?: false,
+            layout = consentLayout(principal.user.tenantId),
             requestedScopes = requestedScopes.sorted(),
             newScopes = (requestedScopes - existing).sorted(),
             dataFields = requestedScopes.sorted().map(::dataFieldForScope),
@@ -83,17 +92,51 @@ class ConsentService(
 
     private fun dataFieldForScope(scope: String): ConsentDataField =
         when (scope) {
-            "openid" -> ConsentDataField(scope, "Идентификатор аккаунта", listOf("Уникальный ID пользователя ODS"))
-            "profile" -> ConsentDataField(scope, "Профиль", listOf("Имя", "Роль в организации", "Права доступа"))
-            "email" -> ConsentDataField(scope, "Email", listOf("Email", "Статус подтверждения email"))
-            "phone" -> ConsentDataField(scope, "Телефон", listOf("Номер телефона, если он заполнен"))
-            "offline_access" -> ConsentDataField(
+            "openid" -> ConsentDataField(
+                scope,
+                "Идентификатор аккаунта",
+                listOf("Уникальный ID пользователя ODS"),
+                required = true,
+                enabledByDefault = true,
+            )
+            "profile" -> optionalField(scope, "Профиль", listOf("Имя", "Роль в организации", "Права доступа"))
+            "email" -> ConsentDataField(
+                scope,
+                "Email",
+                listOf("Email", "Статус подтверждения email"),
+                required = true,
+                enabledByDefault = true,
+            )
+            "phone" -> optionalField(scope, "Телефон", listOf("Номер телефона, если он заполнен"))
+            OdsOidcScopes.FULL_NAME_CYRILLIC -> optionalField(
+                scope,
+                "ФИО на кириллице",
+                listOf("Полное имя пользователя на кириллице"),
+            )
+            OdsOidcScopes.FULL_NAME_LATIN -> optionalField(
+                scope,
+                "ФИО на латинице",
+                listOf("Транслитерация полного имени латиницей"),
+            )
+            "offline_access" -> optionalField(
                 scope,
                 "Долгая сессия",
                 listOf("Refresh token для обновления доступа без повторного входа"),
             )
-            else -> ConsentDataField(scope, scope, listOf("Данные, связанные со scope $scope"))
+            else -> optionalField(scope, scope, listOf("Данные, связанные со scope $scope"))
         }
+
+    private fun optionalField(scope: String, label: String, fields: List<String>) =
+        ConsentDataField(scope, label, fields, required = false, enabledByDefault = true)
+
+    private fun consentLayout(tenantId: String): String {
+        val policy = policies.findByTenantIdAndKey(tenantId, OdsOidcScopes.CONSENT_UI_POLICY)
+            ?: return OdsOidcScopes.CONSENT_LAYOUT_GRANULAR
+        val value = runCatching { objectMapper.readValue(policy.valueJson, Any::class.java) }.getOrNull()
+        val layout = (value as? Map<*, *>)?.get("layout")?.toString()
+        return layout?.takeIf { it in OdsOidcScopes.consentLayouts }
+            ?: OdsOidcScopes.CONSENT_LAYOUT_GRANULAR
+    }
 
     @Transactional
     fun synchronize(userId: String, tenantId: String, clientId: String, scopes: Set<String>) {
