@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { AuthCard } from "@/components/Shell";
 import { api } from "@/lib/api";
 import { onAuth, onPartners } from "@/lib/domains";
+import { transliterateCyrillicName } from "@/lib/full-name";
 
 type RegistrationResponse = {
   message: string;
@@ -14,7 +15,13 @@ type RegistrationResponse = {
 
 function RegisterForm() {
   const partner = useSearchParams().get("kind") === "partner";
-  const [form, setForm] = useState({ email: "", password: "" });
+  const [form, setForm] = useState({
+    email: "",
+    password: "",
+    fullNameCyrillic: "",
+    fullNameLatin: "",
+  });
+  const [latinTouched, setLatinTouched] = useState(false);
   const [message, setMessage] = useState("");
   const [verificationRequired, setVerificationRequired] = useState(false);
   const [error, setError] = useState("");
@@ -26,7 +33,12 @@ function RegisterForm() {
     try {
       const result = await api<RegistrationResponse>("/api/v1/auth/register", {
         method: "POST",
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          email: form.email,
+          password: form.password,
+          full_name_cyrillic: form.fullNameCyrillic,
+          full_name_latin: form.fullNameLatin || transliterateCyrillicName(form.fullNameCyrillic),
+        }),
       });
       setVerificationRequired(result.verification_required);
       setMessage(
@@ -93,6 +105,40 @@ function RegisterForm() {
               value={form.email}
               onChange={(event) => setForm({ ...form, email: event.target.value })}
             />
+          </label>
+          <label>
+            Полное ФИО на кириллице
+            <input
+              maxLength={255}
+              required
+              value={form.fullNameCyrillic}
+              onChange={(event) => {
+                const fullNameCyrillic = event.target.value;
+                setForm({
+                  ...form,
+                  fullNameCyrillic,
+                  fullNameLatin: latinTouched
+                    ? form.fullNameLatin
+                    : transliterateCyrillicName(fullNameCyrillic),
+                });
+              }}
+            />
+          </label>
+          <label>
+            Полное ФИО на латинице
+            <input
+              maxLength={255}
+              pattern="[A-Za-z\\s'’\\-]+"
+              required
+              value={form.fullNameLatin}
+              onChange={(event) => {
+                setLatinTouched(true);
+                setForm({ ...form, fullNameLatin: event.target.value });
+              }}
+            />
+            <span className="field-hint">
+              Заполняется автоматически; вручную можно изменить до 3 символов.
+            </span>
           </label>
           <label>
             Пароль

@@ -15,6 +15,11 @@ data class RegistrationResponse(
 data class RegisterRequest(
     @field:Email val email: String,
     @field:Size(min = 12, max = 128) val password: String,
+    @field:NotBlank
+    @field:Size(max = 255)
+    val fullNameCyrillic: String,
+    @field:Size(max = 255)
+    val fullNameLatin: String? = null,
 )
 
 data class LoginRequest(
@@ -47,6 +52,8 @@ data class UserResponse(
     val id: String,
     val email: String,
     val name: String?,
+    val fullNameCyrillic: String?,
+    val fullNameLatin: String?,
     val phone: String?,
     val emailVerified: Boolean,
     val status: String,
@@ -58,6 +65,8 @@ data class UserResponse(
 
 data class ProfileUpdateRequest(
     @field:Size(max = 255) val name: String?,
+    @field:Size(max = 255) val fullNameCyrillic: String?,
+    @field:Size(max = 255) val fullNameLatin: String?,
     @field:Size(max = 32) val phone: String?,
 )
 

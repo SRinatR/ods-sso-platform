@@ -146,11 +146,13 @@ class PostgreSqlMigrationTest {
                 statement.executeQuery().use { result ->
                     assertThat(result.next()).isTrue()
                     assertThat(result.getString("client_id")).isEqualTo("cli_legacy")
-                    assertThat(result.getString("scopes")).isEqualTo("openid,email")
+                    assertThat(result.getString("scopes")).isEqualTo("openid,email,full_name_cyrillic,full_name_latin")
 
                     assertThat(result.next()).isTrue()
                     assertThat(result.getString("client_id")).isEqualTo("cli_scoped")
-                    assertThat(result.getString("scopes")).isEqualTo("openid,profile,email")
+                    assertThat(result.getString("scopes")).isEqualTo(
+                        "openid,profile,email,full_name_cyrillic,full_name_latin",
+                    )
 
                     assertThat(result.next()).isFalse()
                 }

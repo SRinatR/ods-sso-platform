@@ -115,7 +115,10 @@ class ControllerCoverageTest {
         whenever(sessions.current()).thenReturn(principal)
         whenever(sessions.revokeAll("usr_1")).thenReturn(2)
 
-        assertThat(controller.register(RegisterRequest("user@example.com", "password-value"), request).statusCode.value())
+        assertThat(
+            controller.register(RegisterRequest("user@example.com", "password-value", "Иванов Иван"), request)
+                .statusCode.value(),
+        )
             .isEqualTo(201)
         assertThat(controller.verifyEmail(VerifyEmailRequest("token"), request).ok).isTrue()
         assertThat(controller.resend(ResendVerificationRequest("user@example.com"), request).ok).isTrue()
@@ -265,6 +268,8 @@ class ControllerCoverageTest {
             id = "usr_1",
             email = "user@example.com",
             name = "User",
+            fullNameCyrillic = "Иванов Иван",
+            fullNameLatin = "Ivanov Ivan",
             phone = null,
             emailVerified = true,
             status = "active",
@@ -377,7 +382,12 @@ class ControllerCoverageTest {
         whenever(historyRepository.findByUserIdOrderByCreatedAtDesc(any(), any<Pageable>())).thenReturn(listOf(history))
         val account = AccountController(sessions, sessionRepository, historyRepository, audit, properties)
 
-        assertThat(account.updateProfile(ProfileUpdateRequest("User", "+998901234567"), request).name).isEqualTo("User")
+        assertThat(
+            account.updateProfile(
+                ProfileUpdateRequest(null, "Иванов Иван", "Ivanov Ivan", "+998901234567"),
+                request,
+            ).name,
+        ).isEqualTo("Иванов Иван")
         assertThat(account.sessions().single().id).isEqualTo("ses_1")
         assertThat(account.revoke("ses_1", request, response)).isEqualTo(MessageResponse(message = "Session revoked"))
         assertThat(account.history().single()).isEqualTo(

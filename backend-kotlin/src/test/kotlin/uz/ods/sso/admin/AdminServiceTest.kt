@@ -110,6 +110,8 @@ class AdminServiceTest {
             id = "usr_1",
             email = "user@example.com",
             name = null,
+            fullNameCyrillic = null,
+            fullNameLatin = null,
             phone = null,
             emailVerified = false,
             status = "active",

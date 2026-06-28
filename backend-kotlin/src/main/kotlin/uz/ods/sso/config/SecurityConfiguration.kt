@@ -64,7 +64,9 @@ import uz.ods.sso.consent.MirroringAuthorizationConsentService
 import uz.ods.sso.tenant.TenantAwareRegisteredClientRepository
 import uz.ods.sso.security.CryptoService
 import uz.ods.sso.audit.AuditService
+import uz.ods.sso.identity.FullNameNormalizer
 import uz.ods.sso.oauth.RotationTrackingAuthorizationService
+import uz.ods.sso.oauth.OdsOidcScopes
 import uz.ods.sso.passkey.PasskeyAuthenticationSuccessHandler
 import uz.ods.sso.session.SessionCookieAuthenticationFilter
 import uz.ods.sso.shared.ApiErrorResponse
@@ -86,6 +88,8 @@ private val DISCOVERY_SCOPES = listOf(
     OidcScopes.PROFILE,
     OidcScopes.EMAIL,
     OidcScopes.PHONE,
+    OdsOidcScopes.FULL_NAME_CYRILLIC,
+    OdsOidcScopes.FULL_NAME_LATIN,
     "offline_access",
 )
 
@@ -349,8 +353,17 @@ class SecurityConfiguration(
                 context.claims.claim("role", user.role)
                 context.claims.claim("email_verified", user.emailVerified)
                 if (OidcScopes.EMAIL in scopes) context.claims.claim("email", user.email)
-                val name = user.name
+                val name = user.fullNameCyrillic ?: user.name
                 if (OidcScopes.PROFILE in scopes && name != null) context.claims.claim("name", name)
+                if (OdsOidcScopes.FULL_NAME_CYRILLIC in scopes && name != null) {
+                    context.claims.claim(OdsOidcScopes.FULL_NAME_CYRILLIC, name)
+                }
+                if (OdsOidcScopes.FULL_NAME_LATIN in scopes && name != null) {
+                    context.claims.claim(
+                        OdsOidcScopes.FULL_NAME_LATIN,
+                        user.fullNameLatin ?: FullNameNormalizer.transliterateCyrillic(name),
+                    )
+                }
                 val partnerApplication = partnerApplications.findByRegisteredClientId(context.registeredClient.id)
                 if (partnerApplication != null) {
                     val organization = partnerOrganizations.findByPublicId(partnerApplication.organizationId)

@@ -59,6 +59,10 @@ type Policy = {
   value: Record<string, unknown>;
   updated_at: string;
 };
+type ConsentUiSettings = {
+  layout: "granular" | "classic";
+  available_layouts: Array<"granular" | "classic">;
+};
 
 export default function AdminPage() {
   const [accessChecked, setAccessChecked] = useState(false);
@@ -76,6 +80,7 @@ export default function AdminPage() {
   const [sessions, setSessions] = useState<Array<Record<string, unknown>>>([]);
   const [audit, setAudit] = useState<Audit[]>([]);
   const [policies, setPolicies] = useState<Policy[]>([]);
+  const [consentUi, setConsentUi] = useState<ConsentUiSettings | null>(null);
   const [secret, setSecret] = useState("");
   const [clientForm, setClientForm] = useState({
     name: "",
@@ -84,7 +89,16 @@ export default function AdminPage() {
   });
 
   const load = useCallback(async () => {
-    const [summary, userList, clientList, organizationList, sessionList, auditList, policyList] =
+    const [
+      summary,
+      userList,
+      clientList,
+      organizationList,
+      sessionList,
+      auditList,
+      policyList,
+      consentUiSettings,
+    ] =
       await Promise.all([
         api<Dashboard>("/api/v1/admin/dashboard"),
         api<User[]>("/api/v1/admin/users"),
@@ -93,6 +107,7 @@ export default function AdminPage() {
         api<Array<Record<string, unknown>>>("/api/v1/admin/sessions"),
         api<Audit[]>("/api/v1/admin/audit"),
         api<Policy[]>("/api/v1/admin/security-policies"),
+        api<ConsentUiSettings>("/api/v1/admin/consent-ui"),
       ]);
     setDashboard(summary);
     setUsers(userList);
@@ -101,6 +116,7 @@ export default function AdminPage() {
     setSessions(sessionList);
     setAudit(auditList);
     setPolicies(policyList);
+    setConsentUi(consentUiSettings);
   }, []);
 
   useEffect(() => {
@@ -199,13 +215,30 @@ export default function AdminPage() {
       body: JSON.stringify({
         name: clientForm.name,
         redirect_uris: [clientForm.redirectUri],
-        allowed_scopes: ["openid", "profile", "email", "offline_access"],
+        allowed_scopes: [
+          "openid",
+          "profile",
+          "email",
+          "full_name_cyrillic",
+          "full_name_latin",
+          "offline_access",
+        ],
         is_public: clientForm.isPublic,
         token_endpoint_auth_method: clientForm.isPublic ? "none" : "client_secret_basic",
       }),
     });
     setSecret(created.client_secret || "");
     setClientForm({ name: "", redirectUri: "", isPublic: false });
+    await load();
+  }
+
+  async function updateConsentLayout(layout: "granular" | "classic") {
+    setError("");
+    const updated = await api<ConsentUiSettings>("/api/v1/admin/consent-ui", {
+      method: "PUT",
+      body: JSON.stringify({ layout }),
+    });
+    setConsentUi(updated);
     await load();
   }
 
@@ -516,6 +549,30 @@ export default function AdminPage() {
         <h2>Сессии</h2>
         <p className="muted">{sessions.length} recent session records</p>
         <pre className="data-preview">{JSON.stringify(sessions.slice(0, 20), null, 2)}</pre>
+      </section>
+
+      <section className="panel" id="consent-ui">
+        <h2>Окно выдачи разрешений</h2>
+        <p className="muted">
+          Granular показывает список данных с переключателями. Classic сохраняет прежний
+          экран согласия без выбора отдельных optional scopes.
+        </p>
+        <div className="segmented">
+          <button
+            data-active={consentUi?.layout === "granular"}
+            onClick={() => updateConsentLayout("granular")}
+            type="button"
+          >
+            Granular #5
+          </button>
+          <button
+            data-active={consentUi?.layout === "classic"}
+            onClick={() => updateConsentLayout("classic")}
+            type="button"
+          >
+            Classic
+          </button>
+        </div>
       </section>
 
       <section className="panel" id="audit">

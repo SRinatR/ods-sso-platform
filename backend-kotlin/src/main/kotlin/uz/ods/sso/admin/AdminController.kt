@@ -98,6 +98,15 @@ class AdminController(
     @GetMapping("/security-policies")
     fun policies(request: HttpServletRequest) = service.policies(request)
 
+    @GetMapping("/consent-ui")
+    fun consentUi(request: HttpServletRequest) = service.consentUiSettings(request)
+
+    @PutMapping("/consent-ui")
+    fun updateConsentUi(
+        @RequestBody body: ConsentUiSettingsUpdate,
+        request: HttpServletRequest,
+    ) = service.updateConsentUiSettings(body, request)
+
     @PutMapping("/security-policies/{key}")
     fun updatePolicy(
         @PathVariable key: String,

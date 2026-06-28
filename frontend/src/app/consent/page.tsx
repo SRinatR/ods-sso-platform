@@ -10,12 +10,15 @@ type Consent = {
   client_description?: string;
   logo_uri?: string;
   hide_ods_branding: boolean;
+  layout: "classic" | "granular";
   requested_scopes: string[];
   new_scopes: string[];
   data_fields: Array<{
     scope: string;
     label: string;
     fields: string[];
+    required: boolean;
+    enabled_by_default: boolean;
   }>;
 };
 
@@ -48,6 +51,18 @@ const scopeMeta: Record<
     subtitle: "Рабочий email и статус подтверждения",
     icon: "✉",
     tone: "purple",
+  },
+  full_name_cyrillic: {
+    title: "ФИО на кириллице",
+    subtitle: "Полное имя для локального профиля",
+    icon: "Ф",
+    tone: "blue",
+  },
+  full_name_latin: {
+    title: "ФИО на латинице",
+    subtitle: "Транслитерация полного имени",
+    icon: "Aa",
+    tone: "green",
   },
   phone: {
     title: "Контактные данные",
@@ -96,6 +111,14 @@ function readStoredTheme(): ConsentTheme {
   return window.localStorage.getItem("ods-consent-theme") === "light" ? "light" : "dark";
 }
 
+function initialSelectedScopes(consent: Consent) {
+  return new Set(
+    consent.data_fields
+      .filter((item) => item.required || item.enabled_by_default)
+      .map((item) => item.scope),
+  );
+}
+
 function ConsentContent() {
   const params = useSearchParams();
   const clientId = params.get("client_id");
@@ -104,6 +127,7 @@ function ConsentContent() {
   const [consent, setConsent] = useState<Consent | null>(null);
   const [user, setUser] = useState<CurrentUser | null>(null);
   const [error, setError] = useState("");
+  const [selectedScopes, setSelectedScopes] = useState<Set<string>>(new Set());
   const [theme, setTheme] = useState<ConsentTheme>(() =>
     typeof window === "undefined" ? "dark" : readStoredTheme(),
   );
@@ -118,7 +142,10 @@ function ConsentContent() {
     }
     const query = new URLSearchParams({ client_id: clientId, scope });
     api<Consent>(`/api/v1/oauth/consent?${query}`)
-      .then(setConsent)
+      .then((value) => {
+        setConsent(value);
+        setSelectedScopes(initialSelectedScopes(value));
+      })
       .catch((cause) => setError(cause instanceof Error ? cause.message : String(cause)));
     api<CurrentUser>("/api/v1/auth/me")
       .then(setUser)
@@ -129,6 +156,22 @@ function ConsentContent() {
     const nextTheme: ConsentTheme = theme === "dark" ? "light" : "dark";
     window.localStorage.setItem("ods-consent-theme", nextTheme);
     setTheme(nextTheme);
+  }
+
+  function toggleScope(scopeName: string) {
+    const item = consent?.data_fields.find((field) => field.scope === scopeName);
+    if (!item || item.required) {
+      return;
+    }
+    setSelectedScopes((current) => {
+      const next = new Set(current);
+      if (next.has(scopeName)) {
+        next.delete(scopeName);
+      } else {
+        next.add(scopeName);
+      }
+      return next;
+    });
   }
 
   return (
@@ -164,6 +207,16 @@ function ConsentContent() {
         {requestError || error ? <div className="consent-error">{requestError || error}</div> : null}
 
         {consent ? (
+          consent.layout === "granular" && clientId && state ? (
+            <GranularConsent
+              clientId={clientId}
+              consent={consent}
+              selectedScopes={selectedScopes}
+              state={state}
+              toggleScope={toggleScope}
+              user={user}
+            />
+          ) : (
           <div className="consent-content">
             <section className="consent-main">
               <h1>Приложение запрашивает доступ к вашим данным</h1>
@@ -272,26 +325,18 @@ function ConsentContent() {
               />
             </aside>
           </div>
+          )
         ) : (
           <div className="consent-loading">Загрузка запроса доступа…</div>
         )}
 
-        {consent && clientId && state ? (
-          <footer className="consent-actions-v2">
-            <form method="post" action={`${API_URL}/authorize`}>
-              <input type="hidden" name="client_id" value={clientId} />
-              <input type="hidden" name="state" value={state} />
-              <button className="consent-button secondary">Отклонить</button>
-            </form>
-            <form method="post" action={`${API_URL}/authorize`}>
-              <input type="hidden" name="client_id" value={clientId} />
-              <input type="hidden" name="state" value={state} />
-              {consent.requested_scopes.map((requestedScope) => (
-                <input key={requestedScope} type="hidden" name="scope" value={requestedScope} />
-              ))}
-              <button className="consent-button primary">Разрешить доступ</button>
-            </form>
-          </footer>
+        {consent && clientId && state && consent.layout !== "granular" ? (
+          <ConsentActions
+            allowLabel="Разрешить доступ"
+            clientId={clientId}
+            scopes={consent.requested_scopes}
+            state={state}
+          />
         ) : null}
       </section>
     </main>
@@ -320,6 +365,111 @@ function InfoCard({
         {link ? <a href={link}>Перейти к политике ↗</a> : null}
       </div>
     </article>
+  );
+}
+
+function GranularConsent({
+  clientId,
+  consent,
+  selectedScopes,
+  state,
+  toggleScope,
+  user,
+}: {
+  clientId: string;
+  consent: Consent;
+  selectedScopes: Set<string>;
+  state: string;
+  toggleScope: (scope: string) => void;
+  user: CurrentUser | null;
+}) {
+  const submitScopes = consent.requested_scopes.filter((scopeName) => selectedScopes.has(scopeName));
+  return (
+    <section className="consent-granular-wrap">
+      <div className="consent-granular-card">
+        <header className="consent-granular-header">
+          <div className="consent-granular-logo" aria-hidden="true">
+            {consent.logo_uri ? (
+              // eslint-disable-next-line @next/next/no-img-element -- partner-provided logo URL
+              <img alt="" src={consent.logo_uri} />
+            ) : (
+              <span>{initials(user) || "ODS"}</span>
+            )}
+          </div>
+          <div>
+            <div className="consent-granular-title">
+              <strong>{consent.client_name}</strong>
+              {!consent.hide_ods_branding ? <span>Проверено</span> : null}
+            </div>
+            <p>настройте доступ к вашим данным</p>
+          </div>
+        </header>
+
+        <div className="consent-granular-list">
+          {consent.data_fields.map((item) => {
+            const checked = selectedScopes.has(item.scope);
+            return (
+              <button
+                aria-checked={checked}
+                className="consent-granular-item"
+                data-required={item.required}
+                key={item.scope}
+                onClick={() => toggleScope(item.scope)}
+                role="switch"
+                type="button"
+              >
+                <span className={`consent-scope-icon ${scopeTone(item)}`}>{scopeIcon(item)}</span>
+                <span className="consent-granular-copy">
+                  <strong>{scopeTitle(item)}</strong>
+                  <small>{scopeSubtitle(item)}</small>
+                  {item.required ? <em>Обязательно</em> : null}
+                </span>
+                <span className="consent-toggle" data-checked={checked} data-required={item.required}>
+                  <span />
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        <ConsentActions
+          allowLabel="Сохранить и продолжить"
+          clientId={clientId}
+          scopes={submitScopes}
+          state={state}
+        />
+      </div>
+    </section>
+  );
+}
+
+function ConsentActions({
+  allowLabel,
+  clientId,
+  scopes,
+  state,
+}: {
+  allowLabel: string;
+  clientId: string;
+  scopes: string[];
+  state: string;
+}) {
+  return (
+    <footer className="consent-actions-v2">
+      <form method="post" action={`${API_URL}/authorize`}>
+        <input type="hidden" name="client_id" value={clientId} />
+        <input type="hidden" name="state" value={state} />
+        <button className="consent-button secondary">Отклонить</button>
+      </form>
+      <form method="post" action={`${API_URL}/authorize`}>
+        <input type="hidden" name="client_id" value={clientId} />
+        <input type="hidden" name="state" value={state} />
+        {scopes.map((requestedScope) => (
+          <input key={requestedScope} type="hidden" name="scope" value={requestedScope} />
+        ))}
+        <button className="consent-button primary">{allowLabel}</button>
+      </form>
+    </footer>
   );
 }
 
