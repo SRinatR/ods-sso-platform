@@ -91,6 +91,16 @@ class PilotFlowIntegrationTest {
     }
 
     @Test
+    fun `oidc discovery advertises email scope required by partner login`() {
+        mvc.perform(get("/.well-known/openid-configuration"))
+            .andExpect(status().isOk)
+            .andExpect(
+                jsonPath("$.scopes_supported")
+                    .value(org.hamcrest.Matchers.hasItems("openid", "email", "profile")),
+            )
+    }
+
+    @Test
     fun `pilot registration login and partner provisioning flow`() {
         val email = "pilot-${System.nanoTime()}@example.com"
         val password = "A-strong-pilot-password-123!"

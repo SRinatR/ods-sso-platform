@@ -81,6 +81,14 @@ import java.time.Duration
 import java.util.Base64
 import java.util.function.Consumer
 
+private val DISCOVERY_SCOPES = listOf(
+    OidcScopes.OPENID,
+    OidcScopes.PROFILE,
+    OidcScopes.EMAIL,
+    OidcScopes.PHONE,
+    "offline_access",
+)
+
 @Configuration
 class SecurityConfiguration(
     private val properties: OdsProperties,
@@ -93,7 +101,17 @@ class SecurityConfiguration(
         sessionFilter: SessionCookieAuthenticationFilter,
     ): SecurityFilterChain {
         val configurer = OAuth2AuthorizationServerConfigurer()
-        configurer.oidc(withDefaults())
+        configurer.oidc { oidc ->
+            oidc.providerConfigurationEndpoint { endpoint ->
+                endpoint.providerConfigurationCustomizer { metadata ->
+                    metadata.scopes { scopes ->
+                        DISCOVERY_SCOPES.forEach { scope ->
+                            if (scope !in scopes) scopes.add(scope)
+                        }
+                    }
+                }
+            }
+        }
         configurer.authorizationEndpoint {
             it.consentPage("${properties.accountUrl}/consent")
             it.authenticationProviders { providers ->
