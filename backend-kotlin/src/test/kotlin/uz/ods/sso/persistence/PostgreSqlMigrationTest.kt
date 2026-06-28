@@ -68,4 +68,93 @@ class PostgreSqlMigrationTest {
             }
         }
     }
+
+    @Test
+    fun `V10 adds email scope to existing OIDC clients`() {
+        Flyway.configure()
+            .dataSource(postgres.jdbcUrl, postgres.username, postgres.password)
+            .target("9")
+            .load()
+            .migrate()
+
+        DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password).use { connection ->
+            connection.createStatement().use { statement ->
+                statement.executeUpdate(
+                    """
+                    insert into oauth2_registered_client (
+                        id,
+                        client_id,
+                        client_name,
+                        client_authentication_methods,
+                        authorization_grant_types,
+                        redirect_uris,
+                        scopes,
+                        client_settings,
+                        token_settings
+                    ) values (
+                        'legacy-client',
+                        'cli_legacy',
+                        'Legacy client',
+                        'client_secret_basic',
+                        'authorization_code',
+                        'https://api.umo.uz/api/v1/auth/sso/callback',
+                        'openid',
+                        '{}',
+                        '{}'
+                    )
+                    """.trimIndent(),
+                )
+                statement.executeUpdate(
+                    """
+                    insert into oauth2_registered_client (
+                        id,
+                        client_id,
+                        client_name,
+                        client_authentication_methods,
+                        authorization_grant_types,
+                        redirect_uris,
+                        scopes,
+                        client_settings,
+                        token_settings
+                    ) values (
+                        'scoped-client',
+                        'cli_scoped',
+                        'Scoped client',
+                        'client_secret_basic',
+                        'authorization_code',
+                        'https://api.umo.uz/api/v1/auth/sso/callback',
+                        'openid,profile,email',
+                        '{}',
+                        '{}'
+                    )
+                    """.trimIndent(),
+                )
+            }
+        }
+
+        Flyway.configure()
+            .dataSource(postgres.jdbcUrl, postgres.username, postgres.password)
+            .load()
+            .migrate()
+
+        DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password).use { connection ->
+            connection.prepareStatement(
+                "select client_id, scopes from oauth2_registered_client where client_id in (?, ?) order by client_id",
+            ).use { statement ->
+                statement.setString(1, "cli_legacy")
+                statement.setString(2, "cli_scoped")
+                statement.executeQuery().use { result ->
+                    assertThat(result.next()).isTrue()
+                    assertThat(result.getString("client_id")).isEqualTo("cli_legacy")
+                    assertThat(result.getString("scopes")).isEqualTo("openid,email")
+
+                    assertThat(result.next()).isTrue()
+                    assertThat(result.getString("client_id")).isEqualTo("cli_scoped")
+                    assertThat(result.getString("scopes")).isEqualTo("openid,profile,email")
+
+                    assertThat(result.next()).isFalse()
+                }
+            }
+        }
+    }
 }
