@@ -5,14 +5,15 @@ import type { CSSProperties } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Shell } from "@/components/Shell";
 import { api, ApiRequestError } from "@/lib/api";
-import { ACCOUNTS_URL, PARTNERS_URL, loginUrl } from "@/lib/domains";
+import { ACCOUNTS_URL, loginUrl } from "@/lib/domains";
 
 type User = {
   id: string;
   email: string;
   name?: string;
-  full_name_cyrillic?: string;
-  full_name_latin?: string;
+  first_name_cyrillic?: string;
+  last_name_cyrillic?: string;
+  patronymic_cyrillic?: string;
   phone?: string;
   email_verified: boolean;
   status: string;
@@ -49,29 +50,15 @@ type ConnectedApp = {
   granted_at: string;
 };
 
-type Organization = {
-  id: string;
-  name: string;
-  role: string;
-  status: string;
-  created_at?: string;
-};
-
-type Workspace = {
-  organizations: Organization[];
-};
-
 type LoadState = {
   apps: ConnectedApp[];
   history: Login[];
-  organizations: Organization[];
   sessions: Session[];
 };
 
 const emptyState: LoadState = {
   apps: [],
   history: [],
-  organizations: [],
   sessions: [],
 };
 
@@ -85,8 +72,7 @@ type AccountIconName =
   | "globe"
   | "mail"
   | "phone"
-  | "security"
-  | "team";
+  | "security";
 
 export default function DashboardPage() {
   const [user, setUser] = useState<User | null>(null);
@@ -101,20 +87,17 @@ export default function DashboardPage() {
       const currentUser = await api<User>("/api/v1/auth/me");
       setUser(currentUser);
 
-      const [sessionsResult, historyResult, appsResult, workspaceResult] =
+      const [sessionsResult, historyResult, appsResult] =
         await Promise.allSettled([
           api<Session[]>("/api/v1/account/sessions"),
           api<Login[]>("/api/v1/account/login-history"),
           api<ConnectedApp[]>("/api/v1/account/connected-apps"),
-          api<Workspace>("/api/v1/partner/workspace"),
         ]);
 
       setData({
         sessions: fulfilledOrEmpty(sessionsResult),
         history: fulfilledOrEmpty(historyResult),
         apps: fulfilledOrEmpty(appsResult),
-        organizations:
-          workspaceResult.status === "fulfilled" ? workspaceResult.value.organizations : [],
       });
 
       if ([sessionsResult, historyResult, appsResult].some((result) => result.status === "rejected")) {
@@ -136,7 +119,7 @@ export default function DashboardPage() {
     return () => window.clearTimeout(initial);
   }, [load]);
 
-  const displayName = useMemo(() => (user ? userName(user) : "пользователь"), [user]);
+  const displayName = useMemo(() => (user ? greetingName(user) : "пользователь"), [user]);
 
   return (
     <Shell
@@ -156,19 +139,18 @@ export default function DashboardPage() {
 
       {user ? (
         <div className="account-dashboard">
-          <section className="account-dashboard-grid">
+          <section className="account-dashboard-grid account-dashboard-grid-top">
             <ProfileSummary user={user} />
             <SecuritySummary user={user} />
           </section>
 
           <section className="account-dashboard-grid">
             <SessionsSummary sessions={data.sessions} />
-            <OrganizationsSummary organizations={data.organizations} />
+            <LoginHistorySummary history={data.history} />
           </section>
 
-          <section className="account-dashboard-grid">
+          <section className="account-dashboard-single">
             <ConsentsSummary apps={data.apps} />
-            <LoginHistorySummary history={data.history} />
           </section>
         </div>
       ) : null}
@@ -269,7 +251,10 @@ function SessionsSummary({ sessions }: { sessions: Session[] }) {
   return (
     <article className="account-card">
       <div className="account-section-title">
-        <h2>Активные сессии</h2>
+        <div>
+          <h2>Активные сессии</h2>
+          <p>Устройства, где сейчас действует вход в аккаунт. Лишний доступ можно завершить.</p>
+        </div>
         <Link href={`${ACCOUNTS_URL}/sessions`}>Все сессии</Link>
       </div>
       <div className="account-list">
@@ -289,36 +274,6 @@ function SessionsSummary({ sessions }: { sessions: Session[] }) {
       </div>
       <Link className="account-inline-link" href={`${ACCOUNTS_URL}/sessions`}>
         Управление сессиями
-        <AccountDashboardIcon name="chevron" />
-      </Link>
-    </article>
-  );
-}
-
-function OrganizationsSummary({ organizations }: { organizations: Organization[] }) {
-  return (
-    <article className="account-card">
-      <div className="account-section-title">
-        <h2>Подключенные организации</h2>
-        <Link href={PARTNERS_URL}>Все организации</Link>
-      </div>
-      <div className="account-list">
-        {organizations.slice(0, 3).map((organization, index) => (
-          <div className="account-list-row" key={organization.id}>
-            <span className="account-list-icon" data-tone={index % 2 === 0 ? "green" : "amber"}>
-              <AccountDashboardIcon name="team" />
-            </span>
-            <div>
-              <strong>{organization.name}</strong>
-              <p>{roleLabel(organization.role)}</p>
-            </div>
-            <span>{organization.status}</span>
-          </div>
-        ))}
-        {organizations.length === 0 ? <EmptyLine text="Организации пока не подключены." /> : null}
-      </div>
-      <Link className="account-inline-link" href={PARTNERS_URL}>
-        Управление организациями
         <AccountDashboardIcon name="chevron" />
       </Link>
     </article>
@@ -359,7 +314,10 @@ function LoginHistorySummary({ history }: { history: Login[] }) {
   return (
     <article className="account-card">
       <div className="account-section-title">
-        <h2>История входов</h2>
+        <div>
+          <h2>История входов</h2>
+          <p>Журнал успешных и неуспешных попыток входа. Это не список активных устройств.</p>
+        </div>
         <Link href={`${ACCOUNTS_URL}/sessions#history`}>Вся история</Link>
       </div>
       <div className="account-history-list">
@@ -407,33 +365,31 @@ function EmptyLine({ text }: { text: string }) {
 }
 
 function userName(user: User): string {
-  return user.name || user.full_name_cyrillic || user.full_name_latin || user.email.split("@")[0];
+  return explicitName(user) || user.email.split("@")[0];
+}
+
+function greetingName(user: User): string {
+  return user.first_name_cyrillic || user.name || user.email.split("@")[0];
 }
 
 function initials(user: User): string {
-  const source = userName(user);
-  return source
-    .split(/[\s@._-]+/)
+  const first = user.first_name_cyrillic || user.name || "";
+  const last = user.last_name_cyrillic || "";
+  const explicit = [first, last].map((part) => part.trim()[0]).filter(Boolean).join("");
+  if (explicit) return explicit.toUpperCase();
+  return (user.email.trim()[0] || "A").toUpperCase();
+}
+
+function explicitName(user: User): string {
+  return [user.first_name_cyrillic || user.name, user.last_name_cyrillic, user.patronymic_cyrillic]
+    .map((part) => part?.trim())
     .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join("");
+    .join(" ");
 }
 
 function loginMethod(user: User): string {
   if (user.authentication_method === "passkey") return "Passkey";
   return user.mfa_enabled ? "Пароль и OTP" : "Пароль";
-}
-
-function roleLabel(role: string): string {
-  const roles: Record<string, string> = {
-    admin: "Администратор",
-    editor: "Редактор",
-    owner: "Владелец",
-    user: "Участник",
-    viewer: "Наблюдатель",
-  };
-  return roles[role] || role;
 }
 
 function deviceName(userAgent?: string): string {
@@ -538,14 +494,6 @@ function AccountDashboardIcon({ name }: { name: AccountIconName }) {
         <>
           <path d="M12 3 19 6v5c0 5-3.5 8-7 10-3.5-2-7-5-7-10V6l7-3Z" />
           <path d="m9.5 12.5 1.8 1.8 3.7-4.3" />
-        </>
-      ) : null}
-      {name === "team" ? (
-        <>
-          <circle cx="9" cy="8" r="3" />
-          <path d="M3 20a6 6 0 0 1 12 0" />
-          <path d="M16 11a3 3 0 0 0 0-6" />
-          <path d="M18 20a5 5 0 0 0-4-5" />
         </>
       ) : null}
     </svg>

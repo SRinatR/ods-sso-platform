@@ -26,6 +26,8 @@ type Consent = {
 type CurrentUser = {
   email: string;
   name?: string | null;
+  first_name_cyrillic?: string | null;
+  last_name_cyrillic?: string | null;
 };
 
 type ConsentTheme = "dark" | "light";
@@ -55,19 +57,19 @@ const scopeMeta: Record<
 > = {
   openid: {
     title: "Уникальный идентификатор",
-    subtitle: "ID пользователя в корпоративной системе",
+    subtitle: "ID аккаунта ODS",
     icon: "ID",
     tone: "amber",
   },
   profile: {
-    title: "Основная информация",
-    subtitle: "Имя, фамилия, профиль и роль в организации",
+    title: "Имя профиля",
+    subtitle: "Имя пользователя",
     icon: "👤",
     tone: "blue",
   },
   email: {
-    title: "Контактные данные",
-    subtitle: "Рабочий email и статус подтверждения",
+    title: "Email",
+    subtitle: "Адрес и статус",
     icon: "✉",
     tone: "purple",
   },
@@ -84,8 +86,8 @@ const scopeMeta: Record<
     tone: "green",
   },
   phone: {
-    title: "Контактные данные",
-    subtitle: "Телефон, если он заполнен в профиле",
+    title: "Телефон",
+    subtitle: "Номер из профиля",
     icon: "☎",
     tone: "purple",
   },
@@ -101,13 +103,12 @@ function initials(user: CurrentUser | null) {
   if (!user) {
     return "";
   }
-  const source = user.name ? user.name : user.email;
-  return source
-    .split(/[\s@._-]+/)
+  const explicit = [user.first_name_cyrillic || user.name || "", user.last_name_cyrillic || ""]
+    .map((part) => part.trim()[0])
     .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
     .join("");
+  if (explicit) return explicit.toUpperCase();
+  return (user.email.trim()[0] || "").toUpperCase();
 }
 
 function scopeTitle(item: Consent["data_fields"][number]) {
@@ -416,28 +417,6 @@ function InfoCard({
   );
 }
 
-function GranularInfoCard({
-  icon,
-  title,
-  text,
-}: {
-  icon: ConsentIconName;
-  title: string;
-  text: string;
-}) {
-  return (
-    <article>
-      <span className="consent-granular-info-icon">
-        <ConsentIcon name={icon} />
-      </span>
-      <div>
-        <strong>{title}</strong>
-        <p>{text}</p>
-      </div>
-    </article>
-  );
-}
-
 function GranularConsent({
   clientId,
   consent,
@@ -455,6 +434,7 @@ function GranularConsent({
   toggleScope: (scope: string) => void;
   user: CurrentUser | null;
 }) {
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const submitScopes = consent.requested_scopes.filter((scopeName) => selectedScopes.has(scopeName));
   return (
     <section className="consent-granular-wrap" aria-labelledby="consent-granular-heading">
@@ -462,11 +442,7 @@ function GranularConsent({
         <section className="consent-granular-card consent-granular-main">
           <div className="consent-granular-copy-block">
             <h1 id="consent-granular-heading">Вход и передача данных</h1>
-            <p>
-              Вы входите в {consent.client_name} через ODS SSO.
-              <br />
-              Вы можете управлять тем, какие данные будут переданы.
-            </p>
+            <p>{consent.client_name} запросил данные для входа через ODS SSO.</p>
           </div>
 
           <div className="consent-account-card">
@@ -483,7 +459,12 @@ function GranularConsent({
             </button>
           </div>
 
-          <h2>Какие данные будут переданы</h2>
+          <div className="consent-granular-heading-row">
+            <h2>Передаваемые данные</h2>
+            <button className="consent-info-button" onClick={() => setDetailsOpen(true)} type="button">
+              Подробнее
+            </button>
+          </div>
           <div className="consent-granular-list">
             {consent.data_fields.map((item) => {
               const checked = selectedScopes.has(item.scope);
@@ -528,13 +509,6 @@ function GranularConsent({
             })}
           </div>
 
-          <div className="consent-note">
-            <span aria-hidden="true">
-              <ConsentIcon name="help" />
-            </span>
-            <p>Вы можете отозвать доступ в любой момент в настройках вашего аккаунта ODS.</p>
-          </div>
-
           <ConsentActions
             allowLabel="Разрешить и войти"
             clientId={clientId}
@@ -542,35 +516,29 @@ function GranularConsent({
             state={state}
           />
         </section>
-
-        <aside className="consent-granular-side" aria-label="Информация о передаче данных">
-          <GranularInfoCard
-            icon="help"
-            title="Зачем нужны эти данные?"
-            text="Мы запрашиваем только те данные, которые необходимы для предоставления доступа и персонализации вашего опыта."
-          />
-          <GranularInfoCard
-            icon="clock"
-            title="Как долго будет действовать доступ?"
-            text="Доступ действует, пока вы не отзовете его в настройках вашего аккаунта ODS."
-          />
-          <GranularInfoCard
-            icon="shield"
-            title="Безопасность"
-            text="Мы используем современные стандарты шифрования и не передаем ваши данные третьим сторонам."
-          />
-          <GranularInfoCard
-            icon="headset"
-            title="Поддержка"
-            text="Если у вас возникли вопросы, команда поддержки ODS готова помочь."
-          />
-        </aside>
       </div>
 
-      <p className="consent-granular-legal">
-        Нажимая «Разрешить и войти», вы принимаете передачу данных в соответствии с{" "}
-        <a href="/privacy">Политикой конфиденциальности</a> и условиями ODS SSO.
-      </p>
+      {detailsOpen ? (
+        <div className="consent-help-backdrop" role="presentation">
+          <section
+            aria-labelledby="consent-help-title"
+            aria-modal="true"
+            className="consent-help-dialog"
+            role="dialog"
+          >
+            <h2 id="consent-help-title">О передаче данных</h2>
+            <p>Доступ действует до отзыва в настройках аккаунта ODS.</p>
+            <p>Передаются только выбранные данные; обязательные поля отмечены голубым замком.</p>
+            <p>
+              Нажимая «Разрешить и войти», вы принимаете передачу данных согласно{" "}
+              <a href="/privacy">Политике конфиденциальности</a>.
+            </p>
+            <button className="consent-button primary" onClick={() => setDetailsOpen(false)} type="button">
+              Понятно
+            </button>
+          </section>
+        </div>
+      ) : null}
     </section>
   );
 }

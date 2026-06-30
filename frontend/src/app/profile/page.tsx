@@ -10,8 +10,12 @@ import { transliterateCyrillicName } from "@/lib/full-name";
 type User = {
   email: string;
   name?: string;
-  full_name_cyrillic?: string;
-  full_name_latin?: string;
+  first_name_cyrillic?: string;
+  last_name_cyrillic?: string;
+  patronymic_cyrillic?: string;
+  first_name_latin?: string;
+  last_name_latin?: string;
+  patronymic_latin?: string;
   phone?: string;
   role: string;
 };
@@ -93,17 +97,15 @@ export default function ProfilePage() {
       return;
     }
     try {
-      const fullNameCyrillic = joinName(
-        form.cyrillicFirst,
-        form.cyrillicLast,
-        form.cyrillicPatronymic,
-      );
-      const fullNameLatin = joinName(form.latinFirst, form.latinLast, form.latinPatronymic);
       const updated = await api<User>("/api/v1/account/profile", {
         method: "PATCH",
         body: JSON.stringify({
-          full_name_cyrillic: fullNameCyrillic,
-          full_name_latin: fullNameLatin,
+          first_name_cyrillic: form.cyrillicFirst.trim(),
+          last_name_cyrillic: form.cyrillicLast.trim(),
+          patronymic_cyrillic: form.cyrillicPatronymic.trim() || null,
+          first_name_latin: form.latinFirst.trim(),
+          last_name_latin: form.latinLast.trim(),
+          patronymic_latin: form.latinPatronymic.trim() || null,
           phone: form.phone.trim(),
         }),
       });
@@ -358,33 +360,15 @@ function NextStep({
 }
 
 function formFromUser(user: User): ProfileForm {
-  const cyrillic = splitFullName(user.full_name_cyrillic || user.name || "");
-  const latin = splitFullName(
-    user.full_name_latin ||
-      transliterateCyrillicName(joinName(cyrillic.first, cyrillic.last, cyrillic.patronymic)),
-  );
   return {
-    cyrillicFirst: cyrillic.first,
-    cyrillicLast: cyrillic.last,
-    cyrillicPatronymic: cyrillic.patronymic,
-    latinFirst: latin.first,
-    latinLast: latin.last,
-    latinPatronymic: latin.patronymic,
+    cyrillicFirst: user.first_name_cyrillic || "",
+    cyrillicLast: user.last_name_cyrillic || "",
+    cyrillicPatronymic: user.patronymic_cyrillic || "",
+    latinFirst: user.first_name_latin || "",
+    latinLast: user.last_name_latin || "",
+    latinPatronymic: user.patronymic_latin || "",
     phone: user.phone || "",
   };
-}
-
-function splitFullName(value: string) {
-  const parts = value.trim().split(/\s+/).filter(Boolean);
-  return {
-    first: parts[0] || "",
-    last: parts[1] || "",
-    patronymic: parts.slice(2).join(" "),
-  };
-}
-
-function joinName(first: string, last: string, patronymic: string): string {
-  return [first, last, patronymic].map((part) => part.trim()).filter(Boolean).join(" ");
 }
 
 function validateRequired(form: ProfileForm): string {
@@ -401,14 +385,11 @@ function validateRequired(form: ProfileForm): string {
 }
 
 function initials(user: User): string {
-  const cyrillic = splitFullName(user.full_name_cyrillic || user.name || user.email);
-  const source = cyrillic.first || cyrillic.last || user.email;
-  return source
-    .split(/[\s@._-]+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join("");
+  const first = user.first_name_cyrillic || "";
+  const last = user.last_name_cyrillic || "";
+  const explicit = [first, last].map((part) => part.trim()[0]).filter(Boolean).join("");
+  if (explicit) return explicit.toUpperCase();
+  return (user.email.trim()[0] || "I").toUpperCase();
 }
 
 function ProfileIcon({ name }: { name: ProfileIconName }) {

@@ -1411,7 +1411,6 @@ th {
 .brand-mark svg,
 .account-nav svg,
 .account-logout svg,
-.account-icon-button svg,
 .account-section-title svg,
 .account-inline-link svg,
 .account-info-line svg,
@@ -1562,34 +1561,6 @@ th {
   gap: 16px;
 }
 
-.account-icon-button {
-  position: relative;
-  display: grid;
-  width: 42px;
-  height: 42px;
-  place-items: center;
-  border: 1px solid rgba(148, 163, 184, 0.16);
-  border-radius: 999px;
-  background: rgba(12, 24, 42, 0.72);
-  color: #c9d7ea;
-  cursor: pointer;
-}
-
-.account-icon-button span {
-  position: absolute;
-  top: -3px;
-  right: -2px;
-  display: grid;
-  width: 18px;
-  height: 18px;
-  place-items: center;
-  border-radius: 999px;
-  background: #2f78ff;
-  color: #ffffff;
-  font-size: 0.68rem;
-  font-weight: 800;
-}
-
 .account-user-chip {
   display: flex;
   align-items: center;
@@ -1616,8 +1587,16 @@ th {
 
 .account-dashboard-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.08fr) minmax(360px, 0.92fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 18px;
+}
+
+.account-dashboard-grid-top {
+  grid-template-columns: minmax(0, 1.12fr) minmax(0, 0.88fr);
+}
+
+.account-dashboard-single {
+  display: grid;
 }
 
 .account-card {
@@ -1678,6 +1657,14 @@ th {
   color: #ffffff;
   font-size: 1.15rem;
   line-height: 1.25;
+}
+
+.account-section-title p {
+  max-width: 38rem;
+  margin: 8px 0 0;
+  color: #8fa1bb;
+  font-size: 0.84rem;
+  line-height: 1.45;
 }
 
 .account-card-heading p {
@@ -1751,8 +1738,8 @@ th {
 
 .account-security-content {
   display: grid;
-  grid-template-columns: 150px minmax(0, 1fr);
-  gap: 24px;
+  grid-template-columns: 132px minmax(0, 1fr);
+  gap: 28px;
   align-items: center;
   margin-top: 24px;
 }
@@ -1803,9 +1790,9 @@ th {
 
 .account-check-row {
   display: grid;
-  grid-template-columns: 22px minmax(0, 1fr) auto;
+  grid-template-columns: 22px minmax(0, 1fr) minmax(92px, auto);
   gap: 10px;
-  align-items: center;
+  align-items: start;
   color: #9fb0c7;
   font-size: 0.9rem;
 }
@@ -1826,13 +1813,19 @@ th {
 }
 
 .account-check-row p {
+  min-width: 0;
   margin: 0;
+  line-height: 1.35;
 }
 
 .account-check-row strong {
+  justify-self: end;
   color: #cbdcf1;
   font-size: 0.86rem;
   font-weight: 750;
+  line-height: 1.35;
+  text-align: right;
+  white-space: nowrap;
 }
 
 .account-security-card .account-inline-link {
@@ -1996,12 +1989,13 @@ th {
 }
 
 @media (max-width: 1180px) {
-  .account-dashboard-grid {
+  .account-dashboard-grid,
+  .account-dashboard-grid-top {
     grid-template-columns: 1fr;
   }
 
   .account-security-content {
-    grid-template-columns: 150px minmax(0, 1fr);
+    grid-template-columns: 132px minmax(0, 1fr);
   }
 }
 
@@ -2063,6 +2057,10 @@ th {
   .account-card-heading,
   .account-section-title {
     display: grid;
+  }
+
+  .account-section-title p {
+    max-width: none;
   }
 
   .account-list-row {
@@ -3468,5 +3466,417 @@ th {
 
   .consent-granular-main .consent-actions-v2 {
     grid-template-columns: 1fr;
+  }
+}
+
+.consent-screen[data-layout="granular"] {
+  height: 100svh;
+  min-height: 0;
+  overflow: hidden;
+  padding: clamp(12px, 2.2vh, 24px) clamp(16px, 3vw, 48px);
+}
+
+.consent-shell[data-layout="granular"] {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  width: min(1180px, 100%);
+  height: 100%;
+  overflow: hidden;
+}
+
+.consent-shell[data-layout="granular"] .consent-topbar {
+  padding: 0 0 clamp(10px, 1.8vh, 18px);
+}
+
+.consent-shell[data-layout="granular"] .consent-shield {
+  width: clamp(36px, 5vh, 44px);
+  height: clamp(36px, 5vh, 44px);
+}
+
+.consent-granular-wrap,
+.consent-granular-grid {
+  min-height: 0;
+}
+
+.consent-granular-wrap {
+  display: grid;
+}
+
+.consent-granular-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  height: 100%;
+}
+
+.consent-granular-card {
+  min-height: 0;
+}
+
+.consent-granular-main {
+  display: grid;
+  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+  gap: clamp(8px, 1.4vh, 14px);
+  height: 100%;
+  min-height: 0;
+  padding: clamp(16px, 2.8vh, 28px);
+}
+
+.consent-granular-copy-block {
+  gap: 6px;
+}
+
+.consent-granular-copy-block h1 {
+  font-size: clamp(1.55rem, 2.8vw, 2.05rem);
+  line-height: 1.08;
+}
+
+.consent-granular-copy-block p {
+  font-size: clamp(0.84rem, 1.4vw, 0.95rem);
+  line-height: 1.35;
+}
+
+.consent-account-card {
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+  gap: 12px;
+  min-height: 58px;
+  padding: 9px 14px;
+}
+
+.consent-account-icon {
+  width: 42px;
+  height: 42px;
+  font-size: 1.2rem;
+}
+
+.consent-account-card span {
+  font-size: 0.78rem;
+}
+
+.consent-account-card strong {
+  margin-top: 2px;
+  font-size: 0.92rem;
+}
+
+.consent-account-switch,
+.consent-info-button {
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid rgba(47, 120, 255, 0.28);
+  border-radius: 8px;
+  background: rgba(47, 120, 255, 0.08);
+  color: #79a7ff;
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.consent-granular-heading-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.consent-granular-main h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.consent-granular-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  min-height: 0;
+}
+
+.consent-granular-item {
+  grid-template-columns: 40px minmax(0, 1fr) 52px 36px;
+  gap: 10px;
+  min-height: 56px;
+  padding: 8px 10px;
+}
+
+.consent-granular-item .consent-scope-icon {
+  width: 36px;
+  height: 36px;
+  font-size: 1.05rem;
+}
+
+.consent-granular-copy {
+  gap: 2px;
+}
+
+.consent-granular-copy strong {
+  font-size: 0.9rem;
+}
+
+.consent-granular-copy small {
+  font-size: 0.76rem;
+}
+
+.consent-toggle {
+  width: 48px;
+  height: 28px;
+}
+
+.consent-toggle span {
+  top: 4px;
+  left: 4px;
+  width: 18px;
+  height: 18px;
+}
+
+.consent-toggle[data-checked="true"] span {
+  transform: translateX(20px);
+}
+
+.consent-required-lock {
+  width: 34px;
+  height: 30px;
+  border-color: rgba(47, 120, 255, 0.42);
+  background: rgba(47, 120, 255, 0.1);
+}
+
+.consent-optional-chip {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-size: 0.72rem;
+}
+
+.consent-granular-main .consent-actions-v2 {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+}
+
+.consent-granular-main .consent-button {
+  min-height: 46px;
+  font-size: 0.95rem;
+}
+
+.consent-help-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(2, 8, 23, 0.72);
+}
+
+.consent-help-dialog {
+  display: grid;
+  gap: 12px;
+  width: min(460px, 100%);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 8px;
+  background: #0b1424;
+  color: #eef6ff;
+  padding: 22px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.42);
+}
+
+.consent-help-dialog h2,
+.consent-help-dialog p {
+  margin: 0;
+}
+
+.consent-help-dialog h2 {
+  font-size: 1.2rem;
+}
+
+.consent-help-dialog p {
+  color: #b6c2d5;
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.consent-help-dialog a {
+  color: #79a7ff;
+}
+
+@media (max-width: 760px) {
+  .consent-screen[data-layout="granular"] {
+    padding: 12px;
+  }
+
+  .consent-shell[data-layout="granular"] .consent-topbar {
+    padding-bottom: 10px;
+  }
+
+  .consent-shell[data-layout="granular"] .consent-brand {
+    gap: 8px;
+  }
+
+  .consent-shell[data-layout="granular"] .consent-brand strong {
+    font-size: 1rem;
+  }
+
+  .consent-shell[data-layout="granular"] .consent-brand div span {
+    font-size: 0.62rem;
+  }
+
+  .consent-shell[data-layout="granular"] .consent-language {
+    font-size: 0.86rem;
+  }
+
+  .consent-granular-wrap {
+    gap: 0;
+    padding-top: 0;
+  }
+
+  .consent-granular-grid {
+    display: grid;
+  }
+
+  .consent-granular-card {
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    backdrop-filter: none;
+  }
+
+  .consent-granular-main {
+    gap: 8px;
+    padding: 0;
+  }
+
+  .consent-granular-copy-block h1 {
+    font-size: clamp(1.28rem, 6vw, 1.72rem);
+  }
+
+  .consent-granular-copy-block p {
+    font-size: 0.82rem;
+  }
+
+  .consent-account-card {
+    grid-template-columns: 36px minmax(0, 1fr) auto;
+    gap: 8px;
+    min-height: 52px;
+    padding: 7px 9px;
+  }
+
+  .consent-account-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    font-size: 1rem;
+  }
+
+  .consent-account-card span {
+    font-size: 0.68rem;
+    text-transform: uppercase;
+  }
+
+  .consent-account-card strong {
+    margin-top: 1px;
+    font-size: 0.82rem;
+  }
+
+  .consent-account-switch {
+    grid-column: auto;
+    justify-self: end;
+    min-height: 30px;
+    padding: 0 8px;
+    font-size: 0.72rem;
+  }
+
+  .consent-account-switch svg {
+    display: none;
+  }
+
+  .consent-info-button {
+    min-height: 30px;
+    font-size: 0.78rem;
+  }
+
+  .consent-granular-list {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .consent-granular-item {
+    grid-template-columns: 34px minmax(0, 1fr) 46px 28px;
+    gap: 8px;
+    min-height: 50px;
+    padding: 6px 8px;
+  }
+
+  .consent-granular-item .consent-scope-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    font-size: 0.92rem;
+  }
+
+  .consent-granular-copy strong,
+  .consent-granular-copy small {
+    white-space: nowrap;
+  }
+
+  .consent-granular-copy strong {
+    font-size: 0.82rem;
+  }
+
+  .consent-granular-copy small {
+    font-size: 0.69rem;
+  }
+
+  .consent-toggle {
+    grid-column: auto;
+    grid-row: auto;
+    width: 44px;
+    height: 26px;
+  }
+
+  .consent-toggle span {
+    width: 16px;
+    height: 16px;
+  }
+
+  .consent-toggle[data-checked="true"] span {
+    transform: translateX(18px);
+  }
+
+  .consent-required-lock,
+  .consent-optional-chip {
+    grid-column: auto;
+    grid-row: auto;
+  }
+
+  .consent-required-lock {
+    width: 28px;
+    height: 28px;
+    font-size: 0.95rem;
+  }
+
+  .consent-optional-chip {
+    display: none;
+  }
+
+  .consent-granular-main .consent-actions-v2 {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .consent-granular-main .consent-button {
+    min-height: 44px;
+    font-size: 0.88rem;
+  }
+}
+
+@media (max-height: 680px) {
+  .consent-shell[data-layout="granular"] .consent-brand div span,
+  .consent-granular-copy-block p,
+  .consent-granular-copy small {
+    display: none;
+  }
+
+  .consent-granular-main {
+    gap: 7px;
+  }
+
+  .consent-granular-item {
+    min-height: 44px;
   }
 }

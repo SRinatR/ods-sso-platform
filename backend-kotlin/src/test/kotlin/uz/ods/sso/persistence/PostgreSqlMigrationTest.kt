@@ -60,6 +60,20 @@ class PostgreSqlMigrationTest {
                 assertThat(primaryKeys).containsExactly("internal_id")
             }
 
+            val userColumns = connection.metaData.getColumns(null, "public", "users", null).use { result ->
+                buildSet {
+                    while (result.next()) add(result.getString("COLUMN_NAME"))
+                }
+            }
+            assertThat(userColumns).contains(
+                "first_name_cyrillic",
+                "last_name_cyrillic",
+                "patronymic_cyrillic",
+                "first_name_latin",
+                "last_name_latin",
+                "patronymic_latin",
+            )
+
             connection.createStatement().use { statement ->
                 statement.executeQuery("select uuid_extract_version(uuidv7())").use { result ->
                     assertThat(result.next()).isTrue()

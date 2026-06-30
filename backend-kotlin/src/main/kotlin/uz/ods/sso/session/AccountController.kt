@@ -66,16 +66,46 @@ class AccountController(
         request: HttpServletRequest,
     ): UserResponse {
         val principal = sessionService.current()
-        val requestedCyrillic = FullNameNormalizer.requireCyrillic(body.fullNameCyrillic ?: body.name)
+        val firstNameCyrillic = FullNameNormalizer.requireCyrillicField(body.firstNameCyrillic, "First name in Cyrillic")
+        val lastNameCyrillic = FullNameNormalizer.requireCyrillicField(body.lastNameCyrillic, "Last name in Cyrillic")
+        val patronymicCyrillic = FullNameNormalizer.optionalCyrillicField(
+            body.patronymicCyrillic,
+            "Patronymic in Cyrillic",
+        )
+        val firstNameLatin = FullNameNormalizer.requireLatinField(
+            firstNameCyrillic,
+            body.firstNameLatin,
+            "First name in Latin",
+        )
+        val lastNameLatin = FullNameNormalizer.requireLatinField(
+            lastNameCyrillic,
+            body.lastNameLatin,
+            "Last name in Latin",
+        )
+        val patronymicLatin = FullNameNormalizer.optionalLatinField(
+            patronymicCyrillic,
+            body.patronymicLatin,
+            "Patronymic in Latin",
+        )
         val requestedPhone = body.phone?.trim()?.takeIf(String::isNotEmpty)
             ?: throw AppException(
                 HttpStatus.UNPROCESSABLE_CONTENT,
                 "validation_error",
                 "Phone is required",
             )
-        principal.user.fullNameCyrillic = requestedCyrillic
-        principal.user.fullNameLatin = FullNameNormalizer.latinFor(requestedCyrillic, body.fullNameLatin)
-        principal.user.name = requestedCyrillic
+        principal.user.firstNameCyrillic = firstNameCyrillic
+        principal.user.lastNameCyrillic = lastNameCyrillic
+        principal.user.patronymicCyrillic = patronymicCyrillic
+        principal.user.firstNameLatin = firstNameLatin
+        principal.user.lastNameLatin = lastNameLatin
+        principal.user.patronymicLatin = patronymicLatin
+        principal.user.fullNameCyrillic = FullNameNormalizer.joinParts(
+            firstNameCyrillic,
+            lastNameCyrillic,
+            patronymicCyrillic,
+        )
+        principal.user.fullNameLatin = FullNameNormalizer.joinParts(firstNameLatin, lastNameLatin, patronymicLatin)
+        principal.user.name = firstNameCyrillic
         principal.user.phone = requestedPhone
         principal.user.updatedAt = Instant.now()
         audit.write(

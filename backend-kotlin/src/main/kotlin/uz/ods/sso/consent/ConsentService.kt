@@ -99,7 +99,7 @@ class ConsentService(
                 required = true,
                 enabledByDefault = true,
             )
-            "profile" -> optionalField(scope, "Профиль", listOf("Имя", "Роль в организации", "Права доступа"))
+            "profile" -> optionalField(scope, "Профиль", listOf("Имя профиля"))
             "email" -> ConsentDataField(
                 scope,
                 "Email",

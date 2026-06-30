@@ -204,6 +204,12 @@ class AdminService(
                 id = rs.getString("public_id"),
                 email = rs.getString("email"),
                 name = rs.getString("name"),
+                firstNameCyrillic = rs.getString("first_name_cyrillic"),
+                lastNameCyrillic = rs.getString("last_name_cyrillic"),
+                patronymicCyrillic = rs.getString("patronymic_cyrillic"),
+                firstNameLatin = rs.getString("first_name_latin"),
+                lastNameLatin = rs.getString("last_name_latin"),
+                patronymicLatin = rs.getString("patronymic_latin"),
                 fullNameCyrillic = rs.getString("full_name_cyrillic"),
                 fullNameLatin = rs.getString("full_name_latin"),
                 phone = rs.getString("phone"),
@@ -217,7 +223,11 @@ class AdminService(
         return if (normalizedQuery == null) {
             jdbc.query(
                 """
-                select public_id, email, name, full_name_cyrillic, full_name_latin, phone, email_verified_at, status, role, mfa_enabled, created_at
+                select public_id, email, name,
+                       first_name_cyrillic, last_name_cyrillic, patronymic_cyrillic,
+                       first_name_latin, last_name_latin, patronymic_latin,
+                       full_name_cyrillic, full_name_latin, phone,
+                       email_verified_at, status, role, mfa_enabled, created_at
                 from users
                 where tenant_id = ?
                   and status <> 'deleted'
@@ -232,7 +242,11 @@ class AdminService(
         } else {
             jdbc.query(
                 """
-                select public_id, email, name, full_name_cyrillic, full_name_latin, phone, email_verified_at, status, role, mfa_enabled, created_at
+                select public_id, email, name,
+                       first_name_cyrillic, last_name_cyrillic, patronymic_cyrillic,
+                       first_name_latin, last_name_latin, patronymic_latin,
+                       full_name_cyrillic, full_name_latin, phone,
+                       email_verified_at, status, role, mfa_enabled, created_at
                 from users
                 where tenant_id = ?
                   and status <> 'deleted'
@@ -325,6 +339,14 @@ class AdminService(
         jdbc.update("update partner_memberships set status = 'disabled' where user_id = ?", user.id)
         user.email = deletedEmail(user.id)
         user.name = null
+        user.firstNameCyrillic = null
+        user.lastNameCyrillic = null
+        user.patronymicCyrillic = null
+        user.firstNameLatin = null
+        user.lastNameLatin = null
+        user.patronymicLatin = null
+        user.fullNameCyrillic = null
+        user.fullNameLatin = null
         user.phone = null
         user.passwordHash = crypto.hashPassword(crypto.randomUrl(48))
         user.emailVerifiedAt = null

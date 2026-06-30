@@ -9,7 +9,7 @@ import { onAuth, onPartners } from "@/lib/domains";
 
 type RegistrationResponse = {
   message: string;
-  email?: string;
+  email: string;
 };
 
 function RegisterForm() {
@@ -32,8 +32,7 @@ function RegisterForm() {
         method: "POST",
         body: JSON.stringify({ email }),
       });
-      const normalizedEmail = result.email || email.trim().toLowerCase();
-      setConfirmedEmail(normalizedEmail);
+      setConfirmedEmail(result.email);
       setMessage("Мы отправили код подтверждения на указанную почту.");
       setStep("code");
     } catch (cause) {

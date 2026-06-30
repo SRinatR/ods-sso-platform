@@ -271,6 +271,12 @@ class ControllerCoverageTest {
             id = "usr_1",
             email = "user@example.com",
             name = "User",
+            firstNameCyrillic = null,
+            lastNameCyrillic = null,
+            patronymicCyrillic = null,
+            firstNameLatin = null,
+            lastNameLatin = null,
+            patronymicLatin = null,
             fullNameCyrillic = "Иванов Иван",
             fullNameLatin = "Ivanov Ivan",
             phone = null,
@@ -387,13 +393,29 @@ class ControllerCoverageTest {
 
         assertThat(
             account.updateProfile(
-                ProfileUpdateRequest(null, "Иванов Иван", "Ivanov Ivan", "+998901234567"),
+                ProfileUpdateRequest(
+                    firstNameCyrillic = "Иван",
+                    lastNameCyrillic = "Иванов",
+                    patronymicCyrillic = null,
+                    firstNameLatin = "Ivan",
+                    lastNameLatin = "Ivanov",
+                    patronymicLatin = null,
+                    phone = "+998901234567",
+                ),
                 request,
             ).name,
-        ).isEqualTo("Иванов Иван")
+        ).isEqualTo("Иван")
         assertThatThrownBy {
             account.updateProfile(
-                ProfileUpdateRequest(null, "Иванов Иван", "Ivanov Ivan", " "),
+                ProfileUpdateRequest(
+                    firstNameCyrillic = "Иван",
+                    lastNameCyrillic = "Иванов",
+                    patronymicCyrillic = null,
+                    firstNameLatin = "Ivan",
+                    lastNameLatin = "Ivanov",
+                    patronymicLatin = null,
+                    phone = " ",
+                ),
                 request,
             )
         }.isInstanceOf(AppException::class.java)
