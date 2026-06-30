@@ -69,6 +69,7 @@ type AccountIconName =
   | "chevron"
   | "clock"
   | "desktop"
+  | "edit"
   | "globe"
   | "mail"
   | "phone"
@@ -174,8 +175,13 @@ function ProfileSummary({ user }: { user: User }) {
             <h2>{userName(user)}</h2>
             <p>{user.email}</p>
           </div>
-          <Link className="account-link-button" href={`${ACCOUNTS_URL}/profile`}>
-            Редактировать профиль
+          <Link
+            aria-label="Редактировать профиль"
+            className="account-link-button account-icon-button"
+            href={`${ACCOUNTS_URL}/profile`}
+            title="Редактировать профиль"
+          >
+            <AccountDashboardIcon name="edit" />
           </Link>
         </div>
         <div className="account-profile-list">
@@ -473,6 +479,12 @@ function AccountDashboardIcon({ name }: { name: AccountIconName }) {
         <>
           <rect x="4" y="5" width="16" height="11" rx="2" />
           <path d="M9 20h6M12 16v4" />
+        </>
+      ) : null}
+      {name === "edit" ? (
+        <>
+          <path d="M4 20h4l10.5-10.5a2.1 2.1 0 0 0-3-3L5 17v3Z" />
+          <path d="m14 8 2 2" />
         </>
       ) : null}
       {name === "globe" ? (
