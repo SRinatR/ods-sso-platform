@@ -1,25 +1,21 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
-import type { CSSProperties, ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type { CSSProperties } from "react";
 import { Shell } from "@/components/Shell";
 import { api, ApiRequestError } from "@/lib/api";
 import { ACCOUNTS_URL, loginUrl } from "@/lib/domains";
-import { transliterateCyrillicName } from "@/lib/full-name";
 
 type User = {
   id: string;
   email: string;
-  name?: string;
   first_name_cyrillic?: string;
   last_name_cyrillic?: string;
   patronymic_cyrillic?: string;
   first_name_latin?: string;
   last_name_latin?: string;
   patronymic_latin?: string;
-  full_name_cyrillic?: string;
-  full_name_latin?: string;
   phone?: string;
   email_verified: boolean;
   status: string;
@@ -53,11 +49,9 @@ type ProfileIconName =
   | "calendar"
   | "check"
   | "clock"
-  | "contact"
   | "document"
   | "edit"
   | "lock"
-  | "mail"
   | "phone"
   | "profile"
   | "security"
@@ -77,9 +71,7 @@ export default function ProfilePage() {
   const [user, setUser] = useState<User | null>(null);
   const [apps, setApps] = useState<ConnectedApp[]>([]);
   const [form, setForm] = useState<ProfileForm>(emptyForm);
-  const [latinTouched, setLatinTouched] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
   const load = useCallback(async () => {
@@ -89,7 +81,6 @@ export default function ProfilePage() {
       const currentUser = await api<User>("/api/v1/auth/me");
       setUser(currentUser);
       setForm(formFromUser(currentUser));
-      setLatinTouched(false);
 
       const appsResult = await api<ConnectedApp[]>("/api/v1/account/connected-apps").catch((cause) => {
         if (cause instanceof ApiRequestError && cause.status === 401) throw cause;
@@ -117,59 +108,9 @@ export default function ProfilePage() {
   const completedRequired = useMemo(() => requiredProfileFields(form).filter(Boolean).length, [form]);
   const totalRequired = requiredProfileFields(form).length;
 
-  async function save(event: FormEvent) {
-    event.preventDefault();
-    setError("");
-    setMessage("");
-    const validation = validateRequired(form);
-    if (validation) {
-      setError(validation);
-      return;
-    }
-    try {
-      const updated = await api<User>("/api/v1/account/profile", {
-        method: "PATCH",
-        body: JSON.stringify({
-          first_name_cyrillic: form.cyrillicFirst.trim(),
-          last_name_cyrillic: form.cyrillicLast.trim(),
-          patronymic_cyrillic: form.cyrillicPatronymic.trim() || null,
-          first_name_latin: form.latinFirst.trim(),
-          last_name_latin: form.latinLast.trim(),
-          patronymic_latin: form.latinPatronymic.trim() || null,
-          phone: form.phone.trim(),
-        }),
-      });
-      setUser(updated);
-      setForm(formFromUser(updated));
-      setLatinTouched(false);
-      setMessage("Профиль сохранён");
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Не удалось сохранить профиль");
-    }
-  }
-
-  function updateCyrillic(next: Partial<ProfileForm>) {
-    setForm((current) => {
-      const merged = { ...current, ...next };
-      if (latinTouched) return merged;
-      return {
-        ...merged,
-        latinFirst: transliterateCyrillicName(merged.cyrillicFirst),
-        latinLast: transliterateCyrillicName(merged.cyrillicLast),
-        latinPatronymic: transliterateCyrillicName(merged.cyrillicPatronymic),
-      };
-    });
-  }
-
-  function updateLatin(next: Partial<ProfileForm>) {
-    setLatinTouched(true);
-    setForm((current) => ({ ...current, ...next }));
-  }
-
   return (
     <Shell title="Профиль">
       {error && <div className="alert error account-alert">{error}</div>}
-      {message && <div className="alert success account-alert">{message}</div>}
       {loading && !user ? <section className="account-card">Загрузка профиля...</section> : null}
 
       {user ? (
@@ -183,15 +124,6 @@ export default function ProfilePage() {
               user={user}
             />
             <ProfileDataSections appsCount={apps.length} form={form} user={user} />
-            <ProfileEditor
-              form={form}
-              onFieldChange={(next) => setForm((current) => ({ ...current, ...next }))}
-              onLatinChange={updateLatin}
-              onReset={() => setForm(formFromUser(user))}
-              onSubmit={save}
-              onUpdateCyrillic={updateCyrillic}
-              user={user}
-            />
           </div>
 
           <aside className="profile-overview-side">
@@ -232,10 +164,10 @@ function ProfileHero({ user }: { user: User }) {
           <ProfileInfo icon="security" text={user.status === "active" ? "Аккаунт активен" : `Статус: ${user.status}`} />
         </div>
       </div>
-      <a className="account-link-button profile-edit-button" href="#profile-editor">
+      <Link className="account-link-button profile-edit-button" href={`${ACCOUNTS_URL}/profile/edit`}>
         <ProfileIcon name="edit" />
         Редактировать профиль
-      </a>
+      </Link>
     </section>
   );
 }
@@ -266,14 +198,14 @@ function ProfileCompletionCard({
         </div>
         <div className="profile-task-list">
           <ProfileTask
-            href="#profile-editor"
+            href={`${ACCOUNTS_URL}/profile/edit`}
             icon="document"
             label="Заполнить обязательные поля"
             status={completion === 100 ? "Готово" : "Нужно"}
             tone={completion === 100 ? "green" : "amber"}
           />
           <ProfileTask
-            href="#profile-editor"
+            href={`${ACCOUNTS_URL}/profile/edit?section=contacts`}
             icon="phone"
             label={phoneReady ? "Телефон указан" : "Указать телефон"}
             status={phoneReady ? "Готово" : "Нужно"}
@@ -310,7 +242,7 @@ function ProfileDataSections({
 }) {
   const rows = [
     {
-      href: "#profile-editor",
+      href: `${ACCOUNTS_URL}/profile/edit`,
       icon: "profile" as ProfileIconName,
       score: fraction([
         form.cyrillicFirst,
@@ -324,7 +256,7 @@ function ProfileDataSections({
       title: "Основная информация",
     },
     {
-      href: "#profile-editor",
+      href: `${ACCOUNTS_URL}/profile/edit?section=contacts`,
       icon: "phone" as ProfileIconName,
       score: fraction([user.email, form.phone]),
       text: "Email и номер телефона",
@@ -372,137 +304,6 @@ function ProfileDataSections({
         ))}
       </div>
     </section>
-  );
-}
-
-function ProfileEditor({
-  form,
-  onFieldChange,
-  onLatinChange,
-  onReset,
-  onSubmit,
-  onUpdateCyrillic,
-  user,
-}: {
-  form: ProfileForm;
-  onFieldChange: (next: Partial<ProfileForm>) => void;
-  onLatinChange: (next: Partial<ProfileForm>) => void;
-  onReset: () => void;
-  onSubmit: (event: FormEvent) => void;
-  onUpdateCyrillic: (next: Partial<ProfileForm>) => void;
-  user: User;
-}) {
-  return (
-    <form className="account-card profile-editor-card" id="profile-editor" onSubmit={onSubmit}>
-      <div className="profile-card-title">
-        <span aria-hidden="true">
-          <ProfileIcon name="edit" />
-        </span>
-        <div>
-          <h2>Редактирование профиля</h2>
-          <p>Обязательные поля нужны для выпуска корректного ID-профиля.</p>
-        </div>
-      </div>
-
-      <div className="profile-field-groups">
-        <fieldset>
-          <legend>ФИО (кириллица)</legend>
-          <div className="profile-field-grid three">
-            <RequiredLabel label="Имя">
-              <input
-                maxLength={80}
-                required
-                value={form.cyrillicFirst}
-                onChange={(event) => onUpdateCyrillic({ cyrillicFirst: event.target.value })}
-              />
-            </RequiredLabel>
-            <RequiredLabel label="Фамилия">
-              <input
-                maxLength={80}
-                required
-                value={form.cyrillicLast}
-                onChange={(event) => onUpdateCyrillic({ cyrillicLast: event.target.value })}
-              />
-            </RequiredLabel>
-            <label>
-              Отчество
-              <input
-                maxLength={80}
-                value={form.cyrillicPatronymic}
-                onChange={(event) => onUpdateCyrillic({ cyrillicPatronymic: event.target.value })}
-              />
-            </label>
-          </div>
-        </fieldset>
-
-        <fieldset>
-          <legend>Full name (Latin)</legend>
-          <div className="profile-field-grid three">
-            <RequiredLabel label="First name">
-              <input
-                maxLength={80}
-                pattern="[A-Za-z\\s'’\\-]+"
-                required
-                value={form.latinFirst}
-                onChange={(event) => onLatinChange({ latinFirst: event.target.value })}
-              />
-            </RequiredLabel>
-            <RequiredLabel label="Last name">
-              <input
-                maxLength={80}
-                pattern="[A-Za-z\\s'’\\-]+"
-                required
-                value={form.latinLast}
-                onChange={(event) => onLatinChange({ latinLast: event.target.value })}
-              />
-            </RequiredLabel>
-            <label>
-              Patronymic
-              <input
-                maxLength={80}
-                pattern="[A-Za-z\\s'’\\-]+"
-                value={form.latinPatronymic}
-                onChange={(event) => onLatinChange({ latinPatronymic: event.target.value })}
-              />
-            </label>
-          </div>
-        </fieldset>
-
-        <fieldset>
-          <legend>Контакты</legend>
-          <div className="profile-field-grid">
-            <RequiredLabel label="Телефон">
-              <input
-                maxLength={32}
-                placeholder="+998 90 123 45 67"
-                required
-                type="tel"
-                value={form.phone}
-                onChange={(event) => onFieldChange({ phone: event.target.value })}
-              />
-            </RequiredLabel>
-            <label>
-              Email
-              <input value={user.email} disabled />
-            </label>
-          </div>
-        </fieldset>
-
-        <p className="profile-required-note">
-          <span>*</span> обязательные поля
-        </p>
-      </div>
-
-      <footer className="profile-form-actions profile-editor-actions">
-        <button className="button secondary" type="button" onClick={onReset}>
-          Вернуть сохранённые данные
-        </button>
-        <button className="button" type="submit">
-          Сохранить профиль
-          <ProfileIcon name="arrow" />
-        </button>
-      </footer>
-    </form>
   );
 }
 
@@ -555,7 +356,7 @@ function ProfileStatusCard({
 
 function ProfileQuickActions() {
   const actions = [
-    { href: "#profile-editor", icon: "edit" as ProfileIconName, label: "Редактировать профиль" },
+    { href: `${ACCOUNTS_URL}/profile/edit`, icon: "edit" as ProfileIconName, label: "Редактировать профиль" },
     { href: `${ACCOUNTS_URL}/security`, icon: "lock" as ProfileIconName, label: "Безопасность" },
     { href: `${ACCOUNTS_URL}/apps`, icon: "apps" as ProfileIconName, label: "Согласия и доступы" },
     { href: `${ACCOUNTS_URL}/sessions`, icon: "clock" as ProfileIconName, label: "Сессии и входы" },
@@ -629,23 +430,6 @@ function ProfileInfo({ icon, text }: { icon: ProfileIconName; text: string }) {
   );
 }
 
-function RequiredLabel({
-  children,
-  label,
-}: {
-  children: ReactNode;
-  label: string;
-}) {
-  return (
-    <label>
-      <span>
-        {label} <em>*</em>
-      </span>
-      {children}
-    </label>
-  );
-}
-
 function formFromUser(user: User): ProfileForm {
   return {
     cyrillicFirst: user.first_name_cyrillic || "",
@@ -656,19 +440,6 @@ function formFromUser(user: User): ProfileForm {
     latinPatronymic: user.patronymic_latin || "",
     phone: user.phone || "",
   };
-}
-
-function validateRequired(form: ProfileForm): string {
-  if (!form.cyrillicFirst.trim() || !form.cyrillicLast.trim()) {
-    return "Заполните имя и фамилию на кириллице";
-  }
-  if (!form.latinFirst.trim() || !form.latinLast.trim()) {
-    return "Заполните first name и last name латиницей";
-  }
-  if (!form.phone.trim()) {
-    return "Укажите телефон";
-  }
-  return "";
 }
 
 function requiredProfileFields(form: ProfileForm): boolean[] {
@@ -697,7 +468,7 @@ function fraction(values: Array<string | boolean | undefined | null>): string {
 }
 
 function userName(user: User): string {
-  return explicitName(user) || user.email.split("@")[0];
+  return explicitName(user) || "Аккаунт";
 }
 
 function explicitName(user: User): string {
@@ -713,7 +484,7 @@ function initials(user: User): string {
     .filter(Boolean)
     .join("");
   if (explicit) return explicit.toUpperCase();
-  return (user.email.trim()[0] || "I").toUpperCase();
+  return "ID";
 }
 
 function formatDate(value: string): string {
@@ -761,12 +532,6 @@ function ProfileIcon({ name }: { name: ProfileIconName }) {
           <path d="M12 8v5l3 2" />
         </>
       ) : null}
-      {name === "contact" ? (
-        <>
-          <rect x="4" y="5" width="16" height="14" rx="2" />
-          <path d="M8 10h4M8 14h8" />
-        </>
-      ) : null}
       {name === "document" ? (
         <>
           <rect x="5" y="4" width="14" height="16" rx="2" />
@@ -783,12 +548,6 @@ function ProfileIcon({ name }: { name: ProfileIconName }) {
         <>
           <rect x="5" y="10" width="14" height="10" rx="2" />
           <path d="M8 10V7a4 4 0 0 1 8 0v3" />
-        </>
-      ) : null}
-      {name === "mail" ? (
-        <>
-          <rect x="4" y="6" width="16" height="12" rx="2" />
-          <path d="m5 8 7 5 7-5" />
         </>
       ) : null}
       {name === "phone" ? (
