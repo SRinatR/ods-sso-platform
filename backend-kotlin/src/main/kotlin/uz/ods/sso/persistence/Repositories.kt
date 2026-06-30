@@ -88,6 +88,10 @@ interface UserSessionRepository : JpaRepository<UserSessionEntity, UUID> {
 
 interface AccountTokenRepository : JpaRepository<AccountTokenEntity, UUID> {
     fun findByPublicIdAndType(publicId: String, type: String): AccountTokenEntity?
+    fun findFirstByUserIdAndTypeAndUsedAtIsNullOrderByCreatedAtDesc(
+        userId: String,
+        type: String,
+    ): AccountTokenEntity?
 
     @Modifying
     @Query("update AccountTokenEntity t set t.usedAt = :now where t.userId = :userId and t.type = :type and t.usedAt is null")

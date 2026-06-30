@@ -48,29 +48,25 @@ class IdentityService(
         val ipAddress = clientIp(request, properties)
         rateLimiter.enforce(RateLimiter.REGISTRATION_BURST, ipAddress)
         rateLimiter.enforce(RateLimiter.REGISTRATION_DAILY, ipAddress)
-        if (properties.requireEmailVerification) requireMailDelivery()
+        requireMailDelivery()
         val tenant = tenants.current()
-        val email = body.email.trim().lowercase()
-        val fullNameCyrillic = FullNameNormalizer.requireCyrillic(body.fullNameCyrillic)
-        val fullNameLatin = FullNameNormalizer.latinFor(fullNameCyrillic, body.fullNameLatin)
-        val passwordHash = crypto.hashPassword(body.password)
+        val email = normalizeEmail(body.email)
         val existing = users.findByTenantIdAndEmailIgnoreCase(tenant.id, email)
         if (existing != null) {
-            if (properties.requireEmailVerification && !existing.emailVerified) {
-                sendVerification(existing, request, "REGISTRATION_REPEATED")
-            }
-            return properties.requireEmailVerification
+            sendVerification(
+                existing,
+                request,
+                if (existing.emailVerified) "REGISTRATION_EXISTING" else "REGISTRATION_REPEATED",
+            )
+            return true
         }
+        val now = Instant.now()
         val user = users.save(
             UserEntity(
                 tenantId = tenant.id,
                 email = email,
-                passwordHash = passwordHash,
-                name = fullNameCyrillic,
-                fullNameCyrillic = fullNameCyrillic,
-                fullNameLatin = fullNameLatin,
-                emailVerifiedAt = Instant.now().takeUnless { properties.requireEmailVerification },
-                termsAcceptedAt = Instant.now(),
+                passwordHash = crypto.hashPassword(crypto.randomUrl(24)),
+                termsAcceptedAt = now,
             ),
         )
         audit.write(
@@ -82,24 +78,43 @@ class IdentityService(
             details = mapOf("terms_version" to "2026-06-22"),
         )
         events.append(tenant.id, "UserRegistered", user.id, mapOf("user_id" to user.id, "email" to user.email))
-        if (!properties.requireEmailVerification) {
-            audit.write(tenant.id, request, "EMAIL_VERIFICATION_SKIPPED", user.id, user.id)
-            return false
-        }
         sendVerification(user, request, "REGISTRATION")
         return true
     }
 
-    @Transactional
-    fun verifyEmail(rawToken: String, request: HttpServletRequest) {
-        val token = validateAccountToken(rawToken, "evt", "email_verification")
-        val user = users.findByPublicId(token.userId) ?: throw
-            AppException(HttpStatus.BAD_REQUEST, "invalid_verification_token", "Verification token is invalid")
-        val now = Instant.now()
-        token.usedAt = now
-        user.emailVerifiedAt = now
-        audit.write(user.tenantId, request, "EMAIL_VERIFIED", user.id, user.id)
-        events.append(user.tenantId, "EmailVerified", user.id, mapOf("user_id" to user.id))
+    @Transactional(noRollbackFor = [AppException::class])
+    fun verifyEmail(
+        body: VerifyEmailRequest,
+        request: HttpServletRequest,
+        response: HttpServletResponse,
+    ): LoginResponse = withAuthenticationTiming {
+        enforceEmailAction("verify", request)
+        val user = consumeVerificationCode(body.email, body.code, request)
+        if (user.status != "active") {
+            throw AppException(HttpStatus.FORBIDDEN, "account_unavailable", "Account is not active")
+        }
+        val riskResult = risk.assess(user, clientIp(request, properties), request.getHeader("User-Agent"))
+        if (riskResult.decision == "deny") {
+            recordLogin(user.tenantId, user, user.email, false, "risk_denied", riskResult.score, request)
+            audit.write(
+                user.tenantId,
+                request,
+                "RISK_LOGIN_DENIED",
+                user.id,
+                user.id,
+                details = mapOf("score" to riskResult.score, "authentication_method" to "email_code"),
+            )
+            throw AppException(HttpStatus.FORBIDDEN, "risk_denied", "Login was blocked by risk policy")
+        }
+        completeLogin(
+            user,
+            request,
+            response,
+            mfaCompleted = false,
+            riskScore = riskResult.score,
+            fingerprint = riskResult.fingerprint,
+            authenticationMethod = "email_code",
+        )
     }
 
     @Transactional
@@ -107,8 +122,8 @@ class IdentityService(
         requireMailDelivery()
         enforceEmailAction("resend", request)
         val tenant = tenants.current()
-        val user = users.findByTenantIdAndEmailIgnoreCase(tenant.id, emailInput.lowercase())
-        if (user != null && !user.emailVerified) {
+        val user = users.findByTenantIdAndEmailIgnoreCase(tenant.id, normalizeEmail(emailInput))
+        if (user != null) {
             sendVerification(user, request, "RESEND")
         }
     }
@@ -300,11 +315,50 @@ class IdentityService(
         rateLimiter.enforce(RateLimiter.EMAIL_ACTION_DAILY, identity)
     }
 
+    private fun consumeVerificationCode(
+        emailInput: String?,
+        codeInput: String?,
+        request: HttpServletRequest,
+    ): UserEntity {
+        val email = emailInput?.let(::normalizeEmail).takeUnless { it.isNullOrBlank() }
+            ?: throw invalidVerificationCode()
+        val code = codeInput?.trim()?.takeIf { it.matches(Regex("^\\d{6}$")) }
+            ?: throw invalidVerificationCode()
+        val tenant = tenants.current()
+        val user = users.findByTenantIdAndEmailIgnoreCase(tenant.id, email)
+            ?: throw invalidVerificationCode()
+        val token = tokens.findFirstByUserIdAndTypeAndUsedAtIsNullOrderByCreatedAtDesc(user.id, "email_verification")
+            ?: throw invalidVerificationCode()
+        val now = Instant.now()
+        if (!token.expiresAt.isAfter(now) || !crypto.secretMatches(code, token.secretHash)) {
+            throw invalidVerificationCode()
+        }
+        token.usedAt = now
+        tokens.invalidate(user.id, "email_verification", now)
+        markEmailVerified(user, request, now)
+        return user
+    }
+
+    private fun markEmailVerified(user: UserEntity, request: HttpServletRequest, now: Instant) {
+        val wasVerified = user.emailVerified
+        user.emailVerifiedAt = user.emailVerifiedAt ?: now
+        audit.write(
+            user.tenantId,
+            request,
+            if (wasVerified) "EMAIL_CODE_VERIFIED" else "EMAIL_VERIFIED",
+            user.id,
+            user.id,
+        )
+        if (!wasVerified) {
+            events.append(user.tenantId, "EmailVerified", user.id, mapOf("user_id" to user.id))
+        }
+    }
+
     private fun sendVerification(user: UserEntity, request: HttpServletRequest, reason: String) {
         val now = Instant.now()
         tokens.invalidate(user.id, "email_verification", now)
-        val raw = createAccountToken(user.id, "email_verification", properties.verificationTokenTtl, "evt")
-        mail.sendVerification(user.email, raw)
+        val code = createVerificationCode(user.id)
+        mail.sendVerification(user.email, code)
         audit.write(
             user.tenantId,
             request,
@@ -313,6 +367,19 @@ class IdentityService(
             user.id,
             details = mapOf("provider" to "smtp", "reason" to reason),
         )
+    }
+
+    private fun createVerificationCode(userId: String): String {
+        val code = ThreadLocalRandom.current().nextInt(0, 1_000_000).toString().padStart(6, '0')
+        tokens.save(
+            AccountTokenEntity(
+                userId = userId,
+                type = "email_verification",
+                secretHash = crypto.hashSecret(code),
+                expiresAt = Instant.now().plus(properties.verificationTokenTtl, ChronoUnit.SECONDS),
+            ),
+        )
+        return code
     }
 
     private fun createAccountToken(userId: String, type: String, ttlSeconds: Long, prefix: String): String {
@@ -343,6 +410,11 @@ class IdentityService(
         }
         return token
     }
+
+    private fun normalizeEmail(email: String): String = email.trim().lowercase()
+
+    private fun invalidVerificationCode() =
+        AppException(HttpStatus.BAD_REQUEST, "invalid_verification_code", "Verification code is invalid or expired")
 
     private fun recordLogin(
         tenantId: String,

@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { API_URL, api } from "@/lib/api";
+import { loginUrl } from "@/lib/domains";
 
 type Consent = {
   client_id: string;
@@ -29,6 +30,24 @@ type CurrentUser = {
 
 type ConsentTheme = "dark" | "light";
 type ScopeTone = "blue" | "green" | "purple" | "amber" | "custom";
+type ConsentIconName =
+  | "brand"
+  | "building"
+  | "chevron"
+  | "clock"
+  | "database"
+  | "globe"
+  | "headset"
+  | "help"
+  | "id"
+  | "lock"
+  | "mail"
+  | "phone"
+  | "refresh"
+  | "shield"
+  | "type"
+  | "user"
+  | "users";
 
 const scopeMeta: Record<
   string,
@@ -103,6 +122,20 @@ function scopeIcon(item: Consent["data_fields"][number]) {
   return scopeMeta[item.scope]?.icon ?? item.scope;
 }
 
+function scopeIconName(item: Consent["data_fields"][number]): ConsentIconName {
+  const scopeName = item.scope.toLowerCase();
+  if (scopeName.includes("org") || scopeName.includes("company")) return "building";
+  if (scopeName.includes("role") || scopeName.includes("group")) return "users";
+  if (scopeName.includes("locale") || scopeName.includes("language")) return "globe";
+  if (scopeName.includes("phone")) return "phone";
+  if (scopeName.includes("email")) return "mail";
+  if (scopeName.includes("offline") || scopeName.includes("refresh")) return "refresh";
+  if (scopeName.includes("name")) return "type";
+  if (scopeName === "openid") return "id";
+  if (scopeName === "profile") return "user";
+  return "database";
+}
+
 function scopeTone(item: Consent["data_fields"][number]): ScopeTone {
   return scopeMeta[item.scope]?.tone ?? "custom";
 }
@@ -174,13 +207,22 @@ function ConsentContent() {
     });
   }
 
+  async function switchAccount() {
+    setError("");
+    try {
+      await api("/api/v1/auth/logout", { method: "POST" });
+    } finally {
+      window.location.href = loginUrl(window.location.href);
+    }
+  }
+
   return (
-    <main className="consent-screen" data-theme={theme}>
-      <section className="consent-shell">
+    <main className="consent-screen" data-layout={consent?.layout ?? "loading"} data-theme={theme}>
+      <section className="consent-shell" data-layout={consent?.layout ?? "loading"}>
         <header className="consent-topbar">
           <div className="consent-brand">
             <span className="consent-shield" aria-hidden="true">
-              ◇
+              <ConsentIcon name="brand" />
             </span>
             <div>
               <strong>ODS SSO</strong>
@@ -188,6 +230,11 @@ function ConsentContent() {
             </div>
           </div>
           <div className="consent-topbar-actions">
+            <div className="consent-language" aria-label="Язык интерфейса">
+              <ConsentIcon name="globe" />
+              <span>Русский</span>
+              <ConsentIcon name="chevron" />
+            </div>
             <button className="consent-theme-toggle" onClick={toggleTheme} type="button">
               {theme === "dark" ? "Светлая тема" : "Тёмная тема"}
             </button>
@@ -213,6 +260,7 @@ function ConsentContent() {
               consent={consent}
               selectedScopes={selectedScopes}
               state={state}
+              switchAccount={switchAccount}
               toggleScope={toggleScope}
               user={user}
             />
@@ -368,11 +416,34 @@ function InfoCard({
   );
 }
 
+function GranularInfoCard({
+  icon,
+  title,
+  text,
+}: {
+  icon: ConsentIconName;
+  title: string;
+  text: string;
+}) {
+  return (
+    <article>
+      <span className="consent-granular-info-icon">
+        <ConsentIcon name={icon} />
+      </span>
+      <div>
+        <strong>{title}</strong>
+        <p>{text}</p>
+      </div>
+    </article>
+  );
+}
+
 function GranularConsent({
   clientId,
   consent,
   selectedScopes,
   state,
+  switchAccount,
   toggleScope,
   user,
 }: {
@@ -380,66 +451,250 @@ function GranularConsent({
   consent: Consent;
   selectedScopes: Set<string>;
   state: string;
+  switchAccount: () => void;
   toggleScope: (scope: string) => void;
   user: CurrentUser | null;
 }) {
   const submitScopes = consent.requested_scopes.filter((scopeName) => selectedScopes.has(scopeName));
   return (
-    <section className="consent-granular-wrap">
-      <div className="consent-granular-card">
-        <header className="consent-granular-header">
-          <div className="consent-granular-logo" aria-hidden="true">
-            {consent.logo_uri ? (
-              // eslint-disable-next-line @next/next/no-img-element -- partner-provided logo URL
-              <img alt="" src={consent.logo_uri} />
-            ) : (
-              <span>{initials(user) || "ODS"}</span>
-            )}
+    <section className="consent-granular-wrap" aria-labelledby="consent-granular-heading">
+      <div className="consent-granular-grid">
+        <section className="consent-granular-card consent-granular-main">
+          <div className="consent-granular-copy-block">
+            <h1 id="consent-granular-heading">Вход и передача данных</h1>
+            <p>
+              Вы входите в {consent.client_name} через ODS SSO.
+              <br />
+              Вы можете управлять тем, какие данные будут переданы.
+            </p>
           </div>
-          <div>
-            <div className="consent-granular-title">
-              <strong>{consent.client_name}</strong>
-              {!consent.hide_ods_branding ? <span>Проверено</span> : null}
+
+          <div className="consent-account-card">
+            <span className="consent-account-icon" aria-hidden="true">
+              <ConsentIcon name="user" />
+            </span>
+            <div>
+              <span>Вы входите как</span>
+              <strong>{user?.email ?? "Аккаунт ODS"}</strong>
             </div>
-            <p>настройте доступ к вашим данным</p>
+            <button className="consent-account-switch" onClick={switchAccount} type="button">
+              Сменить аккаунт
+              <ConsentIcon name="chevron" />
+            </button>
           </div>
-        </header>
 
-        <div className="consent-granular-list">
-          {consent.data_fields.map((item) => {
-            const checked = selectedScopes.has(item.scope);
-            return (
-              <button
-                aria-checked={checked}
-                className="consent-granular-item"
-                data-required={item.required}
-                key={item.scope}
-                onClick={() => toggleScope(item.scope)}
-                role="switch"
-                type="button"
-              >
-                <span className={`consent-scope-icon ${scopeTone(item)}`}>{scopeIcon(item)}</span>
-                <span className="consent-granular-copy">
-                  <strong>{scopeTitle(item)}</strong>
-                  <small>{scopeSubtitle(item)}</small>
-                  {item.required ? <em>Обязательно</em> : null}
-                </span>
-                <span className="consent-toggle" data-checked={checked} data-required={item.required}>
-                  <span />
-                </span>
-              </button>
-            );
-          })}
-        </div>
+          <h2>Какие данные будут переданы</h2>
+          <div className="consent-granular-list">
+            {consent.data_fields.map((item) => {
+              const checked = selectedScopes.has(item.scope);
+              return (
+                <button
+                  aria-checked={checked}
+                  className="consent-granular-item"
+                  data-required={item.required}
+                  key={item.scope}
+                  onClick={() => toggleScope(item.scope)}
+                  role="switch"
+                  type="button"
+                >
+                  <span className={`consent-scope-icon ${scopeTone(item)}`} aria-hidden="true">
+                    <ConsentIcon name={scopeIconName(item)} />
+                  </span>
+                  <span className="consent-granular-copy">
+                    <strong>{scopeTitle(item)}</strong>
+                    <small>{scopeSubtitle(item)}</small>
+                  </span>
+                  <span
+                    className="consent-toggle"
+                    data-checked={checked}
+                    data-required={item.required}
+                    aria-hidden="true"
+                  >
+                    <span />
+                  </span>
+                  {item.required ? (
+                    <span
+                      aria-label="Обязательное поле"
+                      className="consent-required-lock"
+                      title="Обязательное поле"
+                    >
+                      <ConsentIcon name="lock" />
+                    </span>
+                  ) : (
+                    <span className="consent-optional-chip">Необязательное</span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
 
-        <ConsentActions
-          allowLabel="Сохранить и продолжить"
-          clientId={clientId}
-          scopes={submitScopes}
-          state={state}
-        />
+          <div className="consent-note">
+            <span aria-hidden="true">
+              <ConsentIcon name="help" />
+            </span>
+            <p>Вы можете отозвать доступ в любой момент в настройках вашего аккаунта ODS.</p>
+          </div>
+
+          <ConsentActions
+            allowLabel="Разрешить и войти"
+            clientId={clientId}
+            scopes={submitScopes}
+            state={state}
+          />
+        </section>
+
+        <aside className="consent-granular-side" aria-label="Информация о передаче данных">
+          <GranularInfoCard
+            icon="help"
+            title="Зачем нужны эти данные?"
+            text="Мы запрашиваем только те данные, которые необходимы для предоставления доступа и персонализации вашего опыта."
+          />
+          <GranularInfoCard
+            icon="clock"
+            title="Как долго будет действовать доступ?"
+            text="Доступ действует, пока вы не отзовете его в настройках вашего аккаунта ODS."
+          />
+          <GranularInfoCard
+            icon="shield"
+            title="Безопасность"
+            text="Мы используем современные стандарты шифрования и не передаем ваши данные третьим сторонам."
+          />
+          <GranularInfoCard
+            icon="headset"
+            title="Поддержка"
+            text="Если у вас возникли вопросы, команда поддержки ODS готова помочь."
+          />
+        </aside>
       </div>
+
+      <p className="consent-granular-legal">
+        Нажимая «Разрешить и войти», вы принимаете передачу данных в соответствии с{" "}
+        <a href="/privacy">Политикой конфиденциальности</a> и условиями ODS SSO.
+      </p>
     </section>
+  );
+}
+
+function ConsentIcon({ name }: { name: ConsentIconName }) {
+  return (
+    <svg
+      aria-hidden="true"
+      fill="none"
+      focusable="false"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="1.8"
+      viewBox="0 0 24 24"
+    >
+      {name === "brand" ? (
+        <>
+          <path d="M5 4h7a3 3 0 0 1 0 6H9v10H5V4Z" />
+          <path d="M13 4h6v4h-6" />
+          <path d="M9 10h6a3 3 0 0 1 0 6H9" />
+        </>
+      ) : null}
+      {name === "building" ? (
+        <>
+          <path d="M4 20h16" />
+          <path d="M6 20V5h9v15" />
+          <path d="M15 9h3v11" />
+          <path d="M9 8h2M9 12h2M9 16h2" />
+        </>
+      ) : null}
+      {name === "chevron" ? <path d="m9 6 6 6-6 6" /> : null}
+      {name === "clock" ? (
+        <>
+          <circle cx="12" cy="12" r="8" />
+          <path d="M12 8v5l3 2" />
+        </>
+      ) : null}
+      {name === "database" ? (
+        <>
+          <ellipse cx="12" cy="6" rx="7" ry="3" />
+          <path d="M5 6v6c0 1.7 3.1 3 7 3s7-1.3 7-3V6" />
+          <path d="M5 12v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6" />
+        </>
+      ) : null}
+      {name === "globe" ? (
+        <>
+          <circle cx="12" cy="12" r="8" />
+          <path d="M4 12h16" />
+          <path d="M12 4a12 12 0 0 1 0 16" />
+          <path d="M12 4a12 12 0 0 0 0 16" />
+        </>
+      ) : null}
+      {name === "headset" ? (
+        <>
+          <path d="M5 13v-1a7 7 0 0 1 14 0v1" />
+          <path d="M5 13h3v5H5zM16 13h3v5h-3z" />
+          <path d="M19 18c0 2-2 3-5 3h-2" />
+        </>
+      ) : null}
+      {name === "help" ? (
+        <>
+          <circle cx="12" cy="12" r="8" />
+          <path d="M9.8 9a2.4 2.4 0 0 1 4.6 1.1c0 1.8-2.4 2-2.4 3.8" />
+          <path d="M12 17h.01" />
+        </>
+      ) : null}
+      {name === "id" ? (
+        <>
+          <rect x="4" y="5" width="16" height="14" rx="2" />
+          <path d="M8 10h4M8 14h8" />
+        </>
+      ) : null}
+      {name === "lock" ? (
+        <>
+          <rect x="6" y="10" width="12" height="9" rx="2" />
+          <path d="M9 10V8a3 3 0 0 1 6 0v2" />
+          <path d="M12 14v2" />
+        </>
+      ) : null}
+      {name === "mail" ? (
+        <>
+          <rect x="4" y="6" width="16" height="12" rx="2" />
+          <path d="m5 8 7 5 7-5" />
+        </>
+      ) : null}
+      {name === "phone" ? (
+        <path d="M8 5 6 7c-.6.6-.8 1.4-.5 2.2a18 18 0 0 0 9.3 9.3c.8.3 1.6.1 2.2-.5l2-2-3-3-1.6 1.6a10 10 0 0 1-5-5L11 8 8 5Z" />
+      ) : null}
+      {name === "refresh" ? (
+        <>
+          <path d="M19 8a7 7 0 0 0-12-3L5 7" />
+          <path d="M5 4v3h3" />
+          <path d="M5 16a7 7 0 0 0 12 3l2-2" />
+          <path d="M19 20v-3h-3" />
+        </>
+      ) : null}
+      {name === "shield" ? (
+        <>
+          <path d="M12 3 19 6v5c0 5-3.5 8-7 10-3.5-2-7-5-7-10V6l7-3Z" />
+          <path d="M9.5 12.5 11 14l3.5-4" />
+        </>
+      ) : null}
+      {name === "type" ? (
+        <>
+          <path d="M5 6h14M8 6v12M16 6v12" />
+          <path d="M7 18h3M14 18h3" />
+        </>
+      ) : null}
+      {name === "user" ? (
+        <>
+          <circle cx="12" cy="8" r="3" />
+          <path d="M5 20a7 7 0 0 1 14 0" />
+        </>
+      ) : null}
+      {name === "users" ? (
+        <>
+          <circle cx="9" cy="8" r="3" />
+          <path d="M3 20a6 6 0 0 1 12 0" />
+          <path d="M16 11a3 3 0 0 0 0-6" />
+          <path d="M18 20a5 5 0 0 0-4-5" />
+        </>
+      ) : null}
+    </svg>
   );
 }
 

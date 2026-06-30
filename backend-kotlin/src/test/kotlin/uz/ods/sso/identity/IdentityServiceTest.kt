@@ -70,31 +70,37 @@ class IdentityServiceTest {
     private val request = mock<HttpServletRequest>()
 
     @Test
-    fun `registration stores full name and does not disclose duplicate email`() {
+    fun `registration creates minimal account and does not disclose duplicate email`() {
         whenever(tenants.current()).thenReturn(tenant)
+        whenever(mail.available).thenReturn(true)
         whenever(users.findByTenantIdAndEmailIgnoreCase("tnt_1", "user@example.com")).thenReturn(null)
         whenever(users.save(any<UserEntity>())).thenAnswer { it.arguments[0] }
+        whenever(tokens.save(any<AccountTokenEntity>())).thenAnswer { it.arguments[0] }
 
         assertThat(
-            service.register(RegisterRequest("user@example.com", "long-enough-password", "Иванов Иван"), request),
-        ).isFalse()
+            service.register(RegisterRequest("user@example.com"), request),
+        ).isTrue()
         verify(rateLimiter).enforce(RateLimiter.REGISTRATION_BURST, "unknown")
         verify(rateLimiter).enforce(RateLimiter.REGISTRATION_DAILY, "unknown")
         val created = org.mockito.kotlin.argumentCaptor<UserEntity>()
         verify(users).save(created.capture())
-        assertThat(created.firstValue.name).isEqualTo("Иванов Иван")
-        assertThat(created.firstValue.fullNameCyrillic).isEqualTo("Иванов Иван")
-        assertThat(created.firstValue.fullNameLatin).isEqualTo("Ivanov Ivan")
+        assertThat(created.firstValue.name).isNull()
+        assertThat(created.firstValue.fullNameCyrillic).isNull()
+        assertThat(created.firstValue.fullNameLatin).isNull()
+        assertThat(created.firstValue.emailVerified).isFalse()
         assertThat(created.firstValue.termsAcceptedAt).isNotNull()
+        verify(mail).sendVerification(eq("user@example.com"), any())
 
-        whenever(users.findByTenantIdAndEmailIgnoreCase("tnt_1", "user@example.com")).thenReturn(UserEntity())
+        whenever(users.findByTenantIdAndEmailIgnoreCase("tnt_1", "user@example.com")).thenReturn(
+            UserEntity(tenantId = "tnt_1", email = "user@example.com").apply { publicId = "usr_existing" },
+        )
         assertThat(
-            service.register(RegisterRequest("user@example.com", "long-enough-password", "Иванов Иван"), request),
-        ).isFalse()
+            service.register(RegisterRequest("user@example.com"), request),
+        ).isTrue()
     }
 
     @Test
-    fun `repeated registration sends a fresh verification message for an unverified account`() {
+    fun `repeated registration sends a fresh verification code for an existing account`() {
         val verifiedProperties = properties.copy(requireEmailVerification = true)
         val verifiedService = IdentityService(
             tenants,
@@ -122,7 +128,7 @@ class IdentityServiceTest {
         whenever(tokens.save(any<AccountTokenEntity>())).thenAnswer { it.arguments[0] }
 
         assertThat(
-            verifiedService.register(RegisterRequest("user@example.com", "long-enough-password", "Иванов Иван"), request),
+            verifiedService.register(RegisterRequest("user@example.com"), request),
         ).isTrue()
 
         verify(tokens).invalidate(eq("usr_1"), eq("email_verification"), any())
@@ -130,26 +136,13 @@ class IdentityServiceTest {
     }
 
     @Test
-    fun `email verification and password reset consume valid opaque tokens`() {
+    fun `password reset consumes valid opaque token`() {
         val user = UserEntity(
             tenantId = "tnt_1",
             email = "user@example.com",
             passwordHash = crypto.hashPassword("old-password-value"),
         ).apply { publicId = "usr_1" }
         whenever(users.findByPublicId("usr_1")).thenReturn(user)
-
-        val (verificationId, verificationSecret, verificationRaw) = crypto.opaqueToken("evt")
-        val verification = AccountTokenEntity(
-            userId = "usr_1",
-            type = "email_verification",
-            secretHash = crypto.hashSecret(verificationSecret),
-            expiresAt = Instant.now().plusSeconds(60),
-        ).apply { publicId = verificationId }
-        whenever(tokens.findByPublicIdAndType(verificationId, "email_verification")).thenReturn(verification)
-
-        service.verifyEmail(verificationRaw, request)
-        assertThat(verification.usedAt).isNotNull()
-        assertThat(user.emailVerified).isTrue()
 
         val (resetId, resetSecret, resetRaw) = crypto.opaqueToken("prt")
         val reset = AccountTokenEntity(
@@ -165,6 +158,42 @@ class IdentityServiceTest {
         assertThat(crypto.matchesPassword("new-password-value", user.passwordHash)).isTrue()
         verify(tokens).invalidate(eq("usr_1"), eq("password_reset"), any())
         verify(sessions).revokeAll("usr_1")
+    }
+
+    @Test
+    fun `email code verification consumes code and creates a session`() {
+        val response = mock<HttpServletResponse>()
+        val user = UserEntity(
+            tenantId = "tnt_1",
+            email = "user@example.com",
+            passwordHash = crypto.hashPassword("old-password-value"),
+        ).apply { publicId = "usr_1" }
+        val token = AccountTokenEntity(
+            userId = "usr_1",
+            type = "email_verification",
+            secretHash = crypto.hashSecret("123456"),
+            expiresAt = Instant.now().plusSeconds(60),
+        )
+        whenever(tenants.current()).thenReturn(tenant)
+        whenever(users.findByTenantIdAndEmailIgnoreCase("tnt_1", "user@example.com")).thenReturn(user)
+        whenever(tokens.findFirstByUserIdAndTypeAndUsedAtIsNullOrderByCreatedAtDesc("usr_1", "email_verification"))
+            .thenReturn(token)
+        whenever(request.remoteAddr).thenReturn("127.0.0.1")
+        whenever(request.getHeader("User-Agent")).thenReturn("test")
+        whenever(risk.assess(user, "127.0.0.1", "test"))
+            .thenReturn(RiskResult(0, "allow", emptyList(), "fingerprint"))
+
+        val result = service.verifyEmail(
+            VerifyEmailRequest(email = "USER@example.com", code = "123456"),
+            request,
+            response,
+        )
+
+        assertThat(result.userId).isEqualTo("usr_1")
+        assertThat(token.usedAt).isNotNull()
+        assertThat(user.emailVerified).isTrue()
+        verify(tokens).invalidate(eq("usr_1"), eq("email_verification"), any())
+        verify(sessions).create(request, response, user, false, 0, "fingerprint", "email_code")
     }
 
     @Test
