@@ -111,16 +111,17 @@ class ControllerCoverageTest {
         val properties = properties()
         val controller = IdentityController(identity, sessions, stepUp, audit)
         whenever(identity.register(any(), any())).thenReturn(false)
+        whenever(identity.verifyEmail(any(), any(), any())).thenReturn(LoginResponse(userId = "usr_1"))
         whenever(identity.login(any(), any(), any())).thenReturn(LoginResponse(userId = "usr_1"))
         whenever(sessions.current()).thenReturn(principal)
         whenever(sessions.revokeAll("usr_1")).thenReturn(2)
 
         assertThat(
-            controller.register(RegisterRequest("user@example.com", "password-value", "Иванов Иван"), request)
+            controller.register(RegisterRequest("user@example.com"), request)
                 .statusCode.value(),
         )
             .isEqualTo(201)
-        assertThat(controller.verifyEmail(VerifyEmailRequest("token"), request).ok).isTrue()
+        assertThat(controller.verifyEmail(VerifyEmailRequest(token = "token"), request, response).userId).isEqualTo("usr_1")
         assertThat(controller.resend(ResendVerificationRequest("user@example.com"), request).ok).isTrue()
         assertThat(controller.forgot(ForgotPasswordRequest("user@example.com"), request).ok).isTrue()
         assertThat(controller.reset(ResetPasswordRequest("token", "new-password-value"), request).ok).isTrue()
@@ -388,6 +389,12 @@ class ControllerCoverageTest {
                 request,
             ).name,
         ).isEqualTo("Иванов Иван")
+        assertThatThrownBy {
+            account.updateProfile(
+                ProfileUpdateRequest(null, "Иванов Иван", "Ivanov Ivan", " "),
+                request,
+            )
+        }.isInstanceOf(AppException::class.java)
         assertThat(account.sessions().single().id).isEqualTo("ses_1")
         assertThat(account.revoke("ses_1", request, response)).isEqualTo(MessageResponse(message = "Session revoked"))
         assertThat(account.history().single()).isEqualTo(

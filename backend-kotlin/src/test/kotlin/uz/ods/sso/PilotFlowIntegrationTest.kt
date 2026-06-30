@@ -29,6 +29,7 @@ import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import org.springframework.test.web.servlet.setup.MockMvcBuilders
 import org.springframework.web.context.WebApplicationContext
 import tools.jackson.databind.ObjectMapper
+import uz.ods.sso.identity.MailService
 import uz.ods.sso.persistence.PartnerApplicationRepository
 import uz.ods.sso.persistence.PartnerOrganizationRepository
 import uz.ods.sso.persistence.UserRepository
@@ -49,7 +50,7 @@ import java.time.Instant
         "ods.issuer=http://localhost",
         "ods.account-url=http://localhost",
         "ods.api-url=http://localhost",
-        "ods.require-email-verification=false",
+        "ods.require-email-verification=true",
         "ods.bootstrap-admin-email=",
         "ods.bootstrap-admin-password=",
         "ods.kafka-events-enabled=false",
@@ -62,6 +63,9 @@ class PilotFlowIntegrationTest {
 
     @Autowired
     private lateinit var objectMapper: ObjectMapper
+
+    @Autowired
+    private lateinit var mail: MailService
 
     @Autowired
     private lateinit var users: UserRepository
@@ -85,9 +89,17 @@ class PilotFlowIntegrationTest {
 
     @BeforeEach
     fun setup() {
+        mail.outbox.clear()
         mvc = MockMvcBuilders.webAppContextSetup(context)
             .apply<org.springframework.test.web.servlet.setup.DefaultMockMvcBuilder>(springSecurity())
             .build()
+    }
+
+    private fun verificationCode(email: String): String {
+        val message = mail.outbox.last { it.recipient.equals(email, ignoreCase = true) }
+        return requireNotNull(Regex("""\b\d{6}\b""").find(message.text)) {
+            "Verification code was not delivered for $email"
+        }.value
     }
 
     @Test
@@ -111,7 +123,6 @@ class PilotFlowIntegrationTest {
     @Test
     fun `pilot registration login and partner provisioning flow`() {
         val email = "pilot-${System.nanoTime()}@example.com"
-        val password = "A-strong-pilot-password-123!"
         val organizationSlug = "pilot-${System.nanoTime()}"
 
         mvc.perform(
@@ -119,29 +130,25 @@ class PilotFlowIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     objectMapper.writeValueAsString(
-                        mapOf(
-                            "email" to email,
-                            "password" to password,
-                            "full_name_cyrillic" to "Иванов Иван",
-                            "full_name_latin" to "Ivanov Ivan",
-                            "accept_terms" to true,
-                        ),
+                        mapOf("email" to email),
                     ),
                 ),
         )
             .andExpect(status().isCreated)
             .andExpect(jsonPath("$.ok").value(true))
+            .andExpect(jsonPath("$.verification_required").value(true))
 
         val user = users.findByTenantIdAndEmailIgnoreCase("tnt_missing", email)
         assertThat(user).isNull()
         val storedUser = users.findAll().single { it.email == email }
         assertThat(storedUser.internalId.version()).isEqualTo(7)
         assertThat(storedUser.id).startsWith("usr_")
+        assertThat(storedUser.emailVerified).isFalse()
 
         val login = mvc.perform(
-            post("/api/v1/auth/login")
+            post("/api/v1/auth/verify-email")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(mapOf("email" to email, "password" to password))),
+                .content(objectMapper.writeValueAsString(mapOf("email" to email, "code" to verificationCode(email)))),
         )
             .andExpect(status().isOk)
             .andExpect(cookie().exists("ods_session"))
@@ -286,13 +293,7 @@ class PilotFlowIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     objectMapper.writeValueAsString(
-                        mapOf(
-                            "email" to memberEmail,
-                            "password" to password,
-                            "full_name_cyrillic" to "Петров Петр",
-                            "full_name_latin" to "Petrov Petr",
-                            "accept_terms" to true,
-                        ),
+                        mapOf("email" to memberEmail),
                     ),
                 ),
         ).andExpect(status().isCreated)
@@ -349,7 +350,7 @@ class PilotFlowIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     """
-                    {"email":"invalid","password":"short","full_name_cyrillic":"","accept_terms":false}
+                    {"email":"invalid"}
                     """.trimIndent(),
                 ),
         )

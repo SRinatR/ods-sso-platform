@@ -6,48 +6,79 @@ import { useSearchParams } from "next/navigation";
 import { AuthCard } from "@/components/Shell";
 import { api } from "@/lib/api";
 import { onAuth, onPartners } from "@/lib/domains";
-import { transliterateCyrillicName } from "@/lib/full-name";
 
 type RegistrationResponse = {
   message: string;
   verification_required: boolean;
+  email?: string;
 };
 
 function RegisterForm() {
   const partner = useSearchParams().get("kind") === "partner";
-  const [form, setForm] = useState({
-    email: "",
-    password: "",
-    fullNameCyrillic: "",
-    fullNameLatin: "",
-  });
-  const [latinTouched, setLatinTouched] = useState(false);
+  const [email, setEmail] = useState("");
+  const [confirmedEmail, setConfirmedEmail] = useState("");
+  const [code, setCode] = useState("");
+  const [step, setStep] = useState<"email" | "code" | "done">("email");
   const [message, setMessage] = useState("");
-  const [verificationRequired, setVerificationRequired] = useState(false);
   const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const [resending, setResending] = useState(false);
 
-  async function submit(event: FormEvent) {
-    event.preventDefault();
+  async function requestCode(event?: FormEvent) {
+    event?.preventDefault();
     setError("");
+    setSubmitting(true);
     try {
       const result = await api<RegistrationResponse>("/api/v1/auth/register", {
         method: "POST",
-        body: JSON.stringify({
-          email: form.email,
-          password: form.password,
-          full_name_cyrillic: form.fullNameCyrillic,
-          full_name_latin: form.fullNameLatin || transliterateCyrillicName(form.fullNameCyrillic),
-        }),
+        body: JSON.stringify({ email }),
       });
-      setVerificationRequired(result.verification_required);
+      const normalizedEmail = result.email || email.trim().toLowerCase();
+      setConfirmedEmail(normalizedEmail);
       setMessage(
         result.verification_required
-          ? "Запрос принят. Если email ожидает подтверждения, Resend принял новое письмо для доставки. Проверьте «Входящие» и «Спам»."
-          : "Аккаунт создан. Теперь можно войти.",
+          ? "Мы отправили код подтверждения на указанную почту."
+          : "Аккаунт создан. Для этого окружения подтверждение email отключено.",
       );
+      setStep(result.verification_required ? "code" : "done");
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Регистрация не выполнена");
+      setError(cause instanceof Error ? cause.message : "Не удалось отправить код");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function verifyCode(event: FormEvent) {
+    event.preventDefault();
+    setError("");
+    setSubmitting(true);
+    try {
+      await api("/api/v1/auth/verify-email", {
+        method: "POST",
+        body: JSON.stringify({ email: confirmedEmail, code }),
+      });
+      window.location.href = onAuth("/profile");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Код не подтвержден");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function resendCode() {
+    setError("");
+    setResending(true);
+    try {
+      await api<RegistrationResponse>("/api/v1/auth/register", {
+        method: "POST",
+        body: JSON.stringify({ email: confirmedEmail || email }),
+      });
+      setMessage("Мы отправили новый код подтверждения.");
+      setCode("");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Не удалось отправить код повторно");
+    } finally {
+      setResending(false);
     }
   }
 
@@ -56,108 +87,90 @@ function RegisterForm() {
       title={partner ? "Регистрация контрагента" : "Регистрация"}
       subtitle={
         partner
-          ? "Сначала создайте личную учетную запись, затем организацию и её кабинет"
-          : "Создайте единую учетную запись"
+          ? "Подтвердите email, затем заполните обязательные данные профиля"
+          : "Для создания аккаунта достаточно email и кода из письма"
       }
     >
-      {message ? (
-        <>
-          <div className="alert success">{message}</div>
-          {verificationRequired && (
-            <button
-              className="button secondary link-button"
-              disabled={resending}
-              onClick={async () => {
-                setError("");
-                setResending(true);
-                try {
-                  await api("/api/v1/auth/resend-verification", {
-                    method: "POST",
-                    body: JSON.stringify({ email: form.email }),
-                  });
-                  setMessage(
-                    "Запрос повторной отправки принят. Если аккаунт существует и email ещё не подтверждён, Resend принял новое письмо для доставки.",
-                  );
-                } catch (cause) {
-                  setError(
-                    cause instanceof Error
-                      ? cause.message
-                      : "Почтовый сервис не принял письмо. Повторите позже.",
-                  );
-                } finally {
-                  setResending(false);
-                }
-              }}
-            >
-              {resending ? "Передаём в Resend…" : "Отправить письмо ещё раз"}
-            </button>
-          )}
-          {error && <div className="alert error">{error}</div>}
-        </>
-      ) : (
-        <form onSubmit={submit} className="stack">
+      {step === "email" && (
+        <form onSubmit={requestCode} className="stack">
           {error && <div className="alert error">{error}</div>}
           <label>
             Email
             <input
               type="email"
+              autoComplete="email"
               required
-              value={form.email}
-              onChange={(event) => setForm({ ...form, email: event.target.value })}
-            />
-          </label>
-          <label>
-            Полное ФИО на кириллице
-            <input
-              maxLength={255}
-              required
-              value={form.fullNameCyrillic}
-              onChange={(event) => {
-                const fullNameCyrillic = event.target.value;
-                setForm({
-                  ...form,
-                  fullNameCyrillic,
-                  fullNameLatin: latinTouched
-                    ? form.fullNameLatin
-                    : transliterateCyrillicName(fullNameCyrillic),
-                });
-              }}
-            />
-          </label>
-          <label>
-            Полное ФИО на латинице
-            <input
-              maxLength={255}
-              pattern="[A-Za-z\\s'’\\-]+"
-              required
-              value={form.fullNameLatin}
-              onChange={(event) => {
-                setLatinTouched(true);
-                setForm({ ...form, fullNameLatin: event.target.value });
-              }}
-            />
-            <span className="field-hint">
-              Заполняется автоматически; вручную можно изменить до 3 символов.
-            </span>
-          </label>
-          <label>
-            Пароль
-            <input
-              type="password"
-              minLength={12}
-              maxLength={128}
-              required
-              value={form.password}
-              onChange={(event) => setForm({ ...form, password: event.target.value })}
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
             />
           </label>
           <p className="legal-consent">
-            Нажимая «Создать аккаунт», вы принимаете{" "}
+            Нажимая «Получить код», вы принимаете{" "}
             <Link href="/privacy">условия использования и политику конфиденциальности</Link>.
           </p>
-          <button className="button">Создать аккаунт</button>
+          <button className="button" disabled={submitting}>
+            {submitting ? "Отправляем код…" : "Получить код"}
+          </button>
         </form>
       )}
+
+      {step === "code" && (
+        <form onSubmit={verifyCode} className="stack">
+          {message && <div className="alert success">{message}</div>}
+          {error && <div className="alert error">{error}</div>}
+          <label>
+            Код из письма
+            <input
+              type="text"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              pattern="\\d{6}"
+              maxLength={6}
+              required
+              value={code}
+              onChange={(event) =>
+                setCode(event.target.value.replace(/\D/g, "").slice(0, 6))
+              }
+            />
+            <span className="field-hint">
+              Отправили код на {confirmedEmail}. Проверьте папки «Входящие» и «Спам».
+            </span>
+          </label>
+          <button className="button" disabled={submitting || code.length !== 6}>
+            {submitting ? "Проверяем…" : "Подтвердить и перейти к профилю"}
+          </button>
+          <button
+            type="button"
+            className="button secondary link-button"
+            disabled={resending}
+            onClick={resendCode}
+          >
+            {resending ? "Отправляем…" : "Отправить код еще раз"}
+          </button>
+          <button
+            type="button"
+            className="button secondary link-button"
+            onClick={() => {
+              setStep("email");
+              setCode("");
+              setMessage("");
+              setError("");
+            }}
+          >
+            Изменить email
+          </button>
+        </form>
+      )}
+
+      {step === "done" && (
+        <div className="stack">
+          {message && <div className="alert success">{message}</div>}
+          <Link className="button link-button" href={onAuth("/login")}>
+            Перейти ко входу
+          </Link>
+        </div>
+      )}
+
       <div className="auth-links">
         <Link
           href={onAuth(

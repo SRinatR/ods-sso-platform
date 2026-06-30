@@ -66,21 +66,17 @@ class AccountController(
         request: HttpServletRequest,
     ): UserResponse {
         val principal = sessionService.current()
-        val requestedCyrillic = FullNameNormalizer.optionalCyrillic(body.fullNameCyrillic ?: body.name)
-        if (requestedCyrillic != null) {
-            principal.user.fullNameCyrillic = requestedCyrillic
-            principal.user.fullNameLatin = FullNameNormalizer.latinFor(requestedCyrillic, body.fullNameLatin)
-            principal.user.name = requestedCyrillic
-        } else if (body.fullNameLatin != null) {
-            val existingCyrillic = principal.user.fullNameCyrillic ?: principal.user.name
-                ?: throw AppException(
-                    HttpStatus.UNPROCESSABLE_CONTENT,
-                    "validation_error",
-                    "Full name in Cyrillic must be saved before Latin spelling can be changed",
-                )
-            principal.user.fullNameLatin = FullNameNormalizer.latinFor(existingCyrillic, body.fullNameLatin)
-        }
-        principal.user.phone = body.phone?.trim()?.takeIf(String::isNotEmpty)
+        val requestedCyrillic = FullNameNormalizer.requireCyrillic(body.fullNameCyrillic ?: body.name)
+        val requestedPhone = body.phone?.trim()?.takeIf(String::isNotEmpty)
+            ?: throw AppException(
+                HttpStatus.UNPROCESSABLE_CONTENT,
+                "validation_error",
+                "Phone is required",
+            )
+        principal.user.fullNameCyrillic = requestedCyrillic
+        principal.user.fullNameLatin = FullNameNormalizer.latinFor(requestedCyrillic, body.fullNameLatin)
+        principal.user.name = requestedCyrillic
+        principal.user.phone = requestedPhone
         principal.user.updatedAt = Instant.now()
         audit.write(
             principal.user.tenantId,

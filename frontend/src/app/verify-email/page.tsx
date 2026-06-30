@@ -21,14 +21,19 @@ function Verification() {
       method: "POST",
       body: JSON.stringify({ token }),
     })
-      .then(() => setStatus("Email подтвержден. Теперь можно войти."))
+      .then(() => {
+        setStatus("Email подтвержден. Открываем профиль…");
+        window.setTimeout(() => {
+          window.location.href = onAuth("/profile");
+        }, 600);
+      })
       .catch((cause) => setStatus(cause instanceof Error ? cause.message : "Ошибка подтверждения"));
   }, [token]);
 
   return (
     <AuthCard title="Подтверждение email" subtitle={status}>
-      <Link className="button link-button" href={onAuth("/login")}>
-        Перейти ко входу
+      <Link className="button link-button" href={onAuth("/profile")}>
+        Перейти в профиль
       </Link>
     </AuthCard>
   );

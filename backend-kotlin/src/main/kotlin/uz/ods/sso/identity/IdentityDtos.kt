@@ -2,6 +2,7 @@ package uz.ods.sso.identity
 
 import jakarta.validation.constraints.Email
 import jakarta.validation.constraints.NotBlank
+import jakarta.validation.constraints.Pattern
 import jakarta.validation.constraints.Size
 import java.time.Instant
 
@@ -10,16 +11,12 @@ data class RegistrationResponse(
     val ok: Boolean = true,
     val message: String,
     val verificationRequired: Boolean,
+    val email: String? = null,
 )
 
 data class RegisterRequest(
-    @field:Email val email: String,
-    @field:Size(min = 12, max = 128) val password: String,
     @field:NotBlank
-    @field:Size(max = 255)
-    val fullNameCyrillic: String,
-    @field:Size(max = 255)
-    val fullNameLatin: String? = null,
+    @field:Email val email: String,
 )
 
 data class LoginRequest(
@@ -35,7 +32,14 @@ data class LoginResponse(
     val challengeToken: String? = null,
 )
 
-data class VerifyEmailRequest(@field:NotBlank val token: String)
+data class VerifyEmailRequest(
+    val token: String? = null,
+    @field:Email
+    @field:Size(max = 320)
+    val email: String? = null,
+    @field:Pattern(regexp = "^\\d{6}$")
+    val code: String? = null,
+)
 data class ResendVerificationRequest(@field:Email val email: String)
 data class ForgotPasswordRequest(@field:Email val email: String)
 data class ResetPasswordRequest(

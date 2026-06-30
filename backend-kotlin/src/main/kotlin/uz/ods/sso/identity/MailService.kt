@@ -20,13 +20,14 @@ class MailService(
     val outbox = CopyOnWriteArrayList<DeliveredMail>()
     val available: Boolean get() = mailProperties.host.orEmpty().isNotBlank() || !properties.productionLike
 
-    fun sendVerification(email: String, token: String) = send(
+    fun sendVerification(email: String, code: String) = send(
         email,
-        "Подтвердите email в ODS",
-        "Подтвердите email, чтобы завершить регистрацию:\n${properties.accountUrl}/verify-email?token=$token",
-        "Подтвердите email",
-        "Завершите регистрацию единой учетной записи ODS.",
-        "${properties.accountUrl}/verify-email?token=$token",
+        "Код подтверждения ODS",
+        "Ваш код подтверждения ODS: $code\nВведите его на странице регистрации. Код действует ограниченное время.",
+        "Код подтверждения",
+        "Введите этот код на странице регистрации: $code",
+        "${properties.accountUrl}/register",
+        "Вернуться к регистрации",
     )
 
     fun sendPasswordReset(email: String, token: String) = send(
