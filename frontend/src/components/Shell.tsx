@@ -4,21 +4,18 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ReactNode } from "react";
 import { api } from "@/lib/api";
-import { ACCOUNTS_URL, PARTNERS_URL, ROOT_URL, onAuth } from "@/lib/domains";
+import { ACCOUNTS_URL, ROOT_URL, onAuth } from "@/lib/domains";
 
 type Product = "account" | "partner" | "admin";
 type AccountNavIcon =
   | "apps"
-  | "bell"
-  | "history"
   | "home"
   | "logout"
   | "profile"
   | "security"
   | "sessions"
   | "settings"
-  | "support"
-  | "team";
+  | "support";
 
 export function Shell({
   title,
@@ -87,10 +84,6 @@ export function Shell({
           </div>
           {product === "account" ? (
             <div className="account-header-actions">
-              <button aria-label="Уведомления" className="account-icon-button" type="button">
-                <AccountIcon name="bell" />
-                <span>3</span>
-              </button>
               <div className="account-user-chip">
                 <span aria-hidden="true">OD</span>
                 <strong>Аккаунт</strong>
@@ -140,10 +133,8 @@ function ProductNavigation({ product }: { product: Product }) {
     { href: `${ACCOUNTS_URL}/dashboard`, icon: "home", label: "Обзор", path: "/dashboard" },
     { href: `${ACCOUNTS_URL}/profile`, icon: "profile", label: "Профиль", path: "/profile" },
     { href: `${ACCOUNTS_URL}/security`, icon: "security", label: "Безопасность", path: "/security" },
-    { href: `${ACCOUNTS_URL}/sessions`, icon: "sessions", label: "Активные сессии", path: "/sessions" },
-    { href: PARTNERS_URL, icon: "team", label: "Организации", path: "/partner" },
+    { href: `${ACCOUNTS_URL}/sessions`, icon: "sessions", label: "Сессии и входы", path: "/sessions" },
     { href: `${ACCOUNTS_URL}/apps`, icon: "apps", label: "Согласия и доступы", path: "/apps" },
-    { href: `${ACCOUNTS_URL}/sessions#history`, icon: "history", label: "История входов", path: "/sessions" },
     { href: `${ACCOUNTS_URL}/profile`, icon: "settings", label: "Настройки", path: "/profile" },
   ];
   return (
@@ -184,18 +175,6 @@ function AccountIcon({ name }: { name: AccountNavIcon }) {
         <>
           <rect x="4" y="5" width="16" height="14" rx="2" />
           <path d="M8 9h3v3H8zM13 9h3v3h-3zM8 14h8" />
-        </>
-      ) : null}
-      {name === "bell" ? (
-        <>
-          <path d="M6 17h12l-1.5-2V11a4.5 4.5 0 0 0-9 0v4L6 17Z" />
-          <path d="M10 20h4" />
-        </>
-      ) : null}
-      {name === "history" ? (
-        <>
-          <circle cx="12" cy="12" r="8" />
-          <path d="M12 8v5l3 2" />
         </>
       ) : null}
       {name === "home" ? (
@@ -241,14 +220,6 @@ function AccountIcon({ name }: { name: AccountNavIcon }) {
           <path d="M5 13v-1a7 7 0 0 1 14 0v1" />
           <path d="M5 13h3v5H5zM16 13h3v5h-3z" />
           <path d="M19 18c0 2-2 3-5 3h-2" />
-        </>
-      ) : null}
-      {name === "team" ? (
-        <>
-          <circle cx="9" cy="8" r="3" />
-          <path d="M3 20a6 6 0 0 1 12 0" />
-          <path d="M16 11a3 3 0 0 0 0-6" />
-          <path d="M18 20a5 5 0 0 0-4-5" />
         </>
       ) : null}
     </svg>

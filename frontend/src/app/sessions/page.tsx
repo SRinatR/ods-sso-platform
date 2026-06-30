@@ -104,6 +104,9 @@ export default function SessionsPage() {
       {loading && <section className="panel">Загрузка устройств и истории…</section>}
       <section className="panel">
         <h2>Активные сессии</h2>
+        <p className="muted">
+          Это устройства и браузеры, где сейчас действует вход. Завершение сессии сразу закрывает доступ на выбранном устройстве.
+        </p>
         <div className="table-wrap">
           <table>
             <thead>
@@ -140,6 +143,9 @@ export default function SessionsPage() {
       </section>
       <section className="panel">
         <h2>История входов</h2>
+        <p className="muted">
+          Это журнал успешных и неуспешных попыток входа. Запись в истории не означает, что сессия еще активна.
+        </p>
         <div className="table-wrap">
           <table>
             <thead>

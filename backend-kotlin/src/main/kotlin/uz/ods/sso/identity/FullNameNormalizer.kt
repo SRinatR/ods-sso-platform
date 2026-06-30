@@ -9,39 +9,47 @@ object FullNameNormalizer {
     private val latinPattern = Regex("^[A-Za-z\\s'’-]+$")
     private val spaces = Regex("\\s+")
 
-    fun requireCyrillic(raw: String?): String {
+    fun requireCyrillicField(raw: String?, label: String): String {
         val value = normalize(raw)
-        if (value == null || value.length < 3) {
-            throw validation("Full name in Cyrillic is required")
+        if (value == null) {
+            throw validation("$label is required")
         }
         if (!cyrillicPattern.matches(value)) {
-            throw validation("Full name in Cyrillic must contain only Cyrillic letters")
+            throw validation("$label must contain only Cyrillic letters")
         }
         return value
     }
 
-    fun optionalCyrillic(raw: String?): String? {
+    fun optionalCyrillicField(raw: String?, label: String): String? {
         val value = normalize(raw) ?: return null
-        if (value.length < 3) {
-            throw validation("Full name in Cyrillic is too short")
-        }
         if (!cyrillicPattern.matches(value)) {
-            throw validation("Full name in Cyrillic must contain only Cyrillic letters")
+            throw validation("$label must contain only Cyrillic letters")
         }
         return value
     }
 
-    fun latinFor(cyrillic: String, rawLatin: String?): String {
+    fun requireLatinField(cyrillic: String, rawLatin: String?, label: String): String {
         val defaultLatin = transliterateCyrillic(cyrillic)
-        val value = normalize(rawLatin)?.let(::titleLatin) ?: defaultLatin
-        if (!latinPattern.matches(value)) {
-            throw validation("Full name in Latin must contain only Latin letters")
-        }
-        if (editDistance(distanceKey(defaultLatin), distanceKey(value)) > 3) {
-            throw validation("Full name in Latin can differ from automatic transliteration by no more than 3 characters")
-        }
+        val value = normalize(rawLatin)?.let(::titleLatin)
+            ?: throw validation("$label is required")
+        validateLatinField(value, defaultLatin, label)
         return value
     }
+
+    fun optionalLatinField(cyrillic: String?, rawLatin: String?, label: String): String? {
+        val value = normalize(rawLatin)?.let(::titleLatin)
+        if (cyrillic == null && value == null) {
+            return null
+        }
+        if (cyrillic == null || value == null) {
+            throw validation("$label must be filled together with the matching Cyrillic field")
+        }
+        validateLatinField(value, transliterateCyrillic(cyrillic), label)
+        return value
+    }
+
+    fun joinParts(vararg parts: String?): String? =
+        parts.mapNotNull { normalize(it) }.takeIf(List<String>::isNotEmpty)?.joinToString(" ")
 
     fun transliterateCyrillic(value: String): String =
         titleLatin(
@@ -61,6 +69,15 @@ object FullNameNormalizer {
 
     private fun distanceKey(value: String): String =
         value.lowercase().filter { it in 'a'..'z' }
+
+    private fun validateLatinField(value: String, defaultLatin: String, label: String) {
+        if (!latinPattern.matches(value)) {
+            throw validation("$label must contain only Latin letters")
+        }
+        if (editDistance(distanceKey(defaultLatin), distanceKey(value)) > 3) {
+            throw validation("$label can differ from automatic transliteration by no more than 3 characters")
+        }
+    }
 
     private fun editDistance(left: String, right: String): Int {
         if (left == right) return 0
