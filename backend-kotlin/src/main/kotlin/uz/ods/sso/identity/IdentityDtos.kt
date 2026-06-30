@@ -10,7 +10,6 @@ data class MessageResponse(val ok: Boolean = true, val message: String)
 data class RegistrationResponse(
     val ok: Boolean = true,
     val message: String,
-    val verificationRequired: Boolean,
     val email: String? = null,
 )
 

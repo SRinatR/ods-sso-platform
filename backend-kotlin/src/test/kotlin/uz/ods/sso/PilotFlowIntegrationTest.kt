@@ -136,7 +136,7 @@ class PilotFlowIntegrationTest {
         )
             .andExpect(status().isCreated)
             .andExpect(jsonPath("$.ok").value(true))
-            .andExpect(jsonPath("$.verification_required").value(true))
+            .andExpect(jsonPath("$.verification_required").doesNotExist())
 
         val user = users.findByTenantIdAndEmailIgnoreCase("tnt_missing", email)
         assertThat(user).isNull()
