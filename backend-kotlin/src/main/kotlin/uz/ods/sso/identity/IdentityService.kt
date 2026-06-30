@@ -48,19 +48,17 @@ class IdentityService(
         val ipAddress = clientIp(request, properties)
         rateLimiter.enforce(RateLimiter.REGISTRATION_BURST, ipAddress)
         rateLimiter.enforce(RateLimiter.REGISTRATION_DAILY, ipAddress)
-        if (properties.requireEmailVerification) requireMailDelivery()
+        requireMailDelivery()
         val tenant = tenants.current()
         val email = normalizeEmail(body.email)
         val existing = users.findByTenantIdAndEmailIgnoreCase(tenant.id, email)
         if (existing != null) {
-            if (properties.requireEmailVerification) {
-                sendVerification(
-                    existing,
-                    request,
-                    if (existing.emailVerified) "REGISTRATION_EXISTING" else "REGISTRATION_REPEATED",
-                )
-            }
-            return properties.requireEmailVerification
+            sendVerification(
+                existing,
+                request,
+                if (existing.emailVerified) "REGISTRATION_EXISTING" else "REGISTRATION_REPEATED",
+            )
+            return true
         }
         val now = Instant.now()
         val user = users.save(
@@ -68,7 +66,6 @@ class IdentityService(
                 tenantId = tenant.id,
                 email = email,
                 passwordHash = crypto.hashPassword(crypto.randomUrl(24)),
-                emailVerifiedAt = now.takeUnless { properties.requireEmailVerification },
                 termsAcceptedAt = now,
             ),
         )
@@ -81,10 +78,6 @@ class IdentityService(
             details = mapOf("terms_version" to "2026-06-22"),
         )
         events.append(tenant.id, "UserRegistered", user.id, mapOf("user_id" to user.id, "email" to user.email))
-        if (!properties.requireEmailVerification) {
-            audit.write(tenant.id, request, "EMAIL_VERIFICATION_SKIPPED", user.id, user.id)
-            return false
-        }
         sendVerification(user, request, "REGISTRATION")
         return true
     }
@@ -96,7 +89,7 @@ class IdentityService(
         response: HttpServletResponse,
     ): LoginResponse = withAuthenticationTiming {
         enforceEmailAction("verify", request)
-        val user = consumeVerification(body, request)
+        val user = consumeVerificationCode(body.email, body.code, request)
         if (user.status != "active") {
             throw AppException(HttpStatus.FORBIDDEN, "account_unavailable", "Account is not active")
         }
@@ -320,23 +313,6 @@ class IdentityService(
         val identity = "$action:${clientIp(request, properties)}"
         rateLimiter.enforce(RateLimiter.EMAIL_ACTION, identity)
         rateLimiter.enforce(RateLimiter.EMAIL_ACTION_DAILY, identity)
-    }
-
-    private fun consumeVerification(body: VerifyEmailRequest, request: HttpServletRequest): UserEntity {
-        val rawToken = body.token?.trim()?.takeIf(String::isNotEmpty)
-        if (rawToken != null) return consumeVerificationToken(rawToken, request)
-        return consumeVerificationCode(body.email, body.code, request)
-    }
-
-    private fun consumeVerificationToken(rawToken: String, request: HttpServletRequest): UserEntity {
-        val token = validateAccountToken(rawToken, "evt", "email_verification")
-        val user = users.findByPublicId(token.userId) ?: throw
-            AppException(HttpStatus.BAD_REQUEST, "invalid_verification_token", "Verification token is invalid")
-        val now = Instant.now()
-        token.usedAt = now
-        tokens.invalidate(user.id, "email_verification", now)
-        markEmailVerified(user, request, now)
-        return user
     }
 
     private fun consumeVerificationCode(

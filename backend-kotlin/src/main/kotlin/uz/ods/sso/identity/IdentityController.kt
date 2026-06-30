@@ -30,17 +30,12 @@ class IdentityController(
         @Valid @RequestBody body: RegisterRequest,
         request: HttpServletRequest,
     ): ResponseEntity<RegistrationResponse> {
-        val verificationRequired = identity.register(body, request)
-        val message = if (verificationRequired) {
-            "Verification code sent. Confirm your email to continue."
-        } else {
-            "Registration completed."
-        }
+        identity.register(body, request)
         return ResponseEntity.status(HttpStatus.CREATED)
             .body(
                 RegistrationResponse(
-                    message = message,
-                    verificationRequired = verificationRequired,
+                    message = "Verification code sent. Confirm your email to continue.",
+                    verificationRequired = true,
                     email = body.email.trim().lowercase(),
                 ),
             )

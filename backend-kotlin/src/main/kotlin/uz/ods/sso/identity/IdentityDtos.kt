@@ -33,7 +33,6 @@ data class LoginResponse(
 )
 
 data class VerifyEmailRequest(
-    val token: String? = null,
     @field:Email
     @field:Size(max = 320)
     val email: String? = null,

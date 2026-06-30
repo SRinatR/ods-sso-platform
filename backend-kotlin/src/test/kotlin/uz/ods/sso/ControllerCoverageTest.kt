@@ -121,7 +121,9 @@ class ControllerCoverageTest {
                 .statusCode.value(),
         )
             .isEqualTo(201)
-        assertThat(controller.verifyEmail(VerifyEmailRequest(token = "token"), request, response).userId).isEqualTo("usr_1")
+        assertThat(
+            controller.verifyEmail(VerifyEmailRequest(email = "user@example.com", code = "123456"), request, response).userId,
+        ).isEqualTo("usr_1")
         assertThat(controller.resend(ResendVerificationRequest("user@example.com"), request).ok).isTrue()
         assertThat(controller.forgot(ForgotPasswordRequest("user@example.com"), request).ok).isTrue()
         assertThat(controller.reset(ResetPasswordRequest("token", "new-password-value"), request).ok).isTrue()

@@ -72,12 +72,14 @@ class IdentityServiceTest {
     @Test
     fun `registration creates minimal account and does not disclose duplicate email`() {
         whenever(tenants.current()).thenReturn(tenant)
+        whenever(mail.available).thenReturn(true)
         whenever(users.findByTenantIdAndEmailIgnoreCase("tnt_1", "user@example.com")).thenReturn(null)
         whenever(users.save(any<UserEntity>())).thenAnswer { it.arguments[0] }
+        whenever(tokens.save(any<AccountTokenEntity>())).thenAnswer { it.arguments[0] }
 
         assertThat(
             service.register(RegisterRequest("user@example.com"), request),
-        ).isFalse()
+        ).isTrue()
         verify(rateLimiter).enforce(RateLimiter.REGISTRATION_BURST, "unknown")
         verify(rateLimiter).enforce(RateLimiter.REGISTRATION_DAILY, "unknown")
         val created = org.mockito.kotlin.argumentCaptor<UserEntity>()
@@ -85,13 +87,16 @@ class IdentityServiceTest {
         assertThat(created.firstValue.name).isNull()
         assertThat(created.firstValue.fullNameCyrillic).isNull()
         assertThat(created.firstValue.fullNameLatin).isNull()
-        assertThat(created.firstValue.emailVerified).isTrue()
+        assertThat(created.firstValue.emailVerified).isFalse()
         assertThat(created.firstValue.termsAcceptedAt).isNotNull()
+        verify(mail).sendVerification(eq("user@example.com"), any())
 
-        whenever(users.findByTenantIdAndEmailIgnoreCase("tnt_1", "user@example.com")).thenReturn(UserEntity())
+        whenever(users.findByTenantIdAndEmailIgnoreCase("tnt_1", "user@example.com")).thenReturn(
+            UserEntity(tenantId = "tnt_1", email = "user@example.com").apply { publicId = "usr_existing" },
+        )
         assertThat(
             service.register(RegisterRequest("user@example.com"), request),
-        ).isFalse()
+        ).isTrue()
     }
 
     @Test
@@ -131,32 +136,13 @@ class IdentityServiceTest {
     }
 
     @Test
-    fun `email verification and password reset consume valid opaque tokens`() {
-        val response = mock<HttpServletResponse>()
+    fun `password reset consumes valid opaque token`() {
         val user = UserEntity(
             tenantId = "tnt_1",
             email = "user@example.com",
             passwordHash = crypto.hashPassword("old-password-value"),
         ).apply { publicId = "usr_1" }
         whenever(users.findByPublicId("usr_1")).thenReturn(user)
-        whenever(request.remoteAddr).thenReturn("127.0.0.1")
-        whenever(request.getHeader("User-Agent")).thenReturn("test")
-        whenever(risk.assess(user, "127.0.0.1", "test"))
-            .thenReturn(RiskResult(0, "allow", emptyList(), "fingerprint"))
-
-        val (verificationId, verificationSecret, verificationRaw) = crypto.opaqueToken("evt")
-        val verification = AccountTokenEntity(
-            userId = "usr_1",
-            type = "email_verification",
-            secretHash = crypto.hashSecret(verificationSecret),
-            expiresAt = Instant.now().plusSeconds(60),
-        ).apply { publicId = verificationId }
-        whenever(tokens.findByPublicIdAndType(verificationId, "email_verification")).thenReturn(verification)
-
-        service.verifyEmail(VerifyEmailRequest(token = verificationRaw), request, response)
-        assertThat(verification.usedAt).isNotNull()
-        assertThat(user.emailVerified).isTrue()
-        verify(sessions).create(request, response, user, false, 0, "fingerprint", "email_code")
 
         val (resetId, resetSecret, resetRaw) = crypto.opaqueToken("prt")
         val reset = AccountTokenEntity(

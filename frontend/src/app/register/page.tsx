@@ -9,7 +9,6 @@ import { onAuth, onPartners } from "@/lib/domains";
 
 type RegistrationResponse = {
   message: string;
-  verification_required: boolean;
   email?: string;
 };
 
@@ -18,7 +17,7 @@ function RegisterForm() {
   const [email, setEmail] = useState("");
   const [confirmedEmail, setConfirmedEmail] = useState("");
   const [code, setCode] = useState("");
-  const [step, setStep] = useState<"email" | "code" | "done">("email");
+  const [step, setStep] = useState<"email" | "code">("email");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -35,12 +34,8 @@ function RegisterForm() {
       });
       const normalizedEmail = result.email || email.trim().toLowerCase();
       setConfirmedEmail(normalizedEmail);
-      setMessage(
-        result.verification_required
-          ? "Мы отправили код подтверждения на указанную почту."
-          : "Аккаунт создан. Для этого окружения подтверждение email отключено.",
-      );
-      setStep(result.verification_required ? "code" : "done");
+      setMessage("Мы отправили код подтверждения на указанную почту.");
+      setStep("code");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Не удалось отправить код");
     } finally {
@@ -160,15 +155,6 @@ function RegisterForm() {
             Изменить email
           </button>
         </form>
-      )}
-
-      {step === "done" && (
-        <div className="stack">
-          {message && <div className="alert success">{message}</div>}
-          <Link className="button link-button" href={onAuth("/login")}>
-            Перейти ко входу
-          </Link>
-        </div>
       )}
 
       <div className="auth-links">
