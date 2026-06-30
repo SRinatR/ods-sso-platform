@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import type { CSSProperties } from "react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Shell } from "@/components/Shell";
 import { api, ApiRequestError } from "@/lib/api";
-import { ACCOUNTS_URL, loginUrl } from "@/lib/domains";
+import { ACCOUNTS_URL, ROOT_URL, loginUrl } from "@/lib/domains";
 
 type User = {
   id: string;
@@ -62,18 +62,27 @@ const emptyState: LoadState = {
   sessions: [],
 };
 
+const primaryScopes = new Set(["openid", "profile", "email", "full_name_cyrillic", "full_name_latin"]);
+
 type AccountIconName =
   | "apps"
   | "calendar"
   | "check"
   | "chevron"
   | "clock"
+  | "copy"
   | "desktop"
+  | "download"
   | "edit"
   | "globe"
+  | "key"
+  | "lock"
   | "mail"
   | "phone"
+  | "profile"
   | "security";
+
+type IconTone = "blue" | "green" | "amber" | "violet" | "slate";
 
 export default function DashboardPage() {
   const [user, setUser] = useState<User | null>(null);
@@ -120,13 +129,8 @@ export default function DashboardPage() {
     return () => window.clearTimeout(initial);
   }, [load]);
 
-  const displayName = useMemo(() => (user ? greetingName(user) : "пользователь"), [user]);
-
   return (
-    <Shell
-      title={user ? `Здравствуйте, ${displayName}` : "Загрузка кабинета"}
-      subtitle="Управляйте аккаунтом, безопасностью и доступом к приложениям."
-    >
+    <Shell title={user ? "Главная" : "Загрузка кабинета"}>
       {error && (
         <div className="alert error account-alert">
           {error}
@@ -136,22 +140,53 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {loading && !user ? <section className="account-card">Загрузка данных аккаунта…</section> : null}
+      {loading && !user ? <section className="account-card">Загрузка данных аккаунта...</section> : null}
 
       {user ? (
-        <div className="account-dashboard">
-          <section className="account-dashboard-grid account-dashboard-grid-top">
+        <div className="account-dashboard account-dashboard-v2">
+          <section className="account-dashboard-hero">
             <ProfileSummary user={user} />
-            <SecuritySummary user={user} />
+            <SecuritySummary user={user} history={data.history} />
+            <LastConsentSummary apps={data.apps} />
           </section>
 
-          <section className="account-dashboard-grid">
-            <SessionsSummary sessions={data.sessions} />
-            <LoginHistorySummary history={data.history} />
+          <section className="account-stat-grid" aria-label="Сводка аккаунта">
+            <MetricCard
+              action="Открыть сессии"
+              href={`${ACCOUNTS_URL}/sessions`}
+              icon="desktop"
+              label="Активные сессии"
+              tone="blue"
+              value={String(data.sessions.length)}
+            />
+            <MetricCard
+              action="Управлять согласиями"
+              href={`${ACCOUNTS_URL}/apps`}
+              icon="security"
+              label="Предоставленные согласия"
+              tone="green"
+              value={String(data.apps.length)}
+            />
+            <MetricCard
+              action="Смотреть все"
+              href={`${ACCOUNTS_URL}/apps`}
+              icon="apps"
+              label="Подключенные приложения"
+              tone="violet"
+              value={String(uniqueClientCount(data.apps))}
+            />
           </section>
 
-          <section className="account-dashboard-single">
-            <ConsentsSummary apps={data.apps} />
+          <section className="account-work-grid">
+            <TransferredDataCard apps={data.apps} />
+            <ConnectedAppsCard apps={data.apps} />
+            <RecentLoginsCard history={data.history} />
+            <QuickActions />
+          </section>
+
+          <section className="account-dashboard-bottom">
+            <PrivacyCenter />
+            <SsoIdentityNote />
           </section>
         </div>
       ) : null}
@@ -165,73 +200,78 @@ function fulfilledOrEmpty<T>(result: PromiseSettledResult<T[]>): T[] {
 
 function ProfileSummary({ user }: { user: User }) {
   return (
-    <article className="account-card account-profile-card">
-      <div className="account-avatar" aria-hidden="true">
-        {initials(user)}
+    <article className="account-card account-id-card">
+      <div className="account-section-title account-section-title-tight">
+        <h2>ID-профиль</h2>
+        <Link
+          aria-label="Редактировать профиль"
+          className="account-link-button account-icon-button"
+          href={`${ACCOUNTS_URL}/profile`}
+          title="Редактировать профиль"
+        >
+          <AccountDashboardIcon name="edit" />
+        </Link>
       </div>
-      <div className="account-profile-main">
-        <div className="account-card-heading">
-          <div>
-            <h2>{userName(user)}</h2>
-            <p>{user.email}</p>
-          </div>
-          <Link
-            aria-label="Редактировать профиль"
-            className="account-link-button account-icon-button"
-            href={`${ACCOUNTS_URL}/profile`}
-            title="Редактировать профиль"
-          >
-            <AccountDashboardIcon name="edit" />
-          </Link>
+
+      <div className="account-profile-hero">
+        <div className="account-avatar account-profile-avatar" aria-hidden="true">
+          {initials(user)}
         </div>
-        <div className="account-profile-list">
-          <InfoLine
-            icon="mail"
-            label={user.email_verified ? "Email подтвержден" : "Email ожидает подтверждения"}
-            tone={user.email_verified ? "success" : "warning"}
-          />
-          <InfoLine
-            icon="phone"
-            label={user.phone ? user.phone : "Телефон не указан"}
-            tone={user.phone ? "success" : "muted"}
-          />
-          <InfoLine
-            icon="calendar"
-            label={user.created_at ? `Дата регистрации: ${formatDate(user.created_at)}` : "Дата регистрации недоступна"}
-            tone="muted"
-          />
-          <InfoLine icon="globe" label="Язык интерфейса: Русский" tone="accent" />
+        <div className="account-profile-identity">
+          <h3>{userName(user)}</h3>
+          <p>{user.email}</p>
+          <span className="account-pill" data-tone={user.email_verified ? "green" : "amber"}>
+            <AccountDashboardIcon name={user.email_verified ? "check" : "clock"} />
+            {user.email_verified ? "Email подтвержден" : "Email ожидает подтверждения"}
+          </span>
         </div>
+      </div>
+
+      <div className="account-profile-facts">
+        <InfoLine icon="key" label={`Вход выполнен через ${loginMethod(user)}`} tone="accent" />
+        <InfoLine
+          icon="phone"
+          label={user.phone ? user.phone : "Телефон не указан"}
+          tone={user.phone ? "success" : "muted"}
+        />
+        <InfoLine
+          icon="calendar"
+          label={user.created_at ? `Дата регистрации: ${formatDate(user.created_at)}` : "Дата регистрации недоступна"}
+          tone="muted"
+        />
       </div>
     </article>
   );
 }
 
-function SecuritySummary({ user }: { user: User }) {
+function SecuritySummary({ user, history }: { user: User; history: Login[] }) {
+  const lastLogin = history.find((item) => item.success);
   const checks = [
-    { label: "Двухфакторная аутентификация", value: user.mfa_enabled ? "Включена" : "Не настроена", ok: user.mfa_enabled },
-    { label: "Привязанный email", value: user.email_verified ? "Подтвержден" : "Ожидает", ok: user.email_verified },
-    { label: "Привязанный телефон", value: user.phone ? "Подтвержден" : "Не указан", ok: Boolean(user.phone) },
+    { label: "Email подтвержден", value: user.email_verified ? "Да" : "Нет", ok: user.email_verified },
+    { label: "MFA включена", value: user.mfa_enabled ? "Да" : "Не настроена", ok: user.mfa_enabled },
     { label: "Способ входа", value: loginMethod(user), ok: true },
     { label: "Статус аккаунта", value: user.status, ok: user.status === "active" },
   ];
   const score = Math.round((checks.filter((item) => item.ok).length / checks.length) * 100);
+  const level = score >= 80 ? "Высокий" : score >= 60 ? "Средний" : "Низкий";
 
   return (
     <article className="account-card account-security-card">
-      <div className="account-section-title">
-        <h2>Уровень безопасности</h2>
+      <div className="account-section-title account-section-title-tight">
+        <h2>Статус безопасности</h2>
         <Link href={`${ACCOUNTS_URL}/security`}>
           Проверить
           <AccountDashboardIcon name="chevron" />
         </Link>
       </div>
       <div className="account-security-content">
-        <div className="account-security-ring" style={{ "--score": `${score}%` } as CSSProperties}>
-          <span>
-            <AccountDashboardIcon name="security" />
-          </span>
-          <strong>{score >= 80 ? "Высокий" : score >= 60 ? "Средний" : "Низкий"}</strong>
+        <div
+          aria-label={`Уровень безопасности ${score} процентов`}
+          className="account-security-ring account-security-ring-score"
+          style={{ "--score": `${score}%` } as CSSProperties}
+        >
+          <strong>{score}%</strong>
+          <small>{level}</small>
         </div>
         <div className="account-check-list">
           {checks.map((item) => (
@@ -243,72 +283,81 @@ function SecuritySummary({ user }: { user: User }) {
               <strong>{item.value}</strong>
             </div>
           ))}
+          <InfoLine
+            icon="clock"
+            label={lastLogin ? `Последний вход: ${formatDateTime(lastLogin.created_at)}` : "Успешных входов в журнале нет"}
+            tone="muted"
+          />
         </div>
       </div>
       <Link className="account-inline-link" href={`${ACCOUNTS_URL}/security`}>
-        Перейти в настройки безопасности
+        Перейти в безопасность
         <AccountDashboardIcon name="chevron" />
       </Link>
     </article>
   );
 }
 
-function SessionsSummary({ sessions }: { sessions: Session[] }) {
+function LastConsentSummary({ apps }: { apps: ConnectedApp[] }) {
+  const latest = latestConsent(apps);
+
   return (
-    <article className="account-card">
-      <div className="account-section-title">
-        <div>
-          <h2>Активные сессии</h2>
-          <p>Устройства, где сейчас действует вход в аккаунт. Лишний доступ можно завершить.</p>
-        </div>
-        <Link href={`${ACCOUNTS_URL}/sessions`}>Все сессии</Link>
+    <article className="account-card account-last-consent-card">
+      <div className="account-section-title account-section-title-tight">
+        <h2>Последняя передача данных</h2>
+        <Link href={`${ACCOUNTS_URL}/apps`}>
+          Подробнее
+          <AccountDashboardIcon name="chevron" />
+        </Link>
       </div>
-      <div className="account-list">
-        {sessions.slice(0, 4).map((session) => (
-          <div className="account-list-row" key={session.id}>
-            <span className="account-list-icon" data-tone={session.current ? "blue" : "violet"}>
-              <AccountDashboardIcon name="desktop" />
-            </span>
+      {latest ? (
+        <>
+          <div className="account-app-highlight">
+            <AccountIconBox icon="apps" tone="blue" />
             <div>
-              <strong>{deviceName(session.user_agent)}</strong>
-              <p>{session.ip_address ? `IP ${session.ip_address}` : "IP не указан"}</p>
+              <h3>{latest.name}</h3>
+              <p>Данные переданы по вашему согласию через SSO.</p>
             </div>
-            <time>{session.current ? "Сейчас" : formatDateTime(session.last_seen_at)}</time>
           </div>
-        ))}
-        {sessions.length === 0 ? <EmptyLine text="Активные сессии не найдены." /> : null}
-      </div>
-      <Link className="account-inline-link" href={`${ACCOUNTS_URL}/sessions`}>
-        Управление сессиями
-        <AccountDashboardIcon name="chevron" />
-      </Link>
+          <ScopeChips scopes={latest.scopes} limit={4} />
+          <div className="account-card-footer">
+            <time>{formatDateTime(latest.granted_at)}</time>
+            <Link className="account-inline-link" href={`${ACCOUNTS_URL}/apps`}>
+              Открыть журнал
+              <AccountDashboardIcon name="chevron" />
+            </Link>
+          </div>
+        </>
+      ) : (
+        <EmptyLine text="Передач данных по SSO пока не было." />
+      )}
     </article>
   );
 }
 
-function ConsentsSummary({ apps }: { apps: ConnectedApp[] }) {
-  const latest = apps
-    .map((app) => app.granted_at)
-    .sort((left, right) => new Date(right).getTime() - new Date(left).getTime())[0];
-
+function MetricCard({
+  action,
+  href,
+  icon,
+  label,
+  tone,
+  value,
+}: {
+  action: string;
+  href: string;
+  icon: AccountIconName;
+  label: string;
+  tone: IconTone;
+  value: string;
+}) {
   return (
-    <article className="account-card account-consents-card">
-      <div className="account-consent-total">
-        <span>
-          <AccountDashboardIcon name="security" />
-        </span>
-        <strong>{apps.length}</strong>
-        <p>Активных согласий</p>
-      </div>
-      <div className="account-consent-details">
-        <InfoLine
-          icon="clock"
-          label={latest ? `Последнее обновление: ${formatDateTime(latest)}` : "Согласия еще не выдавались"}
-          tone="muted"
-        />
-        <InfoLine icon="calendar" label="Доступы действуют до отзыва пользователем" tone="accent" />
-        <Link className="account-inline-link" href={`${ACCOUNTS_URL}/apps`}>
-          Управление передачей данных и доступами
+    <article className="account-card account-metric-card">
+      <AccountIconBox icon={icon} tone={tone} />
+      <div>
+        <p>{label}</p>
+        <strong>{value}</strong>
+        <Link className="account-inline-link" href={href}>
+          {action}
           <AccountDashboardIcon name="chevron" />
         </Link>
       </div>
@@ -316,36 +365,197 @@ function ConsentsSummary({ apps }: { apps: ConnectedApp[] }) {
   );
 }
 
-function LoginHistorySummary({ history }: { history: Login[] }) {
+function TransferredDataCard({ apps }: { apps: ConnectedApp[] }) {
+  const scopes = uniqueScopes(apps);
+  const required = scopes.filter((scope) => primaryScopes.has(scope));
+  const optional = scopes.filter((scope) => !primaryScopes.has(scope));
+
   return (
-    <article className="account-card">
-      <div className="account-section-title">
-        <div>
-          <h2>История входов</h2>
-          <p>Журнал успешных и неуспешных попыток входа. Это не список активных устройств.</p>
-        </div>
-        <Link href={`${ACCOUNTS_URL}/sessions#history`}>Вся история</Link>
+    <article className="account-card account-data-card">
+      <div className="account-section-title account-section-title-tight">
+        <h2>Передаваемые данные</h2>
+        <span className="account-help-badge" title="Список построен по активным согласиям пользователя.">
+          i
+        </span>
       </div>
-      <div className="account-history-list">
-        {history.slice(0, 3).map((item) => (
-          <div className="account-history-row" data-success={item.success} key={item.id}>
+      {scopes.length > 0 ? (
+        <div className="account-data-groups">
+          <div>
+            <p>Основные</p>
+            <ScopeChips scopes={required.length ? required : scopes.slice(0, 3)} />
+          </div>
+          <div>
+            <p>Дополнительные</p>
+            {optional.length ? <ScopeChips scopes={optional} /> : <span className="account-muted-note">Не выбраны</span>}
+          </div>
+          <InfoLine icon="lock" label="Передаются только приложениям с активным согласием." tone="muted" />
+        </div>
+      ) : (
+        <EmptyLine text="Нет активных согласий на передачу данных." />
+      )}
+    </article>
+  );
+}
+
+function ConnectedAppsCard({ apps }: { apps: ConnectedApp[] }) {
+  const visibleApps = latestUniqueApps(apps).slice(0, 3);
+
+  return (
+    <article className="account-card account-connected-card">
+      <div className="account-section-title account-section-title-tight">
+        <h2>Подключенные приложения</h2>
+        <Link href={`${ACCOUNTS_URL}/apps`}>Смотреть все</Link>
+      </div>
+      <div className="account-app-list">
+        {visibleApps.map((app) => (
+          <div className="account-app-row" key={app.consent_id}>
+            <AccountIconBox icon="apps" tone="blue" />
+            <div>
+              <strong>{app.name}</strong>
+              <p>{scopeCountLabel(app.scopes.length)}</p>
+            </div>
+            <time>{formatDateTime(app.granted_at)}</time>
+          </div>
+        ))}
+        {visibleApps.length === 0 ? <EmptyLine text="Подключенных приложений пока нет." /> : null}
+      </div>
+    </article>
+  );
+}
+
+function RecentLoginsCard({ history }: { history: Login[] }) {
+  return (
+    <article className="account-card account-logins-card">
+      <div className="account-section-title account-section-title-tight">
+        <h2>Последние входы</h2>
+        <Link href={`${ACCOUNTS_URL}/sessions#history`}>Смотреть все</Link>
+      </div>
+      <div className="account-login-table">
+        {history.slice(0, 4).map((item) => (
+          <div className="account-login-row" data-success={item.success} key={item.id}>
             <span>
-              <AccountDashboardIcon name="check" />
+              <AccountDashboardIcon name={item.success ? "check" : "clock"} />
             </span>
             <div>
-              <strong>{item.success ? "Успешный вход" : item.failure_reason || "Ошибка входа"}</strong>
-              <p>{item.ip_address ? `IP ${item.ip_address}` : deviceName(item.user_agent)}</p>
+              <strong>{deviceName(item.user_agent)}</strong>
+              <p>{item.ip_address || "IP не указан"}</p>
             </div>
             <time>{formatDateTime(item.created_at)}</time>
           </div>
         ))}
         {history.length === 0 ? <EmptyLine text="История входов пока пуста." /> : null}
       </div>
-      <Link className="account-inline-link" href={`${ACCOUNTS_URL}/sessions#history`}>
-        Посмотреть всю историю
-        <AccountDashboardIcon name="chevron" />
-      </Link>
     </article>
+  );
+}
+
+function QuickActions() {
+  const actions = [
+    { href: `${ACCOUNTS_URL}/apps`, icon: "security" as AccountIconName, label: "Управлять согласиями" },
+    { href: `${ACCOUNTS_URL}/sessions`, icon: "desktop" as AccountIconName, label: "Открыть сессии" },
+    { href: `${ACCOUNTS_URL}/security`, icon: "lock" as AccountIconName, label: "Настроить MFA" },
+    { href: `${ACCOUNTS_URL}/profile`, icon: "edit" as AccountIconName, label: "Изменить профиль" },
+  ];
+
+  return (
+    <article className="account-card account-actions-card">
+      <h2>Быстрые действия</h2>
+      <div className="account-action-list">
+        {actions.map((action) => (
+          <Link href={action.href} key={action.label}>
+            <AccountDashboardIcon name={action.icon} />
+            <span>{action.label}</span>
+            <AccountDashboardIcon name="chevron" />
+          </Link>
+        ))}
+      </div>
+    </article>
+  );
+}
+
+function PrivacyCenter() {
+  const items = [
+    {
+      href: `${ACCOUNTS_URL}/apps`,
+      icon: "security" as AccountIconName,
+      label: "Журнал согласий",
+      text: "История предоставленных доступов",
+    },
+    {
+      href: `${ACCOUNTS_URL}/sessions#history`,
+      icon: "clock" as AccountIconName,
+      label: "История входов",
+      text: "Успешные и неуспешные попытки",
+    },
+    {
+      href: `${ACCOUNTS_URL}/security`,
+      icon: "lock" as AccountIconName,
+      label: "Безопасность",
+      text: "MFA и способ входа",
+    },
+    {
+      href: `${ROOT_URL}/privacy`,
+      icon: "profile" as AccountIconName,
+      label: "Политика приватности",
+      text: "Как защищаются данные",
+    },
+  ];
+
+  return (
+    <article className="account-card account-privacy-card">
+      <h2>Центр приватности</h2>
+      <div className="account-privacy-grid">
+        {items.map((item) => (
+          <Link href={item.href} key={item.label}>
+            <AccountDashboardIcon name={item.icon} />
+            <span>
+              <strong>{item.label}</strong>
+              <small>{item.text}</small>
+            </span>
+          </Link>
+        ))}
+      </div>
+    </article>
+  );
+}
+
+function SsoIdentityNote() {
+  return (
+    <article className="account-card account-trust-card">
+      <AccountIconBox icon="security" tone="blue" />
+      <div>
+        <h2>SSO подтверждает личность.</h2>
+        <p>Приложения получают только те данные, на которые вы дали согласие.</p>
+        <Link className="account-inline-link" href={`${ACCOUNTS_URL}/apps`}>
+          Подробнее о согласиях
+          <AccountDashboardIcon name="chevron" />
+        </Link>
+      </div>
+    </article>
+  );
+}
+
+function AccountIconBox({ icon, tone }: { icon: AccountIconName; tone: IconTone }) {
+  return (
+    <span className="account-dashboard-icon-box" data-tone={tone}>
+      <AccountDashboardIcon name={icon} />
+    </span>
+  );
+}
+
+function ScopeChips({ limit, scopes }: { limit?: number; scopes: string[] }) {
+  const visible = limit ? scopes.slice(0, limit) : scopes;
+  const hidden = limit ? scopes.length - visible.length : 0;
+
+  return (
+    <div className="account-chip-row">
+      {visible.map((scope) => (
+        <span className="account-chip" key={scope}>
+          {scopeLabel(scope)}
+        </span>
+      ))}
+      {hidden > 0 ? <span className="account-chip">+{hidden}</span> : null}
+    </div>
   );
 }
 
@@ -374,20 +584,17 @@ function userName(user: User): string {
   return explicitName(user) || user.email.split("@")[0];
 }
 
-function greetingName(user: User): string {
-  return user.first_name_cyrillic || user.name || user.email.split("@")[0];
-}
-
 function initials(user: User): string {
-  const first = user.first_name_cyrillic || user.name || "";
-  const last = user.last_name_cyrillic || "";
-  const explicit = [first, last].map((part) => part.trim()[0]).filter(Boolean).join("");
+  const explicit = [user.first_name_cyrillic, user.last_name_cyrillic]
+    .map((part) => part?.trim()[0])
+    .filter(Boolean)
+    .join("");
   if (explicit) return explicit.toUpperCase();
   return (user.email.trim()[0] || "A").toUpperCase();
 }
 
 function explicitName(user: User): string {
-  return [user.first_name_cyrillic || user.name, user.last_name_cyrillic, user.patronymic_cyrillic]
+  return [user.first_name_cyrillic, user.last_name_cyrillic, user.patronymic_cyrillic]
     .map((part) => part?.trim())
     .filter(Boolean)
     .join(" ");
@@ -396,6 +603,51 @@ function explicitName(user: User): string {
 function loginMethod(user: User): string {
   if (user.authentication_method === "passkey") return "Passkey";
   return user.mfa_enabled ? "Пароль и OTP" : "Пароль";
+}
+
+function latestConsent(apps: ConnectedApp[]): ConnectedApp | undefined {
+  return [...apps].sort((left, right) => new Date(right.granted_at).getTime() - new Date(left.granted_at).getTime())[0];
+}
+
+function latestUniqueApps(apps: ConnectedApp[]): ConnectedApp[] {
+  const seen = new Set<string>();
+  return [...apps]
+    .sort((left, right) => new Date(right.granted_at).getTime() - new Date(left.granted_at).getTime())
+    .filter((app) => {
+      if (seen.has(app.client_id)) return false;
+      seen.add(app.client_id);
+      return true;
+    });
+}
+
+function uniqueClientCount(apps: ConnectedApp[]): number {
+  return new Set(apps.map((app) => app.client_id)).size;
+}
+
+function uniqueScopes(apps: ConnectedApp[]): string[] {
+  return Array.from(new Set(apps.flatMap((app) => app.scopes))).sort((left, right) => scopeLabel(left).localeCompare(scopeLabel(right), "ru"));
+}
+
+function scopeLabel(scope: string): string {
+  const labels: Record<string, string> = {
+    email: "Email",
+    full_name_cyrillic: "ФИО на кириллице",
+    full_name_latin: "ФИО на латинице",
+    locale: "Язык интерфейса",
+    offline_access: "Долгий доступ",
+    openid: "Уникальный ID",
+    phone: "Телефон",
+    profile: "Профиль",
+  };
+  return labels[scope] || scope;
+}
+
+function scopeCountLabel(count: number): string {
+  const remainder10 = count % 10;
+  const remainder100 = count % 100;
+  if (remainder10 === 1 && remainder100 !== 11) return `${count} тип данных`;
+  if (remainder10 >= 2 && remainder10 <= 4 && (remainder100 < 12 || remainder100 > 14)) return `${count} типа данных`;
+  return `${count} типов данных`;
 }
 
 function deviceName(userAgent?: string): string {
@@ -418,7 +670,7 @@ function deviceName(userAgent?: string): string {
         : userAgent.includes("Mac OS")
           ? "macOS"
           : "";
-  return os ? `${browser} на ${os}` : browser;
+  return os ? `${os} / ${browser}` : browser;
 }
 
 function formatDate(value: string): string {
@@ -475,10 +727,23 @@ function AccountDashboardIcon({ name }: { name: AccountIconName }) {
           <path d="M12 8v5l3 2" />
         </>
       ) : null}
+      {name === "copy" ? (
+        <>
+          <rect x="8" y="8" width="11" height="11" rx="2" />
+          <path d="M5 15V6a1 1 0 0 1 1-1h9" />
+        </>
+      ) : null}
       {name === "desktop" ? (
         <>
           <rect x="4" y="5" width="16" height="11" rx="2" />
           <path d="M9 20h6M12 16v4" />
+        </>
+      ) : null}
+      {name === "download" ? (
+        <>
+          <path d="M12 4v10" />
+          <path d="m8 10 4 4 4-4" />
+          <path d="M5 19h14" />
         </>
       ) : null}
       {name === "edit" ? (
@@ -493,6 +758,18 @@ function AccountDashboardIcon({ name }: { name: AccountIconName }) {
           <path d="M4 12h16M12 4a12 12 0 0 1 0 16M12 4a12 12 0 0 0 0 16" />
         </>
       ) : null}
+      {name === "key" ? (
+        <>
+          <circle cx="8" cy="15" r="3" />
+          <path d="m10.5 12.5 6-6M15 8l2 2M13 10l2 2" />
+        </>
+      ) : null}
+      {name === "lock" ? (
+        <>
+          <rect x="5" y="10" width="14" height="10" rx="2" />
+          <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+        </>
+      ) : null}
       {name === "mail" ? (
         <>
           <rect x="4" y="6" width="16" height="12" rx="2" />
@@ -501,6 +778,12 @@ function AccountDashboardIcon({ name }: { name: AccountIconName }) {
       ) : null}
       {name === "phone" ? (
         <path d="M8 5 6 7c-.6.6-.8 1.4-.5 2.2a18 18 0 0 0 9.3 9.3c.8.3 1.6.1 2.2-.5l2-2-3-3-1.6 1.6a10 10 0 0 1-5-5L11 8 8 5Z" />
+      ) : null}
+      {name === "profile" ? (
+        <>
+          <circle cx="12" cy="8" r="3" />
+          <path d="M5 20a7 7 0 0 1 14 0" />
+        </>
       ) : null}
       {name === "security" ? (
         <>
