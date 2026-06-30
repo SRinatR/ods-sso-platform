@@ -130,7 +130,7 @@ function ProductNavigation({ product }: { product: Product }) {
     label: string;
     path: string;
   }> = [
-    { href: `${ACCOUNTS_URL}/dashboard`, icon: "home", label: "Обзор", path: "/dashboard" },
+    { href: `${ACCOUNTS_URL}/dashboard`, icon: "home", label: "Главная", path: "/dashboard" },
     { href: `${ACCOUNTS_URL}/profile`, icon: "profile", label: "Профиль", path: "/profile" },
     { href: `${ACCOUNTS_URL}/security`, icon: "security", label: "Безопасность", path: "/security" },
     { href: `${ACCOUNTS_URL}/sessions`, icon: "sessions", label: "Сессии и входы", path: "/sessions" },
