@@ -3935,8 +3935,9 @@ th {
 }
 
 .consent-shell[data-layout="granular"] {
-  width: min(1480px, 100%);
+  width: min(880px, 100%);
   height: auto;
+  justify-self: center;
   min-height: 0;
   overflow: visible;
 }
@@ -3970,14 +3971,14 @@ th {
 .consent-granular-main {
   display: grid;
   grid-template-rows: auto auto auto auto auto;
-  gap: clamp(14px, 2vh, 22px);
+  gap: 12px;
   height: auto;
   min-height: 0;
-  padding: clamp(22px, 3.4vw, 42px);
+  padding: clamp(18px, 2.4vw, 26px);
 }
 
 .consent-granular-copy-block h1 {
-  font-size: clamp(2rem, 3.2vw, 3rem);
+  font-size: clamp(1.85rem, 2.5vw, 2.35rem);
   line-height: 1.06;
 }
 
@@ -3988,15 +3989,15 @@ th {
 }
 
 .consent-account-card {
-  grid-template-columns: 52px minmax(0, 1fr) auto;
-  gap: 16px;
-  min-height: 76px;
-  padding: 14px 18px;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  gap: 12px;
+  min-height: 62px;
+  padding: 9px 12px;
 }
 
 .consent-account-icon {
-  width: 48px;
-  height: 48px;
+  width: 40px;
+  height: 40px;
   font-size: 1.2rem;
 }
 
@@ -4015,24 +4016,24 @@ th {
 }
 
 .consent-granular-list {
-  grid-template-columns: repeat(2, minmax(280px, 1fr));
-  gap: 12px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
   overflow: visible;
 }
 
 .consent-granular-item {
-  grid-template-columns: 52px minmax(0, 1fr) 64px minmax(36px, max-content);
-  gap: 16px;
-  min-height: 120px;
+  grid-template-columns: 40px minmax(0, 1fr) 54px minmax(30px, max-content);
+  gap: 10px;
+  min-height: 52px;
   align-items: center;
-  padding: 18px 16px;
+  padding: 6px 9px;
 }
 
 .consent-granular-item .consent-scope-icon {
-  width: 44px;
-  height: 44px;
+  width: 32px;
+  height: 32px;
   border-radius: 8px;
-  font-size: 1.15rem;
+  font-size: 0.98rem;
 }
 
 .consent-granular-copy {
@@ -4041,21 +4042,21 @@ th {
 
 .consent-granular-copy strong {
   white-space: normal;
-  font-size: 1rem;
-  line-height: 1.25;
+  font-size: 0.92rem;
+  line-height: 1.18;
 }
 
 .consent-granular-copy small {
   white-space: normal;
-  font-size: 0.84rem;
-  line-height: 1.35;
+  font-size: 0.8rem;
+  line-height: 1.25;
 }
 
 .consent-required-lock {
   position: relative;
   justify-self: end;
-  width: 36px;
-  height: 36px;
+  width: 30px;
+  height: 30px;
   border-radius: 8px;
 }
 
@@ -4067,15 +4068,15 @@ th {
   border: 0;
   background: transparent;
   color: #aab7ca;
-  font-size: 0.78rem;
+  font-size: 0.76rem;
 }
 
 .consent-granular-note {
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  min-height: 42px;
-  padding: 10px 14px;
+  min-height: 36px;
+  padding: 8px 12px;
   border: 1px solid rgba(47, 120, 255, 0.24);
   border-radius: 8px;
   background: rgba(47, 120, 255, 0.08);
@@ -4096,7 +4097,7 @@ th {
 }
 
 .consent-granular-main .consent-button {
-  min-height: 54px;
+  min-height: 50px;
   font-size: 1rem;
 }
 
@@ -4155,6 +4156,7 @@ th {
   }
 
   .consent-shell[data-layout="granular"] {
+    width: 100%;
     min-height: auto;
     overflow: visible;
   }
@@ -4168,6 +4170,17 @@ th {
     padding: 0;
   }
 
+  .consent-requester-card {
+    grid-template-columns: 44px minmax(0, 1fr);
+    min-height: 66px;
+    padding: 10px 12px;
+  }
+
+  .consent-requester-icon {
+    width: 44px;
+    height: 44px;
+  }
+
   .consent-granular-copy-block h1 {
     font-size: clamp(1.8rem, 8vw, 2.35rem);
   }
@@ -4179,19 +4192,25 @@ th {
   }
 
   .consent-account-card {
-    grid-template-columns: 48px minmax(0, 1fr);
-    min-height: 92px;
-    padding: 16px;
+    grid-template-columns: 44px minmax(0, 1fr) auto;
+    min-height: 64px;
+    padding: 10px 12px;
   }
 
   .consent-account-switch {
-    grid-column: 2;
-    justify-self: start;
+    grid-column: auto;
+    justify-self: end;
     min-height: 32px;
-    padding: 0;
+    padding: 0 8px;
     border: 0;
     background: transparent;
-    font-size: 0.9rem;
+    font-size: 0.82rem;
+  }
+
+  .consent-info-button {
+    min-height: 34px;
+    padding: 0 12px;
+    font-size: 0.78rem;
   }
 
   .consent-granular-list {
@@ -4200,15 +4219,14 @@ th {
   }
 
   .consent-granular-item {
-    grid-template-columns: 48px minmax(0, 1fr) 58px auto;
-    min-height: 88px;
-    padding: 14px;
+    grid-template-columns: 40px minmax(0, 1fr) 50px minmax(30px, max-content);
+    min-height: 64px;
+    padding: 9px 10px;
   }
 
   .consent-granular-item .consent-scope-icon {
-    width: 46px;
-    height: 46px;
-    font-size: 1.2rem;
+    width: 36px;
+    height: 36px;
   }
 
   .consent-granular-copy strong,
@@ -4243,18 +4261,98 @@ th {
   }
 
   .consent-granular-item {
-    grid-template-columns: 44px minmax(0, 1fr) 54px 36px;
-    min-height: 84px;
+    grid-template-columns: 40px minmax(0, 1fr) 48px 30px;
+    min-height: 64px;
   }
 
   .consent-required-lock {
     grid-column: auto;
     justify-self: end;
-    width: 32px;
-    height: 32px;
+    width: 30px;
+    height: 30px;
   }
 
   .consent-optional-chip {
     display: none;
+  }
+}
+
+.consent-requester-card {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+  min-height: 62px;
+  padding: 9px 12px;
+  border: 1px solid rgba(47, 120, 255, 0.34);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(47, 120, 255, 0.16), rgba(20, 184, 166, 0.06)),
+    rgba(13, 28, 50, 0.76);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 18px 42px rgba(15, 89, 255, 0.12);
+}
+
+.consent-requester-icon {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  overflow: hidden;
+  border: 1px solid rgba(96, 165, 250, 0.38);
+  border-radius: 8px;
+  background: rgba(47, 120, 255, 0.16);
+  color: #72a7ff;
+}
+
+.consent-requester-icon svg {
+  width: 24px;
+  height: 24px;
+}
+
+.consent-requester-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.consent-requester-copy {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.consent-requester-copy span,
+.consent-requester-copy small {
+  overflow: hidden;
+  color: #aab7ca;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.consent-requester-copy span {
+  font-size: 0.74rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.consent-requester-copy strong {
+  overflow: hidden;
+  color: #eef6ff;
+  font-size: 1rem;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.consent-requester-copy small {
+  font-size: 0.82rem;
+}
+
+@media (min-width: 1200px) {
+  .consent-screen[data-layout="granular"] {
+    align-items: start;
+    padding-top: clamp(22px, 4vh, 44px);
   }
 }

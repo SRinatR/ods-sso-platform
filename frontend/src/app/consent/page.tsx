@@ -464,6 +464,24 @@ function GranularConsent({
             <p>{consent.client_name} запросил данные для входа через ODS SSO.</p>
           </div>
 
+          <div className="consent-requester-card" aria-label={`Доступ запрашивает ${consent.client_name}`}>
+            <span className="consent-requester-icon" aria-hidden="true">
+              {consent.logo_uri ? (
+                <>
+                  {/* eslint-disable-next-line @next/next/no-img-element -- partner-provided logo URL */}
+                  <img src={consent.logo_uri} alt="" />
+                </>
+              ) : (
+                <ConsentIcon name="building" />
+              )}
+            </span>
+            <span className="consent-requester-copy">
+              <span>Доступ запрашивает</span>
+              <strong>{consent.client_name}</strong>
+              {consent.client_description ? <small>{consent.client_description}</small> : null}
+            </span>
+          </div>
+
           <div className="consent-account-card">
             <span className="consent-account-icon" aria-hidden="true">
               <ConsentIcon name="user" />
