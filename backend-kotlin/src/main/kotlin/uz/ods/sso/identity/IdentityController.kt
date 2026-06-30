@@ -35,7 +35,6 @@ class IdentityController(
             .body(
                 RegistrationResponse(
                     message = "Verification code sent. Confirm your email to continue.",
-                    verificationRequired = true,
                     email = body.email.trim().lowercase(),
                 ),
             )
