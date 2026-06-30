@@ -135,7 +135,7 @@ function ProductNavigation({ product }: { product: Product }) {
     { href: `${ACCOUNTS_URL}/security`, icon: "security", label: "Безопасность", path: "/security" },
     { href: `${ACCOUNTS_URL}/sessions`, icon: "sessions", label: "Сессии и входы", path: "/sessions" },
     { href: `${ACCOUNTS_URL}/apps`, icon: "apps", label: "Согласия и доступы", path: "/apps" },
-    { href: `${ACCOUNTS_URL}/profile`, icon: "settings", label: "Настройки", path: "/profile" },
+    { href: `${ACCOUNTS_URL}/settings`, icon: "settings", label: "Настройки", path: "/settings" },
   ];
   return (
     <nav className="account-nav">

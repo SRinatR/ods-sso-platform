@@ -1541,7 +1541,7 @@ th {
 .account-page-header h1 {
   margin-bottom: 6px;
   color: #ffffff;
-  font-size: clamp(1.8rem, 3vw, 2.5rem);
+  font-size: clamp(1.55rem, 2.3vw, 2.15rem);
   line-height: 1.08;
   letter-spacing: 0;
 }
@@ -1587,12 +1587,12 @@ th {
 
 .account-dashboard-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 520px), 1fr));
   gap: 18px;
 }
 
 .account-dashboard-grid-top {
-  grid-template-columns: minmax(0, 1.12fr) minmax(0, 0.88fr);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 540px), 1fr));
 }
 
 .account-dashboard-single {
@@ -1619,15 +1619,15 @@ th {
 
 .account-profile-card {
   display: grid;
-  grid-template-columns: 128px minmax(0, 1fr);
-  gap: 28px;
+  grid-template-columns: 104px minmax(0, 1fr);
+  gap: 20px;
   align-items: center;
 }
 
 .account-avatar {
   display: grid;
-  width: 118px;
-  height: 118px;
+  width: 96px;
+  height: 96px;
   place-items: center;
   border: 1px solid rgba(148, 163, 184, 0.16);
   border-radius: 999px;
@@ -1635,7 +1635,7 @@ th {
     radial-gradient(circle at 30% 24%, rgba(255, 255, 255, 0.22), transparent 26%),
     linear-gradient(135deg, #20334f, #0f1a2b);
   color: #ffffff;
-  font-size: 2.2rem;
+  font-size: 1.8rem;
   font-weight: 850;
 }
 
@@ -1675,6 +1675,8 @@ th {
 .account-link-button {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
   min-height: 40px;
   padding: 0 14px;
   border: 1px solid rgba(148, 163, 184, 0.18);
@@ -1682,6 +1684,16 @@ th {
   color: #d8e6fb;
   font-size: 0.86rem;
   font-weight: 750;
+}
+
+.account-icon-button {
+  width: 40px;
+  padding: 0;
+}
+
+.account-icon-button svg {
+  width: 18px;
+  height: 18px;
 }
 
 .account-profile-list {
@@ -1738,18 +1750,18 @@ th {
 
 .account-security-content {
   display: grid;
-  grid-template-columns: 132px minmax(0, 1fr);
-  gap: 28px;
+  grid-template-columns: 112px minmax(0, 1fr);
+  gap: 20px;
   align-items: center;
-  margin-top: 24px;
+  margin-top: 20px;
 }
 
 .account-security-ring {
   --score: 0%;
   position: relative;
   display: grid;
-  width: 132px;
-  height: 132px;
+  width: 112px;
+  height: 112px;
   place-items: center;
   border-radius: 999px;
   background: conic-gradient(#26c281 var(--score), rgba(148, 163, 184, 0.16) 0);
@@ -1771,8 +1783,8 @@ th {
 
 .account-security-ring span {
   display: grid;
-  width: 48px;
-  height: 48px;
+  width: 42px;
+  height: 42px;
   place-items: center;
   color: #57d19b;
   font-size: 2rem;
@@ -1785,13 +1797,13 @@ th {
 
 .account-check-list {
   display: grid;
-  gap: 12px;
+  gap: 10px;
 }
 
 .account-check-row {
   display: grid;
-  grid-template-columns: 22px minmax(0, 1fr) minmax(92px, auto);
-  gap: 10px;
+  grid-template-columns: 22px minmax(0, 1fr);
+  gap: 4px 10px;
   align-items: start;
   color: #9fb0c7;
   font-size: 0.9rem;
@@ -1819,13 +1831,14 @@ th {
 }
 
 .account-check-row strong {
-  justify-self: end;
+  grid-column: 2;
+  justify-self: start;
   color: #cbdcf1;
   font-size: 0.86rem;
   font-weight: 750;
   line-height: 1.35;
-  text-align: right;
-  white-space: nowrap;
+  text-align: left;
+  white-space: normal;
 }
 
 .account-security-card .account-inline-link {
@@ -1959,6 +1972,38 @@ th {
 .account-consent-details {
   display: grid;
   gap: 14px;
+}
+
+.settings-dev-card {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 18px;
+  align-items: center;
+  max-width: 760px;
+}
+
+.settings-dev-card > span {
+  display: grid;
+  width: 58px;
+  height: 58px;
+  place-items: center;
+  border-radius: 8px;
+  background: rgba(47, 120, 255, 0.14);
+  color: #79a7ff;
+  font-size: 0.8rem;
+  font-weight: 850;
+}
+
+.settings-dev-card h2 {
+  margin: 0;
+  color: #ffffff;
+  font-size: 1.12rem;
+}
+
+.settings-dev-card p {
+  margin: 8px 0 0;
+  color: #9fb0c7;
+  line-height: 1.5;
 }
 
 .account-history-row {
