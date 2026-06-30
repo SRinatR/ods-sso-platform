@@ -435,7 +435,26 @@ function GranularConsent({
   user: CurrentUser | null;
 }) {
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [toast, setToast] = useState("");
   const submitScopes = consent.requested_scopes.filter((scopeName) => selectedScopes.has(scopeName));
+
+  useEffect(() => {
+    if (!toast) {
+      return;
+    }
+    const timer = window.setTimeout(() => setToast(""), 2800);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
+
+  function handleScopeAction(item: Consent["data_fields"][number], checked: boolean) {
+    if (item.required) {
+      setToast("Это обязательное поле для входа, его нельзя отключить.");
+      return;
+    }
+    toggleScope(item.scope);
+    setToast(`${scopeTitle(item)} ${checked ? "отключено" : "включено"}.`);
+  }
+
   return (
     <section className="consent-granular-wrap" aria-labelledby="consent-granular-heading">
       <div className="consent-granular-grid">
@@ -471,11 +490,13 @@ function GranularConsent({
               return (
                 <button
                   aria-checked={checked}
+                  aria-label={`${scopeTitle(item)}: ${item.required ? "обязательное поле" : checked ? "передавать" : "не передавать"}`}
                   className="consent-granular-item"
                   data-required={item.required}
                   key={item.scope}
-                  onClick={() => toggleScope(item.scope)}
+                  onClick={() => handleScopeAction(item, checked)}
                   role="switch"
+                  title={item.required ? "Обязательное поле для входа" : "Нажмите, чтобы изменить передачу поля"}
                   type="button"
                 >
                   <span className={`consent-scope-icon ${scopeTone(item)}`} aria-hidden="true">
@@ -496,17 +517,26 @@ function GranularConsent({
                   {item.required ? (
                     <span
                       aria-label="Обязательное поле"
-                      className="consent-required-lock"
+                      className="consent-required-lock consent-tooltip"
                       title="Обязательное поле"
                     >
                       <ConsentIcon name="lock" />
+                      <span className="consent-tooltip-bubble">Обязательное поле для входа</span>
                     </span>
                   ) : (
-                    <span className="consent-optional-chip">Необязательное</span>
+                    <span className="consent-optional-chip consent-tooltip">
+                      Необязательное
+                      <span className="consent-tooltip-bubble">Можно отключить перед входом</span>
+                    </span>
                   )}
                 </button>
               );
             })}
+          </div>
+
+          <div className="consent-granular-note">
+            <ConsentIcon name="help" />
+            <span>Доступ можно отозвать позже в настройках аккаунта.</span>
           </div>
 
           <ConsentActions
@@ -517,6 +547,12 @@ function GranularConsent({
           />
         </section>
       </div>
+
+      {toast ? (
+        <div aria-live="polite" className="consent-toast" role="status">
+          {toast}
+        </div>
+      ) : null}
 
       {detailsOpen ? (
         <div className="consent-help-backdrop" role="presentation">
