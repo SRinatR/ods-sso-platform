@@ -221,6 +221,7 @@ export default function AdminPage() {
           "email",
           "full_name_cyrillic",
           "full_name_latin",
+          "picture",
           "offline_access",
         ],
         is_public: clientForm.isPublic,

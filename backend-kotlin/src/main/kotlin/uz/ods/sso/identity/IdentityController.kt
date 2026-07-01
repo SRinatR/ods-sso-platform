@@ -145,6 +145,7 @@ fun uz.ods.sso.persistence.UserEntity.toResponse(authenticationMethod: String? =
     patronymicLatin = patronymicLatin,
     fullNameCyrillic = fullNameCyrillic,
     fullNameLatin = fullNameLatin,
+    profilePictureUrl = profilePictureUrl,
     phone = phone,
     emailVerified = emailVerified,
     status = status,

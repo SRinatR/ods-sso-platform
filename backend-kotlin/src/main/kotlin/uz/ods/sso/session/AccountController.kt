@@ -23,6 +23,7 @@ import uz.ods.sso.identity.toResponse
 import uz.ods.sso.persistence.LoginHistoryRepository
 import uz.ods.sso.persistence.UserSessionRepository
 import uz.ods.sso.shared.AppException
+import java.net.URI
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 
@@ -93,6 +94,7 @@ class AccountController(
                 "validation_error",
                 "Phone is required",
             )
+        val profilePictureUrl = normalizeProfilePictureUrl(body.profilePictureUrl)
         principal.user.firstNameCyrillic = firstNameCyrillic
         principal.user.lastNameCyrillic = lastNameCyrillic
         principal.user.patronymicCyrillic = patronymicCyrillic
@@ -106,6 +108,7 @@ class AccountController(
         )
         principal.user.fullNameLatin = FullNameNormalizer.joinParts(firstNameLatin, lastNameLatin, patronymicLatin)
         principal.user.name = firstNameCyrillic
+        principal.user.profilePictureUrl = profilePictureUrl
         principal.user.phone = requestedPhone
         principal.user.updatedAt = Instant.now()
         audit.write(
@@ -116,6 +119,19 @@ class AccountController(
             principal.user.id,
         )
         return principal.user.toResponse()
+    }
+
+    private fun normalizeProfilePictureUrl(value: String?): String? {
+        val normalized = value?.trim()?.takeIf(String::isNotEmpty) ?: return null
+        val uri = runCatching { URI(normalized) }.getOrNull()
+        if (uri == null || uri.scheme != "https" || uri.host.isNullOrBlank() || uri.fragment != null) {
+            throw AppException(
+                HttpStatus.UNPROCESSABLE_CONTENT,
+                "validation_error",
+                "Profile picture URL must be an absolute HTTPS URL without a fragment",
+            )
+        }
+        return normalized
     }
 
     @GetMapping("/sessions")

@@ -59,7 +59,7 @@ data class OAuthClientCreate(
     val name: String,
     val description: String? = null,
     val redirectUris: List<String>,
-    val allowedScopes: List<String> = listOf("openid", "profile", "email"),
+    val allowedScopes: List<String> = listOf("openid", "profile", "email", "picture"),
     val isPublic: Boolean = false,
     val tokenEndpointAuthMethod: String = "client_secret_basic",
 )
@@ -212,6 +212,7 @@ class AdminService(
                 patronymicLatin = rs.getString("patronymic_latin"),
                 fullNameCyrillic = rs.getString("full_name_cyrillic"),
                 fullNameLatin = rs.getString("full_name_latin"),
+                profilePictureUrl = rs.getString("profile_picture_url"),
                 phone = rs.getString("phone"),
                 emailVerified = rs.getTimestamp("email_verified_at") != null,
                 status = rs.getString("status"),
@@ -226,7 +227,7 @@ class AdminService(
                 select public_id, email, name,
                        first_name_cyrillic, last_name_cyrillic, patronymic_cyrillic,
                        first_name_latin, last_name_latin, patronymic_latin,
-                       full_name_cyrillic, full_name_latin, phone,
+                       full_name_cyrillic, full_name_latin, profile_picture_url, phone,
                        email_verified_at, status, role, mfa_enabled, created_at
                 from users
                 where tenant_id = ?
@@ -245,7 +246,7 @@ class AdminService(
                 select public_id, email, name,
                        first_name_cyrillic, last_name_cyrillic, patronymic_cyrillic,
                        first_name_latin, last_name_latin, patronymic_latin,
-                       full_name_cyrillic, full_name_latin, phone,
+                       full_name_cyrillic, full_name_latin, profile_picture_url, phone,
                        email_verified_at, status, role, mfa_enabled, created_at
                 from users
                 where tenant_id = ?
@@ -347,6 +348,7 @@ class AdminService(
         user.patronymicLatin = null
         user.fullNameCyrillic = null
         user.fullNameLatin = null
+        user.profilePictureUrl = null
         user.phone = null
         user.passwordHash = crypto.hashPassword(crypto.randomUrl(48))
         user.emailVerifiedAt = null

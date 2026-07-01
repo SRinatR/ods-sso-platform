@@ -5,6 +5,7 @@ import org.springframework.security.oauth2.core.oidc.OidcScopes
 object OdsOidcScopes {
     const val FULL_NAME_CYRILLIC = "full_name_cyrillic"
     const val FULL_NAME_LATIN = "full_name_latin"
+    const val PICTURE = "picture"
     const val CONSENT_UI_POLICY = "consent_ui"
     const val CONSENT_LAYOUT_CLASSIC = "classic"
     const val CONSENT_LAYOUT_GRANULAR = "granular"

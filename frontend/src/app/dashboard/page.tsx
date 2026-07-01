@@ -14,6 +14,7 @@ type User = {
   first_name_cyrillic?: string;
   last_name_cyrillic?: string;
   patronymic_cyrillic?: string;
+  profile_picture_url?: string;
   phone?: string;
   email_verified: boolean;
   status: string;
@@ -62,7 +63,7 @@ const emptyState: LoadState = {
   sessions: [],
 };
 
-const primaryScopes = new Set(["openid", "profile", "email", "full_name_cyrillic", "full_name_latin"]);
+const primaryScopes = new Set(["openid", "profile", "email", "full_name_cyrillic", "full_name_latin", "picture"]);
 
 type AccountIconName =
   | "apps"
@@ -214,9 +215,7 @@ function ProfileSummary({ user }: { user: User }) {
       </div>
 
       <div className="account-profile-hero">
-        <div className="account-avatar account-profile-avatar" aria-hidden="true">
-          {initials(user)}
-        </div>
+        <AccountUserAvatar user={user} />
         <div className="account-profile-identity">
           <h3>{userName(user)}</h3>
           <p>{user.email}</p>
@@ -574,6 +573,19 @@ function EmptyLine({ text }: { text: string }) {
   return <p className="account-empty-line">{text}</p>;
 }
 
+function AccountUserAvatar({ user }: { user: User }) {
+  return (
+    <div className="account-avatar account-profile-avatar" aria-hidden="true">
+      {user.profile_picture_url ? (
+        // eslint-disable-next-line @next/next/no-img-element -- user-provided profile photo URL from ODS account data
+        <img alt="" src={user.profile_picture_url} />
+      ) : (
+        initials(user)
+      )}
+    </div>
+  );
+}
+
 function userName(user: User): string {
   return explicitName(user) || user.email.split("@")[0];
 }
@@ -631,6 +643,7 @@ function scopeLabel(scope: string): string {
     offline_access: "Долгий доступ",
     openid: "Уникальный ID",
     phone: "Телефон",
+    picture: "Фото профиля",
     profile: "Профиль",
   };
   return labels[scope] || scope;

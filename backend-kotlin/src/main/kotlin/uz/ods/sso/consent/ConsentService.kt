@@ -118,6 +118,11 @@ class ConsentService(
                 "ФИО на латинице",
                 listOf("Транслитерация полного имени латиницей"),
             )
+            OdsOidcScopes.PICTURE -> optionalField(
+                scope,
+                "Фото профиля",
+                listOf("URL фотографии профиля"),
+            )
             "offline_access" -> optionalField(
                 scope,
                 "Долгая сессия",

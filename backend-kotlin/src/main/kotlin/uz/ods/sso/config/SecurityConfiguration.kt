@@ -89,6 +89,7 @@ private val DISCOVERY_SCOPES = listOf(
     OidcScopes.PHONE,
     OdsOidcScopes.FULL_NAME_CYRILLIC,
     OdsOidcScopes.FULL_NAME_LATIN,
+    OdsOidcScopes.PICTURE,
     "offline_access",
 )
 
@@ -355,12 +356,16 @@ class SecurityConfiguration(
                 val profileName = user.name
                 val fullNameCyrillic = user.fullNameCyrillic
                 val fullNameLatin = user.fullNameLatin
+                val profilePictureUrl = user.profilePictureUrl
                 if (OidcScopes.PROFILE in scopes && profileName != null) context.claims.claim("name", profileName)
                 if (OdsOidcScopes.FULL_NAME_CYRILLIC in scopes && fullNameCyrillic != null) {
                     context.claims.claim(OdsOidcScopes.FULL_NAME_CYRILLIC, fullNameCyrillic)
                 }
                 if (OdsOidcScopes.FULL_NAME_LATIN in scopes && fullNameLatin != null) {
                     context.claims.claim(OdsOidcScopes.FULL_NAME_LATIN, fullNameLatin)
+                }
+                if (OdsOidcScopes.PICTURE in scopes && profilePictureUrl != null) {
+                    context.claims.claim(OdsOidcScopes.PICTURE, profilePictureUrl)
                 }
                 val partnerApplication = partnerApplications.findByRegisteredClientId(context.registeredClient.id)
                 if (partnerApplication != null) {

@@ -43,8 +43,8 @@ data class PartnerApplicationCreate(
     val redirectUris: List<String>,
     @field:Size(max = 10)
     val postLogoutRedirectUris: List<String> = emptyList(),
-    @field:Size(min = 1, max = 5)
-    val scopes: List<String> = listOf("openid", "profile", "email"),
+    @field:Size(min = 1, max = 8)
+    val scopes: List<String> = listOf("openid", "profile", "email", "picture"),
     @field:Pattern(regexp = "^(public|confidential)$")
     val clientType: String = "confidential",
     @field:Pattern(regexp = "^(none|client_secret_basic|client_secret_post)$")
@@ -63,7 +63,7 @@ data class PartnerApplicationUpdate(
     val redirectUris: List<String>? = null,
     @field:Size(max = 10)
     val postLogoutRedirectUris: List<String>? = null,
-    @field:Size(min = 1, max = 5)
+    @field:Size(min = 1, max = 8)
     val scopes: List<String>? = null,
     @field:Pattern(regexp = "^(public|confidential)$")
     val clientType: String? = null,
