@@ -118,7 +118,7 @@ function RegisterForm() {
               type="text"
               inputMode="numeric"
               autoComplete="one-time-code"
-              pattern="\\d{6}"
+              pattern="\d{6}"
               maxLength={6}
               required
               value={code}
