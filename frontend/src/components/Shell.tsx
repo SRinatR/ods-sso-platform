@@ -141,7 +141,7 @@ function ProductNavigation({ product }: { product: Product }) {
     <nav className="account-nav">
       {accountItems.map((item) => (
         <Link
-          className={pathname === item.path ? "active" : undefined}
+          className={pathname === item.path || pathname.startsWith(`${item.path}/`) ? "active" : undefined}
           href={item.href}
           key={item.label}
         >

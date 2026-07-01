@@ -299,9 +299,9 @@ export default function ProfileEditPage() {
                     Назад: ФИО
                   </button>
                 ) : (
-                  <Link href={`${ACCOUNTS_URL}/profile`}>
+                  <Link href={`${ACCOUNTS_URL}/profile/sections`}>
                     <EditIcon name="back" />
-                    Назад к профилю
+                    Назад к разделам
                   </Link>
                 )}
                 {section === "name" ? (
