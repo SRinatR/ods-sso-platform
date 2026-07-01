@@ -287,7 +287,13 @@ function ProfileDataSections({
 
   return (
     <section className="account-card profile-data-card">
-      <h2>Данные профиля</h2>
+      <div className="profile-card-header-line">
+        <h2>Данные профиля</h2>
+        <Link href={`${ACCOUNTS_URL}/profile/sections`}>
+          Все разделы
+          <ProfileIcon name="arrow" />
+        </Link>
+      </div>
       <div className="profile-data-list">
         {rows.map((row) => (
           <Link className="profile-data-row" href={row.href} key={row.title}>
