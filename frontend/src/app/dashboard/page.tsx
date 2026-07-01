@@ -146,7 +146,7 @@ export default function DashboardPage() {
         <div className="account-dashboard account-dashboard-v2">
           <section className="account-dashboard-hero">
             <ProfileSummary user={user} />
-            <SecuritySummary user={user} history={data.history} />
+            <SecuritySummary user={user} />
             <LastConsentSummary apps={data.apps} />
           </section>
 
@@ -244,8 +244,7 @@ function ProfileSummary({ user }: { user: User }) {
   );
 }
 
-function SecuritySummary({ user, history }: { user: User; history: Login[] }) {
-  const lastLogin = history.find((item) => item.success);
+function SecuritySummary({ user }: { user: User }) {
   const checks = [
     { label: "Email подтвержден", value: user.email_verified ? "Да" : "Нет", ok: user.email_verified },
     { label: "MFA включена", value: user.mfa_enabled ? "Да" : "Не настроена", ok: user.mfa_enabled },
@@ -283,11 +282,6 @@ function SecuritySummary({ user, history }: { user: User; history: Login[] }) {
               <strong>{item.value}</strong>
             </div>
           ))}
-          <InfoLine
-            icon="clock"
-            label={lastLogin ? `Последний вход: ${formatDateTime(lastLogin.created_at)}` : "Успешных входов в журнале нет"}
-            tone="muted"
-          />
         </div>
       </div>
       <Link className="account-inline-link" href={`${ACCOUNTS_URL}/security`}>
