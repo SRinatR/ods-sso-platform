@@ -16,6 +16,7 @@ type User = {
   first_name_latin?: string;
   last_name_latin?: string;
   patronymic_latin?: string;
+  profile_picture_url?: string;
   phone?: string;
   email_verified: boolean;
   status: string;
@@ -145,9 +146,7 @@ export default function ProfilePage() {
 function ProfileHero({ user }: { user: User }) {
   return (
     <section className="account-card profile-hero-card">
-      <div className="profile-avatar-preview profile-hero-avatar" aria-hidden="true">
-        {initials(user)}
-      </div>
+      <ProfileAvatar user={user} className="profile-hero-avatar" />
       <div className="profile-hero-main">
         <div className="profile-hero-title">
           <div>
@@ -471,6 +470,19 @@ function fraction(values: Array<string | boolean | undefined | null>): string {
   const total = values.length;
   const complete = values.filter((value) => Boolean(typeof value === "string" ? value.trim() : value)).length;
   return `${complete}/${total}`;
+}
+
+function ProfileAvatar({ user, className }: { user: User; className: string }) {
+  return (
+    <div className={`profile-avatar-preview ${className}`} aria-hidden="true">
+      {user.profile_picture_url ? (
+        // eslint-disable-next-line @next/next/no-img-element -- user-provided profile photo URL from ODS account data
+        <img alt="" src={user.profile_picture_url} />
+      ) : (
+        initials(user)
+      )}
+    </div>
+  );
 }
 
 function userName(user: User): string {

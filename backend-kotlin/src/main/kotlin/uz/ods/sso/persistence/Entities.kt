@@ -137,6 +137,8 @@ class UserEntity(
     var fullNameCyrillic: String? = null,
     @Column(length = 255)
     var fullNameLatin: String? = null,
+    @Column(name = "profile_picture_url", length = 1000)
+    var profilePictureUrl: String? = null,
     @Column(length = 32)
     var phone: String? = null,
     var emailVerifiedAt: Instant? = null,

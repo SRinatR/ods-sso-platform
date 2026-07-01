@@ -115,6 +115,7 @@ class PilotFlowIntegrationTest {
                             "profile",
                             "full_name_cyrillic",
                             "full_name_latin",
+                            "picture",
                         ),
                     ),
             )

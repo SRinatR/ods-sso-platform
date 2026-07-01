@@ -16,6 +16,7 @@ type User = {
   first_name_latin?: string;
   last_name_latin?: string;
   patronymic_latin?: string;
+  profile_picture_url?: string;
   phone?: string;
   email_verified: boolean;
   status: string;
@@ -212,9 +213,7 @@ export default function ProfileSectionsPage() {
 function ProfileSectionsHero({ user }: { user: User }) {
   return (
     <section className="account-card profile-sections-hero">
-      <div className="profile-avatar-preview profile-sections-avatar" aria-hidden="true">
-        {initials(user)}
-      </div>
+      <ProfileSectionAvatar user={user} />
       <div>
         <h2>{userName(user)}</h2>
         <p>{user.email}</p>
@@ -367,6 +366,19 @@ function progressFraction(values: Array<string | boolean | undefined | null>): {
     label: `${complete}/${total}`,
     percent: Math.round((complete / total) * 100),
   };
+}
+
+function ProfileSectionAvatar({ user }: { user: User }) {
+  return (
+    <div className="profile-avatar-preview profile-sections-avatar" aria-hidden="true">
+      {user.profile_picture_url ? (
+        // eslint-disable-next-line @next/next/no-img-element -- user-provided profile photo URL from ODS account data
+        <img alt="" src={user.profile_picture_url} />
+      ) : (
+        initials(user)
+      )}
+    </div>
+  );
 }
 
 function userName(user: User): string {

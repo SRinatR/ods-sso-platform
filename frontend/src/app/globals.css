@@ -691,6 +691,7 @@ th {
   background: #eaf2ff;
   color: #2563eb;
   font-weight: 700;
+  overflow: hidden;
 }
 
 .consent-content {
@@ -1637,6 +1638,7 @@ th {
   color: #ffffff;
   font-size: 1.8rem;
   font-weight: 850;
+  overflow: hidden;
 }
 
 .account-profile-main {
@@ -2847,6 +2849,15 @@ th {
   color: #ffffff;
   font-size: 2.1rem;
   font-weight: 850;
+  overflow: hidden;
+}
+
+.profile-avatar-preview img,
+.account-avatar img,
+.consent-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .profile-avatar-preview button {

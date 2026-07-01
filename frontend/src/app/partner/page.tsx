@@ -114,7 +114,7 @@ const emptyApplication: ApplicationForm = {
   description: "",
   redirectUris: "",
   postLogoutRedirectUris: "",
-  scopes: ["openid", "profile", "email", "full_name_cyrillic", "full_name_latin"],
+  scopes: ["openid", "profile", "email", "full_name_cyrillic", "full_name_latin", "picture"],
   clientType: "confidential",
   tokenEndpointAuthMethod: "client_secret_basic",
   logoUri: "",
@@ -127,6 +127,7 @@ const scopeLabels: Record<string, string> = {
   email: "Email и статус подтверждения",
   full_name_cyrillic: "ФИО на кириллице",
   full_name_latin: "ФИО на латинице",
+  picture: "Фото профиля",
   phone: "Номер телефона",
   offline_access: "Refresh token для долгой сессии",
 };

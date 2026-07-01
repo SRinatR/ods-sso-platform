@@ -263,7 +263,7 @@ class OAuthClientProvisioningService(
         AppException(HttpStatus.UNPROCESSABLE_CONTENT, "validation_error", message)
 
     companion object {
-        val DEFAULT_SCOPES = listOf(OidcScopes.OPENID, OidcScopes.PROFILE, OidcScopes.EMAIL)
+        val DEFAULT_SCOPES = listOf(OidcScopes.OPENID, OidcScopes.PROFILE, OidcScopes.EMAIL, OdsOidcScopes.PICTURE)
         val ALLOWED_SCOPES = setOf(
             OidcScopes.OPENID,
             OidcScopes.PROFILE,
@@ -271,6 +271,7 @@ class OAuthClientProvisioningService(
             OidcScopes.PHONE,
             OdsOidcScopes.FULL_NAME_CYRILLIC,
             OdsOidcScopes.FULL_NAME_LATIN,
+            OdsOidcScopes.PICTURE,
             "offline_access",
         )
         val CONFIDENTIAL_AUTH_METHODS = setOf("client_secret_basic", "client_secret_post")

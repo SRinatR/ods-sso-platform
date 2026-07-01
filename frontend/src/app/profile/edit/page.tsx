@@ -16,6 +16,7 @@ type User = {
   first_name_latin?: string;
   last_name_latin?: string;
   patronymic_latin?: string;
+  profile_picture_url?: string;
   phone?: string;
   email_verified: boolean;
   status: string;
@@ -40,6 +41,7 @@ type ProfileForm = {
   latinFirst: string;
   latinLast: string;
   latinPatronymic: string;
+  profilePictureUrl: string;
   phone: string;
 };
 
@@ -68,6 +70,7 @@ const emptyForm: ProfileForm = {
   latinFirst: "",
   latinLast: "",
   latinPatronymic: "",
+  profilePictureUrl: "",
   phone: "",
 };
 
@@ -138,6 +141,7 @@ export default function ProfileEditPage() {
           first_name_latin: form.latinFirst.trim(),
           last_name_latin: form.latinLast.trim(),
           patronymic_latin: form.latinPatronymic.trim() || null,
+          profile_picture_url: form.profilePictureUrl.trim() || null,
           phone: form.phone.trim(),
         }),
       });
@@ -338,9 +342,7 @@ export default function ProfileEditPage() {
 function ProfileEditHero({ user }: { user: User }) {
   return (
     <section className="profile-edit-card profile-edit-hero">
-      <div className="profile-avatar-preview profile-edit-avatar" aria-hidden="true">
-        {initials(user)}
-      </div>
+      <ProfileEditAvatar user={user} />
       <div>
         <h2>{userName(user)}</h2>
         <p>{user.email}</p>
@@ -462,6 +464,18 @@ function ContactFields({
         <label>
           Email
           <input autoComplete="email" name="email" value={email} disabled />
+        </label>
+        <label>
+          Фото профиля
+          <input
+            autoComplete="url"
+            maxLength={1000}
+            name="profilePictureUrl"
+            placeholder="https://example.com/avatar.jpg"
+            type="url"
+            value={form.profilePictureUrl}
+            onChange={(event) => onChange({ profilePictureUrl: event.target.value })}
+          />
         </label>
       </div>
     </fieldset>
@@ -614,6 +628,7 @@ function formFromUser(user: User): ProfileForm {
     latinFirst: user.first_name_latin || "",
     latinLast: user.last_name_latin || "",
     latinPatronymic: user.patronymic_latin || "",
+    profilePictureUrl: user.profile_picture_url || "",
     phone: user.phone || "",
   };
 }
@@ -639,6 +654,7 @@ function sameForm(left: ProfileForm, right: ProfileForm): boolean {
     left.latinFirst === right.latinFirst &&
     left.latinLast === right.latinLast &&
     left.latinPatronymic === right.latinPatronymic &&
+    left.profilePictureUrl === right.profilePictureUrl &&
     left.phone === right.phone
   );
 }
@@ -689,6 +705,19 @@ function initials(user: User): string {
     .join("");
   if (explicit) return explicit.toUpperCase();
   return "ID";
+}
+
+function ProfileEditAvatar({ user }: { user: User }) {
+  return (
+    <div className="profile-avatar-preview profile-edit-avatar" aria-hidden="true">
+      {user.profile_picture_url ? (
+        // eslint-disable-next-line @next/next/no-img-element -- user-provided profile photo URL from ODS account data
+        <img alt="" src={user.profile_picture_url} />
+      ) : (
+        initials(user)
+      )}
+    </div>
+  );
 }
 
 function EditIcon({ name }: { name: EditIconName }) {

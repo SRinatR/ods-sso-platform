@@ -72,6 +72,7 @@ class PostgreSqlMigrationTest {
                 "first_name_latin",
                 "last_name_latin",
                 "patronymic_latin",
+                "profile_picture_url",
             )
 
             connection.createStatement().use { statement ->
@@ -160,12 +161,14 @@ class PostgreSqlMigrationTest {
                 statement.executeQuery().use { result ->
                     assertThat(result.next()).isTrue()
                     assertThat(result.getString("client_id")).isEqualTo("cli_legacy")
-                    assertThat(result.getString("scopes")).isEqualTo("openid,email,full_name_cyrillic,full_name_latin")
+                    assertThat(result.getString("scopes")).isEqualTo(
+                        "openid,email,full_name_cyrillic,full_name_latin,picture",
+                    )
 
                     assertThat(result.next()).isTrue()
                     assertThat(result.getString("client_id")).isEqualTo("cli_scoped")
                     assertThat(result.getString("scopes")).isEqualTo(
-                        "openid,profile,email,full_name_cyrillic,full_name_latin",
+                        "openid,profile,email,full_name_cyrillic,full_name_latin,picture",
                     )
 
                     assertThat(result.next()).isFalse()

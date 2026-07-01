@@ -62,6 +62,7 @@ data class UserResponse(
     val patronymicLatin: String?,
     val fullNameCyrillic: String?,
     val fullNameLatin: String?,
+    val profilePictureUrl: String? = null,
     val phone: String?,
     val emailVerified: Boolean,
     val status: String,
@@ -78,6 +79,7 @@ data class ProfileUpdateRequest(
     @field:Size(max = 80) val firstNameLatin: String?,
     @field:Size(max = 80) val lastNameLatin: String?,
     @field:Size(max = 80) val patronymicLatin: String?,
+    @field:Size(max = 1000) val profilePictureUrl: String? = null,
     @field:Size(max = 32) val phone: String?,
 )
 

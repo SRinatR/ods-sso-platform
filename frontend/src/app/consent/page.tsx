@@ -28,6 +28,7 @@ type CurrentUser = {
   name?: string | null;
   first_name_cyrillic?: string | null;
   last_name_cyrillic?: string | null;
+  profile_picture_url?: string | null;
 };
 
 type ConsentTheme = "dark" | "light";
@@ -42,6 +43,7 @@ type ConsentIconName =
   | "headset"
   | "help"
   | "id"
+  | "image"
   | "lock"
   | "mail"
   | "phone"
@@ -91,6 +93,12 @@ const scopeMeta: Record<
     icon: "☎",
     tone: "purple",
   },
+  picture: {
+    title: "Фото профиля",
+    subtitle: "URL фотографии профиля",
+    icon: "▣",
+    tone: "blue",
+  },
   offline_access: {
     title: "Долгая сессия",
     subtitle: "Обновление доступа без повторного входа",
@@ -111,6 +119,19 @@ function initials(user: CurrentUser | null) {
   return (user.email.trim()[0] || "").toUpperCase();
 }
 
+function ConsentAvatar({ user }: { user: CurrentUser }) {
+  return (
+    <span className="consent-avatar">
+      {user.profile_picture_url ? (
+        // eslint-disable-next-line @next/next/no-img-element -- user-provided profile photo URL from ODS account data
+        <img alt="" src={user.profile_picture_url} />
+      ) : (
+        initials(user)
+      )}
+    </span>
+  );
+}
+
 function scopeTitle(item: Consent["data_fields"][number]) {
   return scopeMeta[item.scope]?.title ?? item.label;
 }
@@ -129,6 +150,7 @@ function scopeIconName(item: Consent["data_fields"][number]): ConsentIconName {
   if (scopeName.includes("role") || scopeName.includes("group")) return "users";
   if (scopeName.includes("locale") || scopeName.includes("language")) return "globe";
   if (scopeName.includes("phone")) return "phone";
+  if (scopeName.includes("picture") || scopeName.includes("photo")) return "image";
   if (scopeName.includes("email")) return "mail";
   if (scopeName.includes("offline") || scopeName.includes("refresh")) return "refresh";
   if (scopeName.includes("name")) return "type";
@@ -241,7 +263,7 @@ function ConsentContent() {
             </button>
             {user ? (
               <div className="consent-user">
-                <span className="consent-avatar">{initials(user)}</span>
+                <ConsentAvatar user={user} />
                 <div>
                   {user.name ? <strong>{user.name}</strong> : null}
                   <span>{user.email}</span>
@@ -664,6 +686,13 @@ function ConsentIcon({ name }: { name: ConsentIconName }) {
         <>
           <rect x="4" y="5" width="16" height="14" rx="2" />
           <path d="M8 10h4M8 14h8" />
+        </>
+      ) : null}
+      {name === "image" ? (
+        <>
+          <rect x="4" y="5" width="16" height="14" rx="2" />
+          <circle cx="9" cy="10" r="1.5" />
+          <path d="m5 17 4.5-4.5 3.2 3.2 2.1-2.1L19 18" />
         </>
       ) : null}
       {name === "lock" ? (
